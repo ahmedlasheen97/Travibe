@@ -54,3 +54,4 @@ build/
 # Firebase config
 GoogleService-Info.plist
 google-services.json
+lib/firebase_options.dart
