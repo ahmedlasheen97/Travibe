@@ -31,8 +31,8 @@
 
 ## API and authentication
 - Flow: screen → Cubit → repository → ApiService → DioClient → backend.
-- Base URL: `https://travibeapp.com/api/v1/`; contracts in `docs/openapi.json`,
-  `docs/chat-openapi.json`, and `API_REFERENCE.md`.
+- Base URL: `https://travibeapp.com/api/v1/`; contracts in `docs/openapi.json`
+  (the only API spec) and `API_REFERENCE.md`.
 - ApiService wraps GET/POST/PUT/PATCH/DELETE; DioClient adds the Bearer token and
   cancels requests tagged with a stale `PreferencesManager.sessionRevision`.
 - ApiExceptions maps Dio failures and validation messages into ApiError.

@@ -3,7 +3,7 @@ import 'chat_models.dart';
 import 'chat_repository.dart';
 import 'chat_resource_parsers.dart';
 
-/// Verified against docs/chat-openapi.json downloaded from authorized docs.
+/// Verified against docs/openapi.json downloaded from authorized docs.
 class LaravelConversationContract implements ChatWireContract {
   const LaravelConversationContract();
   @override

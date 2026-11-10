@@ -1,8 +1,12 @@
 # Travibe API reference
 
 ## Source and validation
-- Source: [docs/openapi.json](docs/openapi.json), OpenAPI `3.1.0`, API `1.0.0`; reviewed 2026-10-13.
-- Local structural checks passed: valid JSON, 53 paths, 65 operations, 30 schemas;
+- Current spec: [docs/openapi.json](docs/openapi.json) — the only API spec in the repo,
+  downloaded 2026-11-10 from `https://travibeapp.com/docs/api.json` (93 paths,
+  115 operations, 57 schemas, includes Chat). It replaces the former
+  `docs/chat-openapi.json` and `travibe-api.json` snapshots.
+- The review below was made against the older 2026-10-13 snapshot of the same file.
+- Local structural checks passed on that snapshot: valid JSON, 53 paths, 65 operations, 30 schemas;
   all 208 `$ref` occurrences resolve, operation IDs are unique, path parameters
   are declared/required, and referenced security schemes exist.
 - This is structural and contract review, not full OpenAPI meta-schema validation

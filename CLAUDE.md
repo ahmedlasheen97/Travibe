@@ -77,8 +77,10 @@ presence and media upload (`core/media/media_upload_service.dart`).
 
 ## Reference material
 
-- `docs/openapi.json`, `docs/chat-openapi.json`, `travibe-api.json`, `API_REFERENCE.md`:
-  backend contracts — check these before adding or changing endpoints.
+API reference: docs/openapi.json (refresh with curl -u $TRAVIBE_DOCS_AUTH https://travibeapp.com/docs/api.json -o docs/openapi.json)
+
+- `docs/openapi.json` (the only API spec), `API_REFERENCE.md`: backend contracts —
+  check these before adding or changing endpoints.
 - `docs/*.md`: per-feature implementation/stage notes (e.g. `CHAT_*`, `STORIES_STAGE*`,
   `PROFILE_STAGE*`, `CURSOR_PAGINATION_MIGRATION.md`); read the relevant one before
   modifying that feature.
