@@ -1,0 +1,59 @@
+{
+  "checked_at_utc": "2026-11-08T15:16:29.766338+00:00",
+  "public_key": "e18855d51128bfdb7f62e5c6df983dfe",
+  "host_probe": {
+    "host": "travibeapp.com",
+    "port": 443,
+    "tls": {
+      "verified": true,
+      "certificate_expires_utc": "2027-01-12T06:33:14.000Z"
+    },
+    "literal": {
+      "upgrade": false,
+      "connection_acknowledged": false,
+      "failure_type": "WebSocketException"
+    },
+    "pusher_protocol": {
+      "upgrade": true,
+      "connection_acknowledged": true,
+      "activity_timeout_seconds": 30
+    },
+    "anonymous_auth_gate": {
+      "http_status": 401,
+      "positive_authorization_verified": false
+    },
+    "subscription_verified": false,
+    "message_delivery_verified": false
+  },
+  "iphone_17_probe": {
+    "host": "travibeapp.com",
+    "port": 443,
+    "tls": {
+      "verified": true,
+      "certificate_expires_utc": "2027-01-12T06:33:14.000Z"
+    },
+    "literal": {
+      "upgrade": false,
+      "connection_acknowledged": false,
+      "failure_type": "WebSocketException"
+    },
+    "pusher_protocol": {
+      "upgrade": true,
+      "connection_acknowledged": true,
+      "activity_timeout_seconds": 30
+    },
+    "anonymous_auth_gate": {
+      "http_status": 401,
+      "positive_authorization_verified": false
+    },
+    "subscription_verified": false,
+    "message_delivery_verified": false
+  },
+  "native_test_passed": true,
+  "native_test_debug_build_seconds": 46.7,
+  "normal_app_debug_build_seconds": 125.9,
+  "writes_executed": false,
+  "positive_account_authorization_verified": false,
+  "normal_app_binary_restored": true,
+  "normal_app_launched_after_test": false
+}
