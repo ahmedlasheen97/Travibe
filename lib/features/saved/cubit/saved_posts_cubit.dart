@@ -1,7 +1,6 @@
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -40,7 +39,6 @@ class SavedPostsCubit extends Cubit<SavedPostsState> {
     this.blocks,
     this.activity,
     this.likes,
-    this.shares,
   }) : repo = repo ?? saves.repo,
        super(SavedPostsState()) {
     _session = saves.session;
@@ -59,16 +57,14 @@ class SavedPostsCubit extends Cubit<SavedPostsState> {
   final BlockCubit? blocks;
   final PostActivityCubit? activity;
   final LikesCubit? likes;
-  final SharesCubit? shares;
-  ({int comments, int likes, int shares, int session}) _snapshot() => (
+  ({int comments, int likes, int session}) _snapshot() => (
     comments: activity?.revision ?? 0,
     likes: likes?.revision ?? 0,
-    shares: shares?.revision ?? 0,
     session: activity?.state.session ?? 0,
   );
   void _acceptInteractions(
     List<PostModel> posts,
-    ({int comments, int likes, int shares, int session}) snapshot,
+    ({int comments, int likes, int session}) snapshot,
   ) {
     activity?.accept(
       posts,
@@ -83,10 +79,6 @@ class SavedPostsCubit extends Cubit<SavedPostsState> {
             count: p.likesCount,
           ),
     }, requestRevision: snapshot.likes);
-    shares?.acceptCounts({
-      for (final p in posts)
-        if (p.hasShareCount) int.parse(p.id): p.sharesCount,
-    }, requestRevision: snapshot.shares);
   }
 
   late final StreamSubscription<SavesState> _saveSubscription;

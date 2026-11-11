@@ -68,7 +68,6 @@ void main() {
               text: 'Post',
               likes: '${value.count}',
               comments: '0',
-              shares: '0',
               isLiked: value.isLiked,
               isLikePending: value.pending,
               onLikeTap: () async {

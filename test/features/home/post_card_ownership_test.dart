@@ -70,7 +70,6 @@ void main() {
       text: 'Caption',
       likes: '0',
       comments: '0',
-      shares: '0',
       showFollowButton: true,
       isFollowing: following,
       isFollowPending: pending,

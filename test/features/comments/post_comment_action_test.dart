@@ -20,7 +20,6 @@ void main() {
               text: 'Post',
               likes: '1',
               comments: '7',
-              shares: '0',
               onCommentsTap: () => taps++,
             ),
           ),

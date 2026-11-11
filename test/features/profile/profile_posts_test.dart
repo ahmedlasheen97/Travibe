@@ -12,7 +12,6 @@ import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/saved/cubit/saved_posts_cubit.dart';
 import '../saved/fixtures.dart';
@@ -72,7 +71,6 @@ void main() {
   late PostActivityCubit activity;
   late PostsCubit posts;
   late LikesCubit likes;
-  late SharesCubit shares;
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     await PreferencesManager().init();
@@ -81,14 +79,12 @@ void main() {
     saves = SavesCubit(repo: repo);
     activity = PostActivityCubit();
     likes = LikesCubit();
-    shares = SharesCubit();
     posts = PostsCubit(
       userId: 23,
       postsRepo: repo,
       saves: saves,
       activity: activity,
       likes: likes,
-      shares: shares,
     );
   });
   tearDown(() async {
@@ -96,7 +92,6 @@ void main() {
     await saves.close();
     await activity.close();
     await likes.close();
-    await shares.close();
   });
   test(
     'author GET sends verified user_id/cursor/per_page and maps optional viewer state',
@@ -262,26 +257,21 @@ void main() {
       expect((posts.state as PostsLoaded).posts, hasLength(1));
     },
   );
-  test(
-    'shared Like, Share, Save and Comments reach the author cache',
-    () async {
-      await posts.loadPosts();
-      final revision = likes.revision;
-      likes.accept({
-        const LikeTarget.post(201): const LikeValue(isLiked: true, count: 8),
-      }, requestRevision: revision);
-      shares.acceptCounts({201: 6}, requestRevision: shares.revision);
-      activity.setCommentsCount('201', 9);
-      await saves.toggle(authorPost(201, 23));
-      await flushSaved();
-      final post = (posts.state as PostsLoaded).posts.single;
-      expect(post.isLiked, true);
-      expect(post.likesCount, 8);
-      expect(post.sharesCount, 6);
-      expect(post.commentsCount, 9);
-      expect(post.isSaved, true);
-    },
-  );
+  test('shared Like, Save and Comments reach the author cache', () async {
+    await posts.loadPosts();
+    final revision = likes.revision;
+    likes.accept({
+      const LikeTarget.post(201): const LikeValue(isLiked: true, count: 8),
+    }, requestRevision: revision);
+    activity.setCommentsCount('201', 9);
+    await saves.toggle(authorPost(201, 23));
+    await flushSaved();
+    final post = (posts.state as PostsLoaded).posts.single;
+    expect(post.isLiked, true);
+    expect(post.likesCount, 8);
+    expect(post.commentsCount, 9);
+    expect(post.isSaved, true);
+  });
   test(
     'comment snapshot cannot overwrite a newer mutation or fabricate missing counts',
     () async {
@@ -327,7 +317,6 @@ void main() {
         repo: repo,
         activity: activity,
         likes: likes,
-        shares: shares,
       );
       final views = [
         for (final author in [null, 23])
@@ -335,7 +324,6 @@ void main() {
             userId: author,
             postsRepo: repo,
             likes: likes,
-            shares: shares,
             saves: sharedSaves,
             activity: activity,
           ),
@@ -343,7 +331,6 @@ void main() {
           feed: FeedType.following,
           postsRepo: repo,
           likes: likes,
-          shares: shares,
           saves: sharedSaves,
           activity: activity,
         ),
@@ -356,14 +343,12 @@ void main() {
       likes.accept({
         const LikeTarget.post(201): const LikeValue(isLiked: true, count: 8),
       }, requestRevision: likes.revision);
-      shares.acceptCounts({201: 7}, requestRevision: shares.revision);
       await sharedSaves.toggle(authorPost(201, 23));
       await flushSaved();
       for (final view in views) {
         final post = (view.state as PostsLoaded).posts.single;
         expect(post.commentsCount, 10);
         expect(post.likesCount, 8);
-        expect(post.sharesCount, 7);
         expect(post.isSaved, false);
         await view.close();
       }
@@ -379,7 +364,6 @@ void main() {
     await posts.close();
     repo.authorReads.single.result.complete(authorPage(23, [201]));
     await pending;
-    expect(shares.state.posts, isEmpty);
     expect(activity.state.comments, isEmpty);
   });
 }

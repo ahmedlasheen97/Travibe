@@ -6,14 +6,16 @@ import 'package:travibe/core/theme/dark_colors.dart';
 class ActionIconButton extends StatelessWidget {
   final bool responsive;
   final String iconPath;
-  final String count;
+
+  /// Hidden when null.
+  final String? count;
   final VoidCallback? onTap;
   final bool preserveAssetColors;
 
   const ActionIconButton({
     super.key,
     required this.iconPath,
-    required this.count,
+    this.count,
     this.onTap,
     this.preserveAssetColors = false,
     this.responsive = false,
@@ -51,14 +53,16 @@ class ActionIconButton extends StatelessWidget {
                       BlendMode.srcIn,
                     ),
             ),
-            SizedBox(width: responsive ? AppSizes.adaptiveWidth(6) : 6),
-            Text(
-              count,
-              style: TextStyle(
-                color: DarkColors.whiteColor,
-                fontSize: responsive ? AppSizes.adaptiveFont(13) : 13,
+            if (count != null) ...[
+              SizedBox(width: responsive ? AppSizes.adaptiveWidth(6) : 6),
+              Text(
+                count!,
+                style: TextStyle(
+                  color: DarkColors.whiteColor,
+                  fontSize: responsive ? AppSizes.adaptiveFont(13) : 13,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

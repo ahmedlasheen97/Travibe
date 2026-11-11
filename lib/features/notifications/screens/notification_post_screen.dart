@@ -104,10 +104,7 @@ class _NotificationPostScreenState extends State<NotificationPostScreen> {
     if (!_active || _shareOpen) return;
     _shareOpen = true;
     try {
-      await SendPostSheet.show(
-        context,
-        postText: widget.content.post!.content ?? 'A post on Travibe.',
-      );
+      await SendPostSheet.show(context, post: widget.content.post!);
     } finally {
       _shareOpen = false;
     }
@@ -168,7 +165,6 @@ class _NotificationPostScreenState extends State<NotificationPostScreen> {
                         },
                   comments: formatCount(_commentCount ?? post.commentsCount),
                   onCommentsTap: _comments,
-                  shares: formatCount(post.sharesCount),
                   onShareTap: _share,
                   isSaved: _saves.state.values[post.id] ?? post.isSaved,
                   isSavePending: _saves.state.pending.contains(post.id),

@@ -11,7 +11,6 @@ import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 
 part 'posts_state.dart';
 
@@ -21,7 +20,6 @@ class PostsCubit extends Cubit<PostsState> {
     PostsRepo? postsRepo,
     this.feed = FeedType.explore,
     LikesCubit? likes,
-    this.shares,
     this.saves,
     this.userId,
     this.activity,
@@ -31,7 +29,6 @@ class PostsCubit extends Cubit<PostsState> {
        super(PostsInitial()) {
     _session.addListener(_sessionChanged);
     _likesSubscription = _likes.stream.listen((_) => _syncLikes());
-    _sharesSubscription = shares?.stream.listen((_) => _syncShares());
     _activitySubscription = activity?.stream.listen((_) => _syncActivity());
     _saveSession = saves?.session;
     _savesSubscription = saves?.stream.listen((value) {
@@ -50,7 +47,7 @@ class PostsCubit extends Cubit<PostsState> {
         emit(PostsInitial());
         if (userId == null && saves!.authenticated) unawaited(loadPosts());
       } else {
-        _syncShares(); // Reapply all shared interaction fields without changing pagination.
+        _syncSaves(); // Reapply saved state without changing pagination.
       }
     });
   }
@@ -104,30 +101,10 @@ class PostsCubit extends Cubit<PostsState> {
   final LikesCubit _likes;
   final bool _ownsLikes;
   late final StreamSubscription<LikesState> _likesSubscription;
-  final SharesCubit? shares;
-  StreamSubscription<SharesState>? _sharesSubscription;
-
-  PostModel _withShareCount(PostModel post) {
-    final id = int.tryParse(post.id);
-    final count = id == null ? null : shares?.post(id).count;
-    return count == null || (post.hasShareCount && post.sharesCount == count)
-        ? post
-        : post.copyWith(sharesCount: count, hasShareCount: true);
-  }
-
-  void _acceptShareCounts(List<PostModel> posts, int revision) =>
-      shares?.acceptCounts({
-        for (final post in posts)
-          if (post.hasShareCount && int.tryParse(post.id) != null)
-            int.parse(post.id): post.sharesCount,
-      }, requestRevision: revision);
-
-  void _syncShares() {
+  void _syncSaves() {
     if (isClosed || state is! PostsLoaded) return;
     final current = state as PostsLoaded;
-    final posts = current.posts
-        .map((p) => _withSavedState(_withShareCount(p)))
-        .toList();
+    final posts = current.posts.map(_withSavedState).toList();
     if (posts.indexed.every(
       (entry) => identical(entry.$2, current.posts[entry.$1]),
     )) {
@@ -301,9 +278,7 @@ class PostsCubit extends Cubit<PostsState> {
   List<PostModel> _visiblePosts(List<PostModel> posts) {
     final visible = <PostModel>[];
     for (var i = 0; i < posts.length; i++) {
-      final post = _withSavedState(
-        _withShareCount(_withLikeState(_withCommentCount(posts[i]))),
-      );
+      final post = _withSavedState(_withLikeState(_withCommentCount(posts[i])));
       if (_isBlockedPost(post)) continue;
       _postOrder.putIfAbsent(post.id, () => _postOrder.length);
       if (userId == null && _hiddenPostIds.contains(post.id)) {
@@ -351,7 +326,7 @@ class PostsCubit extends Cubit<PostsState> {
           );
           posts.insert(
             index < 0 ? posts.length : index,
-            _withShareCount(_withLikeState(_withCommentCount(removed.post))),
+            _withLikeState(_withCommentCount(removed.post)),
           );
         }
       }
@@ -414,7 +389,6 @@ class PostsCubit extends Cubit<PostsState> {
     final commentRevision = activity?.revision ?? _commentRevision;
     final activitySession = activity?.state.session ?? 0;
     final likeRevision = _likes.revision;
-    final shareRevision = shares?.revision ?? 0;
     final saveRevision = saves?.revision ?? 0;
     final saveSession = saves?.session ?? 0;
     try {
@@ -433,7 +407,6 @@ class PostsCubit extends Cubit<PostsState> {
       );
       _acceptCommentCounts(page.posts, commentRevision);
       _acceptLikes(page.posts, likeRevision);
-      _acceptShareCounts(page.posts, shareRevision);
       saves?.accept(
         page.posts,
         requestRevision: saveRevision,
@@ -500,7 +473,6 @@ class PostsCubit extends Cubit<PostsState> {
     final commentRevision = activity?.revision ?? _commentRevision;
     final activitySession = activity?.state.session ?? 0;
     final likeRevision = _likes.revision;
-    final shareRevision = shares?.revision ?? 0;
     final saveRevision = saves?.revision ?? 0;
     final saveSession = saves?.session ?? 0;
     try {
@@ -518,7 +490,6 @@ class PostsCubit extends Cubit<PostsState> {
       );
       _acceptCommentCounts(page.posts, commentRevision);
       _acceptLikes(page.posts, likeRevision);
-      _acceptShareCounts(page.posts, shareRevision);
       saves?.accept(
         page.posts,
         requestRevision: saveRevision,
@@ -569,7 +540,6 @@ class PostsCubit extends Cubit<PostsState> {
     ++_generation;
     _session.removeListener(_sessionChanged);
     await _likesSubscription.cancel();
-    await _sharesSubscription?.cancel();
     await _savesSubscription?.cancel();
     await _activitySubscription?.cancel();
     if (_ownsLikes) await _likes.close();

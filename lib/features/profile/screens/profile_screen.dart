@@ -5,7 +5,6 @@ import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_posts_scope.dart';
 import 'package:travibe/features/profile/widgets/profile_posts_sliver.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
@@ -79,7 +78,6 @@ class ProfileScreen extends StatelessWidget {
     final saves = context.read<SavesCubit?>();
     final savedPosts = context.read<SavedPostsCubit?>();
     final likes = context.read<LikesCubit?>();
-    final shares = context.read<SharesCubit?>();
     final activity = context.read<PostActivityCubit?>();
     final hidden = context.read<HiddenPostsCubit?>();
     return navigator
@@ -100,7 +98,6 @@ class ProfileScreen extends StatelessWidget {
                   saves == null &&
                   savedPosts == null &&
                   likes == null &&
-                  shares == null &&
                   activity == null &&
                   hidden == null) {
                 return screen;
@@ -111,7 +108,6 @@ class ProfileScreen extends StatelessWidget {
                   if (saves != null) BlocProvider.value(value: saves),
                   if (savedPosts != null) BlocProvider.value(value: savedPosts),
                   if (likes != null) BlocProvider.value(value: likes),
-                  if (shares != null) BlocProvider.value(value: shares),
                   if (activity != null) BlocProvider.value(value: activity),
                   if (hidden != null) BlocProvider.value(value: hidden),
                   if (follow != null) BlocProvider.value(value: follow),
@@ -156,7 +152,6 @@ class ProfileScreen extends StatelessWidget {
                 blocks: context.read<BlockCubit?>(),
                 activity: context.read<PostActivityCubit>(),
                 likes: context.read<LikesCubit>(),
-                shares: context.read<SharesCubit>(),
               ),
               child: profile,
             );
@@ -164,7 +159,6 @@ class ProfileScreen extends StatelessWidget {
 
     if (context.read<SavesCubit?>() != null &&
         context.read<LikesCubit?>() != null &&
-        context.read<SharesCubit?>() != null &&
         context.read<PostActivityCubit?>() != null &&
         context.read<HiddenPostsCubit?>() != null) {
       return withSaved(context);
@@ -175,8 +169,6 @@ class ProfileScreen extends StatelessWidget {
           BlocProvider(create: (_) => SavesCubit(repo: postsRepo)),
         if (context.read<LikesCubit?>() == null)
           BlocProvider(create: (_) => LikesCubit()),
-        if (context.read<SharesCubit?>() == null)
-          BlocProvider(create: (_) => SharesCubit()),
         if (context.read<PostActivityCubit?>() == null)
           BlocProvider(create: (_) => PostActivityCubit()),
         if (context.read<HiddenPostsCubit?>() == null)

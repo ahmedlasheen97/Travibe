@@ -156,25 +156,11 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
                 if (mounted) setState(() => _comments[post.id] = count);
               },
             ),
-            shares: formatCount(post.sharesCount),
             onShareTap: () async {
               if (_openingShare) return;
-              if (post.visibility != 'public') {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Only public posts can be shared.'),
-                  ),
-                );
-                return;
-              }
               _openingShare = true;
               try {
-                await SendPostSheet.show(
-                  context,
-                  postText: post.content?.trim().isNotEmpty == true
-                      ? post.content!
-                      : 'A post on Travibe.',
-                );
+                await SendPostSheet.show(context, post: post);
               } finally {
                 _openingShare = false;
               }

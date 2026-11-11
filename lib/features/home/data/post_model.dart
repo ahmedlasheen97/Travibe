@@ -84,8 +84,6 @@ class PostModel {
   final int likesCount;
   final int commentsCount;
   final bool hasCommentCount;
-  final int sharesCount;
-  final bool hasShareCount;
   final bool isPinned;
   final bool commentsDisabled;
   final PostModel? originalPost;
@@ -109,8 +107,6 @@ class PostModel {
     required this.likesCount,
     required this.commentsCount,
     this.hasCommentCount = true,
-    required this.sharesCount,
-    this.hasShareCount = true,
     required this.isPinned,
     required this.commentsDisabled,
     this.originalPost,
@@ -126,7 +122,6 @@ class PostModel {
   factory PostModel.fromJson(Map<String, dynamic> json) {
     final originalPostJson = json['original_post'];
     final mediaJson = json['media'];
-    final sharesCount = parseInt(json['shares_count']);
 
     return PostModel(
       id: json['id']?.toString() ?? '',
@@ -148,9 +143,6 @@ class PostModel {
       commentsCount: parseInt(json['comments_count']),
       hasCommentCount:
           json['comments_count'] is int && (json['comments_count'] as int) >= 0,
-      sharesCount: sharesCount < 0 ? 0 : sharesCount,
-      hasShareCount:
-          json['shares_count'] is int && (json['shares_count'] as int) >= 0,
       isPinned: parseBool(json['is_pinned']),
       commentsDisabled: parseBool(json['comments_disabled']),
       originalPost: originalPostJson is Map
@@ -178,8 +170,6 @@ class PostModel {
     int? commentsCount,
     bool? hasCommentCount,
     bool? hasLikeState,
-    int? sharesCount,
-    bool? hasShareCount,
   }) {
     return PostModel(
       id: id,
@@ -192,8 +182,6 @@ class PostModel {
       likesCount: likesCount ?? this.likesCount,
       commentsCount: commentsCount ?? this.commentsCount,
       hasCommentCount: hasCommentCount ?? this.hasCommentCount,
-      sharesCount: sharesCount ?? this.sharesCount,
-      hasShareCount: hasShareCount ?? this.hasShareCount,
       isPinned: isPinned,
       commentsDisabled: commentsDisabled,
       originalPost: originalPost,

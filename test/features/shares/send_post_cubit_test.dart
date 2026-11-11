@@ -1,15 +1,22 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/shares/cubit/send_post_cubit.dart';
-import 'fixtures.dart';
+import 'package:travibe/features/shares/data/share_post_messenger.dart';
 import 'send_post_fixtures.dart';
 
 void main() {
   late SendPeopleRepo repo;
+  late RecordingChatRepository chat;
   late SendPostCubit cubit;
   setUp(() {
     repo = SendPeopleRepo();
-    cubit = SendPostCubit(repo: repo);
+    chat = RecordingChatRepository();
+    cubit = SendPostCubit(
+      post: sharedPost(),
+      repo: repo,
+      messenger: SharePostMessenger(chat: chat),
+    );
   });
   tearDown(() => cubit.close());
 
@@ -104,7 +111,63 @@ void main() {
     await cubit.close();
     repo.calls.single.result.complete(peoplePage([person('2')]));
     await load;
-    await flushShares();
+    await Future<void>.delayed(Duration.zero);
     expect(cubit.isClosed, isTrue);
   });
+
+  test('toggle selects several people and unselects on second tap', () async {
+    await cubit.load();
+    cubit.toggle(person('2'));
+    cubit.toggle(person('3'));
+    expect(cubit.state.selected.map((u) => u.id), ['2', '3']);
+    cubit.toggle(person('2'));
+    expect(cubit.state.selected.map((u) => u.id), ['3']);
+    expect(cubit.state.isSelected('2'), isFalse);
+  });
+
+  testWidgets('selection survives searches and stays visible', (tester) async {
+    await tester.runAsync(cubit.load);
+    cubit.toggle(person('2'));
+    repo.result = peoplePage([person('9')]);
+    cubit.search('alice');
+    await tester.pump(const Duration(milliseconds: 301));
+    await tester.pump();
+    expect(cubit.state.users.map((u) => u.id), ['9']);
+    expect(cubit.state.selected.map((u) => u.id), ['2']);
+    expect(cubit.state.visibleUsers.map((u) => u.id), ['2', '9']);
+  });
+
+  test('send keeps only failed people selected with their errors', () async {
+    await cubit.load();
+    cubit.toggle(person('2'));
+    cubit.toggle(person('3'));
+    chat.failures['3'] = ApiError(message: 'Blocked', statusCode: 403);
+    final sent = await cubit.send('hi');
+    expect(sent!.map((u) => u.id), ['2']);
+    expect(cubit.state.sending, isFalse);
+    expect(cubit.state.selected.map((u) => u.id), ['3']);
+    expect(cubit.state.failures, {'3': "You can't message Traveller 3."});
+    chat.failures.clear();
+    final retry = await cubit.send('hi');
+    expect(retry!.map((u) => u.id), ['3']);
+    expect(cubit.state.selected, isEmpty);
+    expect(cubit.state.failures, isEmpty);
+    expect(chat.created, ['2', '3', '3']);
+  });
+
+  test(
+    'send ignores empty selection and duplicate taps; toggle locked while sending',
+    () async {
+      expect(await cubit.send(''), isNull);
+      cubit.toggle(person('2'));
+      chat.gate = Completer<void>();
+      final first = cubit.send('');
+      expect(await cubit.send(''), isNull);
+      cubit.toggle(person('3'));
+      expect(cubit.state.selected.map((u) => u.id), ['2']);
+      chat.gate!.complete();
+      await first;
+      expect(chat.created, ['2']);
+    },
+  );
 }

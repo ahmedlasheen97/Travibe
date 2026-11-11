@@ -5,7 +5,6 @@ import 'dart:async';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/saved/cubit/saved_posts_cubit.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
@@ -102,10 +101,8 @@ class _RootState extends State<Root> {
     blocks: _blockCubit,
     activity: _activity,
     likes: _likes,
-    shares: _shares,
   );
   final _likes = LikesCubit();
-  final _shares = SharesCubit();
   final _activity = PostActivityCubit();
   late final _hidden = HiddenPostsCubit(
     repo: widget.postsRepo ?? PostsRepo(),
@@ -132,7 +129,6 @@ class _RootState extends State<Root> {
     _savedPosts.close();
     _saves.close();
     _likes.close();
-    _shares.close();
     _activity.close();
     _hidden.close();
     _blockCubit.close();
@@ -185,7 +181,6 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _saves),
         BlocProvider.value(value: _savedPosts),
         BlocProvider.value(value: _likes),
-        BlocProvider.value(value: _shares),
         BlocProvider.value(value: _activity),
         BlocProvider.value(value: _hidden),
         BlocProvider.value(value: _followCubit),

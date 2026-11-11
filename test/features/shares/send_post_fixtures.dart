@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/features/chats/data/chat_models.dart';
+import 'package:travibe/features/chats/data/chat_repository.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import 'package:travibe/features/shares/data/send_post_repo.dart';
 
@@ -41,4 +44,57 @@ class SendPeopleRepo extends SendPostRepo {
     if (error != null) throw error!;
     return result;
   }
+}
+
+PostModel sharedPost({
+  String? content = 'Sunset over Petra',
+  String visibility = 'public',
+}) => PostModel.fromJson({
+  'id': 10,
+  'user_id': 2,
+  'user': {'id': 2, 'name': 'Sara'},
+  'content': content,
+  'visibility': visibility,
+  'likes_count': 0,
+  'comments_count': 0,
+});
+
+/// Records `create` + `sendText`; [failures] keyed by participant ID.
+class RecordingChatRepository implements ChatRepository {
+  final created = <String>[];
+  final sent = <({String conversationId, String text})>[];
+  final failures = <String, Object>{};
+  Completer<void>? gate;
+
+  @override
+  ChatCapabilities get capabilities =>
+      const ChatCapabilities(create: true, sendText: true);
+
+  @override
+  Future<ChatConversation> create(String participantId) async {
+    created.add(participantId);
+    if (gate != null) await gate!.future;
+    final failure = failures[participantId];
+    if (failure != null) throw failure;
+    return ChatConversation(
+      id: 'c-$participantId',
+      participant: ChatParticipant(id: participantId, name: participantId),
+      canSend: true,
+    );
+  }
+
+  @override
+  Future<ChatMessage> sendText(String id, String text) async {
+    sent.add((conversationId: id, text: text));
+    return ChatMessage(
+      id: 'm-$id',
+      senderId: 'self',
+      kind: ChatMessageKind.text,
+      text: text,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
 }

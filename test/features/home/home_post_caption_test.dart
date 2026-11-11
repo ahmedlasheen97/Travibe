@@ -229,7 +229,6 @@ void main() {
               isLiked: id == 'b' && liked,
               likes: id == 'b' && liked ? '1' : '0',
               comments: '0',
-              shares: '0',
             ),
         ],
       );
@@ -340,7 +339,6 @@ void main() {
               : null,
           likes: '0',
           comments: '0',
-          shares: '0',
         ),
       );
       final gap = tester.getRect(
@@ -391,7 +389,6 @@ void main() {
           text: 'One\nTwo\nThree\nFour\nFive\nSix',
           likes: '0',
           comments: '0',
-          shares: '0',
           onLikeTap: () => actions[0]++,
           onCommentsTap: () => actions[1]++,
           onShareTap: () => actions[2]++,
@@ -437,7 +434,6 @@ void main() {
           text: 'Short caption',
           likes: '0',
           comments: '0',
-          shares: '0',
         ),
       );
       expect(find.byType(HomePostCaption), findsNothing);

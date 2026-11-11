@@ -16,7 +16,6 @@ Map<String, dynamic> savedPostJson(int id, {bool saved = true}) => {
   'is_liked': false,
   'likes_count': 2,
   'comments_count': 0,
-  'shares_count': 0,
 };
 PostModel savedPost(int id, {bool saved = true}) =>
     PostModel.fromJson(savedPostJson(id, saved: saved));

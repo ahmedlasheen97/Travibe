@@ -53,7 +53,6 @@ PostCard card({
   text: '',
   likes: '0',
   comments: '0',
-  shares: '0',
   showFollowButton: true,
   neutralFollowButton: neutral,
   isFollowing: following,
@@ -150,7 +149,6 @@ void main() {
         text: '',
         likes: '0',
         comments: '0',
-        shares: '0',
         showFollowButton: true,
       ),
     );

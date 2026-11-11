@@ -92,7 +92,6 @@ class ResponsivePosts extends PostsRepo {
             'visibility': 'public',
             'likes_count': 123456,
             'comments_count': 4567,
-            'shares_count': 6789,
             'media': [
               {'url': 'assets/images/onboarding/on1.png'},
             ],
@@ -415,7 +414,6 @@ void main() {
                         'A very long location that must wrap without horizontal overflow',
                     likes: '123.4K',
                     comments: '456.7K',
-                    shares: '789.0K',
                     onLikeTap: () => likes++,
                     onCommentsTap: () => comments++,
                     onShareTap: () => shares++,

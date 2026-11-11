@@ -166,7 +166,6 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
             if (mounted) posts.setCommentsCount(post.id, count);
           },
         ),
-        shares: formatCount(post.sharesCount),
         onShareTap: () => _share(post),
         isSaved: saves.values[post.id] ?? post.isSaved,
         isSavePending: saves.pending.contains(post.id),
@@ -195,17 +194,11 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   Future<void> _share(PostModel post) async {
     if (_openingShare) return;
-    if (post.visibility != 'public') {
-      _error(context, 'Only public posts can be shared.');
-      return;
-    }
     _openingShare = true;
     try {
       await SendPostSheet.show(
         context,
-        postText: post.content?.trim().isNotEmpty == true
-            ? post.content!
-            : 'A post on Travibe.',
+        post: post,
         repo: SendPostRepo(discovery: context.read<FollowCubit?>()?.repo),
       );
     } finally {

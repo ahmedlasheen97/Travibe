@@ -13,7 +13,6 @@ import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'profile_posts_fixtures.dart';
@@ -30,7 +29,6 @@ void main() {
   late SavesCubit saves;
   late PostActivityCubit activity;
   late LikesCubit likes;
-  late SharesCubit shares;
   late FollowCubit follow;
   late ProfileBlocks blocks;
   bool created = false;
@@ -47,7 +45,6 @@ void main() {
       await saves.close();
       await activity.close();
       await likes.close();
-      await shares.close();
       await blocks.close();
       await follow.close();
     }
@@ -61,7 +58,6 @@ void main() {
       saves = SavesCubit(repo: repo);
       activity = PostActivityCubit();
       likes = LikesCubit();
-      shares = SharesCubit();
       follow = FollowCubit();
       blocks = ProfileBlocks(follow: follow);
       created = true;
@@ -80,7 +76,6 @@ void main() {
               BlocProvider.value(value: saves),
               BlocProvider.value(value: activity),
               BlocProvider.value(value: likes),
-              BlocProvider.value(value: shares),
               BlocProvider<FollowCubit>.value(value: follow),
               BlocProvider<BlockCubit>.value(value: blocks),
             ],
@@ -236,12 +231,10 @@ void main() {
         const LikeTarget.post(102): const LikeValue(isLiked: true, count: 12),
       }, requestRevision: likes.revision);
       activity.setCommentsCount('102', 9);
-      shares.acceptCounts({102: 8}, requestRevision: shares.revision);
       await tester.pumpAndSettle();
       expect(tester.widget<PostCard>(find.byType(PostCard)).isLiked, true);
       expect(find.text('12'), findsWidgets);
       expect(find.text('9'), findsWidgets);
-      expect(find.text('8'), findsWidgets);
     },
   );
   testWidgets(

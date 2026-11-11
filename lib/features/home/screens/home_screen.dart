@@ -27,8 +27,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/home/cubit/home_account_cubit.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
-import 'package:travibe/features/shares/data/shares_repo.dart';
 import 'package:travibe/features/shares/data/send_post_repo.dart';
 import 'package:travibe/features/shares/widgets/send_post_sheet.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
@@ -58,7 +56,6 @@ class HomeScreen extends StatelessWidget {
     this.publicationSignal,
     this.refreshSignal,
     this.accountRepo,
-    this.sharesRepo,
     this.storiesRepo,
     this.searchRepo,
   });
@@ -67,7 +64,6 @@ class HomeScreen extends StatelessWidget {
   final Listenable? publicationSignal;
   final Listenable? refreshSignal;
   final HomeAccountRepo? accountRepo;
-  final SharesRepo? sharesRepo;
   final StoriesRepo? storiesRepo;
   final SearchRepo? searchRepo;
 
@@ -78,7 +74,6 @@ class HomeScreen extends StatelessWidget {
       publicationSignal: publicationSignal,
       refreshSignal: refreshSignal,
       accountRepo: accountRepo,
-      sharesRepo: sharesRepo,
       storiesRepo: storiesRepo,
       searchRepo: searchRepo,
     );
@@ -91,7 +86,6 @@ class _HomeView extends StatefulWidget {
     this.publicationSignal,
     this.refreshSignal,
     this.accountRepo,
-    this.sharesRepo,
     this.storiesRepo,
     this.searchRepo,
   });
@@ -100,7 +94,6 @@ class _HomeView extends StatefulWidget {
   final Listenable? publicationSignal;
   final Listenable? refreshSignal;
   final HomeAccountRepo? accountRepo;
-  final SharesRepo? sharesRepo;
   final StoriesRepo? storiesRepo;
   final SearchRepo? searchRepo;
 
@@ -116,8 +109,6 @@ class _HomeViewState extends State<_HomeView> {
   late final bool _ownsLikes;
   late final SavesCubit _saves;
   late final bool _ownsSaves;
-  late final SharesCubit _shares;
-  late final bool _ownsShares;
   late final bool _ownsHidden;
   PostActivityCubit? _activity;
   bool _openingShare = false;
@@ -265,19 +256,7 @@ class _HomeViewState extends State<_HomeView> {
     _ownsSaves = context.read<SavesCubit?>() == null;
     _saves = context.read<SavesCubit?>() ?? SavesCubit(repo: postsRepo);
     _account = HomeAccountCubit(repo: widget.accountRepo)..load();
-    final sharesRepo = widget.sharesRepo ?? SharesRepo();
-    _ownsShares =
-        widget.sharesRepo != null || context.read<SharesCubit?>() == null;
     _activity = context.read<PostActivityCubit?>();
-    _shares = _ownsShares
-        ? SharesCubit(
-            repo: sharesRepo,
-            currentUserId: () async {
-              final id = int.tryParse(_account.state.account?.id ?? '');
-              return id ?? await sharesRepo.currentUserId();
-            },
-          )
-        : context.read<SharesCubit>();
     _suggestions = FollowUsersCubit(
       type: FollowListType.suggested,
       repo: context.read<FollowCubit>().repo,
@@ -287,7 +266,6 @@ class _HomeViewState extends State<_HomeView> {
         feed: FeedType.explore,
         postsRepo: postsRepo,
         likes: _likes,
-        shares: _shares,
         saves: _saves,
         activity: _activity,
       ),
@@ -295,7 +273,6 @@ class _HomeViewState extends State<_HomeView> {
         feed: FeedType.following,
         postsRepo: postsRepo,
         likes: _likes,
-        shares: _shares,
         saves: _saves,
         activity: _activity,
       ),
@@ -442,7 +419,6 @@ class _HomeViewState extends State<_HomeView> {
     _account.close();
     if (_ownsLikes) _likes.close();
     if (_ownsSaves) _saves.close();
-    if (_ownsShares) _shares.close();
     _suggestions.close();
     for (final feed in _feeds) {
       feed.close();
@@ -927,20 +903,11 @@ class _HomeViewState extends State<_HomeView> {
 
   Future<void> _openShare(PostModel post) async {
     if (_openingShare) return;
-    final id = int.tryParse(post.id);
-    if (id == null || id < 1 || post.visibility != 'public') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Only public posts can be shared.')),
-      );
-      return;
-    }
     _openingShare = true;
     try {
       await SendPostSheet.show(
         context,
-        postText: post.content?.trim().isNotEmpty == true
-            ? post.content!
-            : 'A post on Travibe.',
+        post: post,
         repo: SendPostRepo(discovery: context.read<FollowCubit>().repo),
       );
     } finally {
@@ -971,86 +938,66 @@ class _HomeViewState extends State<_HomeView> {
                         final value = target == null
                             ? null
                             : likeState.values[target];
-                        return BlocBuilder<SharesCubit, SharesState>(
-                          bloc: _shares,
-                          builder: (context, sharesState) {
-                            final share = postId == null
+                        return BlocBuilder<SavesCubit, SavesState>(
+                          bloc: _saves,
+                          builder: (context, savesState) => PostCard(
+                            responsive: true,
+                            homePresentation: true,
+                            postId: post.id,
+                            authorId: post.user.id,
+                            currentUserId:
+                                _storyOwnerSession ==
+                                    _storySession.sessionRevision
+                                ? account.account?.id
+                                : null,
+                            currentUserSessionRevision: _storyOwnerSession,
+                            isSaved: savesState.values[post.id] ?? post.isSaved,
+                            isSavePending: savesState.pending.contains(post.id),
+                            onSaveTap: () async {
+                              final error = await _saves.toggle(post);
+                              if (error != null && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(error.message)),
+                                );
+                              }
+                            },
+                            name: post.user.name,
+                            avatar: post.user.avatarUrl,
+                            time: timeAgo(post.createdAt),
+                            text: post.content ?? '',
+                            image: mediaUrls.length == 1
+                                ? mediaUrls.first
+                                : null,
+                            images: mediaUrls.length > 1 ? mediaUrls : null,
+                            likes: formatCount(value?.count ?? post.likesCount),
+                            isLiked: value?.isLiked ?? post.isLiked,
+                            isLikePending: value?.pending == true,
+                            onLikeTap: target == null
                                 ? null
-                                : sharesState.posts[postId];
-                            return BlocBuilder<SavesCubit, SavesState>(
-                              bloc: _saves,
-                              builder: (context, savesState) => PostCard(
-                                responsive: true,
-                                homePresentation: true,
-                                postId: post.id,
-                                authorId: post.user.id,
-                                currentUserId:
-                                    _storyOwnerSession ==
-                                        _storySession.sessionRevision
-                                    ? account.account?.id
-                                    : null,
-                                currentUserSessionRevision: _storyOwnerSession,
-                                isSaved:
-                                    savesState.values[post.id] ?? post.isSaved,
-                                isSavePending: savesState.pending.contains(
-                                  post.id,
-                                ),
-                                onSaveTap: () async {
-                                  final error = await _saves.toggle(post);
-                                  if (error != null && context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(error.message)),
+                                : () async {
+                                    final error = await _activeFeed.toggleLike(
+                                      post,
                                     );
-                                  }
-                                },
-                                name: post.user.name,
-                                avatar: post.user.avatarUrl,
-                                time: timeAgo(post.createdAt),
-                                text: post.content ?? '',
-                                image: mediaUrls.length == 1
-                                    ? mediaUrls.first
-                                    : null,
-                                images: mediaUrls.length > 1 ? mediaUrls : null,
-                                likes: formatCount(
-                                  value?.count ?? post.likesCount,
-                                ),
-                                isLiked: value?.isLiked ?? post.isLiked,
-                                isLikePending: value?.pending == true,
-                                onLikeTap: target == null
-                                    ? null
-                                    : () async {
-                                        final error = await _activeFeed
-                                            .toggleLike(post);
-                                        if (error != null && context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(error.message),
-                                            ),
-                                          );
-                                        }
-                                      },
-                                comments: formatCount(post.commentsCount),
-                                onCommentsTap: () => _openComments(post),
-                                shares: formatCount(
-                                  share?.count ?? post.sharesCount,
-                                ),
-                                isSharePending: share?.pending == true,
-                                onShareTap: () => _openShare(post),
-                                showFollowButton: true,
-                                neutralFollowButton: true,
-                                isFollowing: following,
-                                isFollowPending: pending,
-                                onFollowTap: post.user.isBlocked
-                                    ? null
-                                    : onToggle,
-                                onMoreTap: hiddenState.pending.contains(post.id)
-                                    ? null
-                                    : () => _showPostOptions(post),
-                              ),
-                            );
-                          },
+                                    if (error != null && context.mounted) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(error.message)),
+                                      );
+                                    }
+                                  },
+                            comments: formatCount(post.commentsCount),
+                            onCommentsTap: () => _openComments(post),
+                            onShareTap: () => _openShare(post),
+                            showFollowButton: true,
+                            neutralFollowButton: true,
+                            isFollowing: following,
+                            isFollowPending: pending,
+                            onFollowTap: post.user.isBlocked ? null : onToggle,
+                            onMoreTap: hiddenState.pending.contains(post.id)
+                                ? null
+                                : () => _showPostOptions(post),
+                          ),
                         );
                       },
                     ),

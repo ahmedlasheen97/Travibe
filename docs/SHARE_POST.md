@@ -1,142 +1,72 @@
-# Send Post sharing fix
+# Send Post sharing
 
-## Current sheet
+## Current behaviour
 
-SendPostSheet contains the drag handle, Send Post heading, search, horizontal
-Travibe member suggestions, Copy Link and More Options. Both profile repost
-buttons and the UI-only `_repost` method/state/imports are removed. The sheet no
-longer accepts SharesCubit or a share/post ID; it cannot mutate backend shares.
-The standalone SharePostDialog and SharesCubit/SharesRepo/backend models remain.
-Home's feed-count subscriptions and backend synchronization remain intact.
+`SendPostSheet.show(context, post: ...)` opens the Figma "Send Post" sheet. Non-public
+posts get a "Only public posts can be shared." SnackBar instead. Callers: Home, Profile
+posts, Saved posts, notification post detail.
 
-Home passes actual PostModel.content to `SendPostSheet.postText`. Posts without
-text use “A post on Travibe.” The sheet constructs PostShareActions from that
-text unless actions are injected. External sharing never calls POST /shares,
-never increments shares_count and never reports that a repost was created.
-Opening, completing or cancelling native sharing has no backend share effects.
+- Left-aligned title, rounded "Search" field, horizontal people row (suggested people
+  when the query is empty, `SearchRepo.searchUsers` for 3–100 characters).
+- Tap a person to select (orange check badge), tap again to unselect; multiple allowed.
+  Selections survive search changes and stay visible at the front of the row.
+- No selection → Copy Link / More Options (left-aligned).
+- Any selection → "Write Message" field (≤1000 chars) + full-width orange "Send".
+- Send → for each person: `POST /conversations {user_id}` (returns the existing thread or
+  creates one) then `POST /conversations/{id}/messages` as `type: text`. All succeed →
+  sheet closes, SnackBar "Sent to {name}" / "Sent to N people". Partial failure → sheet
+  stays open, sent people are deselected, failed people stay selected with an inline
+  error each (403 → "You can't message {name}."), and Send retries only them.
 
-The requested icons remain SvgPicture.asset without ColorFilter:
+Code: `features/shares/data/share_post_messenger.dart` (send seam),
+`cubit/send_post_cubit.dart` (people, selection, send state), `widgets/send_post_sheet.dart`.
 
-- `assets/images/interactions/link.svg` at its 46 × 46 intrinsic dimensions.
-- `assets/images/interactions/share.svg` at its 32 × 32 intrinsic dimensions.
+The message text is the optional note, a blank line, then
+`Shared a post by {author}: “{excerpt ≤280 chars}”` (clamped to 5000 chars).
 
-Both retain the existing 48 × 48 containers. Sheet colors, spacing, typography,
-search and member layout remain. Exact Figma comparison is still unavailable as
-recorded in FIGMA_REFERENCE.md; no Figma calls or modifications were made here.
+## Removed
 
-## More Options diagnosis
+The backend removed `/posts/{post}/shares*` and `PostResource.shares_count`. `SharesRepo`,
+`SharesCubit`, `ShareModel` and `SharePostDialog` were deleted, unwired from Root, Home,
+Profile, Saved and `PostsCubit`, and `PostModel.sharesCount` was dropped. The PostCard
+share button shows no count.
 
-The previous `catch (_)` discarded the exception and stack, mapping every failure
-to “Unable to open sharing options. Please try again.” That message alone cannot
-distinguish a missing handler/stale native build, an unavailable platform, or a
-native presentation error. No device log was provided and simulator access was
-denied in this environment, so the exact device runtime cause is **unconfirmed**.
+## Backend requirements
 
-Inspection found no Dart/Swift/Kotlin protocol mismatch:
+### Post card in chat (not supported today)
 
-- Channel: `travibe/post_sharing`.
-- Method: `share`.
-- Arguments: `text` or a verified `url`, plus `x`, `y`, `width`, `height`.
-- Native completion/cancellation resolves the pending request without claiming
-  delivery or making a backend call.
+`StoreMessageRequest.type` only allows `text | image | voice | video`; there is no
+post field, and `MessageResource` has no post payload. To render a real post card:
 
-The old iOS registration had an optional plugin-registrar lookup with a silent
-return; the app channel could be left unregistered if that lookup failed. It now
-uses the current implicit engine's applicationRegistrar messenger directly,
-retains the channel and prints a debug registration message. This removes that
-silent failure path; it is not proof that this was the observed device failure.
+1. Add `MessageType` `post`. Request: `post_id` (required for `post`), optional
+   `body` (≤1000) as the note.
+2. Validate: post exists and is not deleted; visible to both sender and recipient
+   (public, or followers-only and the recipient may see it); no block in either
+   direction between sender/recipient or recipient/author → `422`/`403` accordingly.
+3. `MessageResource` for `post` messages embeds `shared_post`: `id`, `user {id, name,
+   username, avatar_url}`, `content` (excerpt), first media `{type, url, thumbnail_url}`,
+   `visibility`, and `is_available` (false once deleted/hidden/blocked — clients show
+   "Post unavailable").
+4. Send the same shape in the Reverb message event and use a `last_message` preview
+   such as "Sent a post".
+5. Optional: `POST /posts/{post}/send {user_ids[], body?}` returning per-user results,
+   to avoid N×2 round trips.
 
-Dart now logs operation, target platform, exception details and stack traces in
-debug builds, while retaining the friendly UI feedback. MissingPluginException
-and PlatformException are covered separately by tests. Logs do not explicitly
-include shared post content, and release builds do not execute the debug logging.
+Client change once shipped: replace the `sendText` call in
+`SharePostMessenger._sendOne` with the `post` payload, add `ChatMessageKind.post`
+parsing and a post-card bubble. The sheet and cubit need no changes.
 
-## Native changes
+### Copy Link (no public URL today)
 
-### iOS
+`PostResource` has no `url`/`share_url`/`slug`, and there is no public web route.
 
-The existing scene/storyboard Flutter engine still initializes all generated
-plugins. The application channel is registered directly on that same engine,
-with UI work dispatched to the main queue. A released delegate now returns an
-error rather than leaving the call unresolved.
+1. A public post page, e.g. `https://travibeapp.com/p/{id}`, that respects visibility,
+   returns 404/410 for deleted posts, and serves Open Graph tags.
+2. `PostResource.share_url` (null when the post is not shareable).
+3. For opening in the app: `apple-app-site-association` and `assetlinks.json` on the
+   domain, Associated Domains / intent filters in the app, and a GoRouter route to post
+   detail.
 
-Presentation resolves the foreground scene/window with AppDelegate window
-fallback, follows presented/navigation/tab controllers and verifies that the
-presenter is attached and not transitioning. UIActivityViewController receives
-a String for text or URL for a verified permalink. The optional KVC subject setter
-was removed. iPad anchors are converted from the actual Flutter view into the
-presenter's coordinate system, clipped to its bounds and replaced by a centered
-1 × 1 anchor when absent/invalid. Completion errors carry their native description.
-
-### Android
-
-MainActivity is configured as the launcher and uses Flutter embedding v2. Its
-configureFlutterEngine registration matches the Dart channel/method. The correct
-ACTION_SEND, text/plain, EXTRA_TEXT and Intent.createChooser behavior is retained.
-It now rejects destroyed/finishing activities and includes native exception type
-and message in PlatformException details. Debuggable builds also log the actual
-launch exception and native stack with Log.e. No manifest permission, target-app
-listing or extra dependency is needed for the existing system chooser approach.
-
-No plugin was installed or added. These handlers are custom native application
-channels. Native changes require stopping the running app and rebuilding/relaunching
-it with Flutter/Xcode/Android Studio. Hot reload and Dart hot restart do not compile
-or install changed Swift/Kotlin handlers. A stale binary can still produce
-MissingPluginException until a full native rebuild.
-
-Installed share destinations are controlled by the OS and each receiving app.
-Actual appearance/content acceptance of WhatsApp, Facebook, X, LinkedIn and email
-must be checked on devices; no individual destination is guaranteed by these tests.
-
-## Public URLs
-
-Copy Link remains unavailable: no verified canonical post URL or working post
-link route exists in the checked-in model/schema/routing references. PostResource
-and the confirmed share responses have no share_url. No public URL was fabricated.
-More Options currently shares text only, which does not link to the original post.
-A verified canonical URI takes precedence when supplied to PostShareActions.
-
-Remaining public-link work is to implement and document a stable public post
-page/route with visibility and deleted-post handling, expose or document its
-canonical URL, and configure Flutter post-detail navigation plus platform/domain
-associations if app links are desired. None of that backend/routing work was
-performed in this fix.
-
-## Files changed in this fix
-
-| File | Change |
-| --- | --- |
-| `lib/features/shares/widgets/send_post_sheet.dart` | Remove profile UI/dependency, use postText fallback, debug exception/stack logging. |
-| `lib/features/home/screens/home_screen.dart` | Pass post text directly and remove obsolete repost-result handling. |
-| `ios/Runner/AppDelegate.swift` | Application-engine registration, presentation validation, coordinate-safe iPad anchor and native error details. |
-| `android/app/src/main/kotlin/com/example/travibe/MainActivity.kt` | Activity checks and debug native exception diagnostics. |
-| `test/features/shares/send_post_sheet_test.dart` | Removed-action checks, default text fallback, native success/error/retry and logging tests. |
-| `test/features/shares/post_share_actions_test.dart` | MissingPluginException propagation coverage. |
-| `test/features/shares/share_post_dialog_test.dart` | Home integration verifies actual content sharing without reposts/count changes. |
-| `docs/SHARE_POST.md` | Diagnosis, implementation, rebuild instructions and verification limits. |
-
-PostShareActions' existing text/verified-URL channel payload was inspected and
-retained. No SharesCubit, SharesRepo, share-model, Likes, Comments, Search,
-Create Post, Laravel, Figma, dependency or platform-configuration files changed.
-
-## Executed validation
-
-- Targeted analysis of shares, Home and shares tests: **no issues found**.
-- Swift type checking against the Flutter framework and iOS simulator SDK: **passed**.
-- Kotlin compilation against the cached Flutter embedding, Android SDK and lifecycle
-  libraries: **passed** (compiler/JDK deprecation warning).
-- Standard `flutter test --no-pub` remains blocked before test loading because the
-  sandbox denies localhost server sockets. The existing temporary no-socket harness
-  compiled the actual test files and ran all eight shares test files in flutter_tester:
-  **64 passed, 0 failed, no skips**.
-- Tests cover invocation/success, PlatformException and MissingPluginException,
-  debug exception details/stack, retry, actual Home post text, URL priority,
-  SVGs without recoloring, missing URL fallback, no repost/count mutation,
-  removed profile actions, and existing backend synchronization behavior.
-
-The temporary harness and logs live under `/private/tmp/travibe-share-*`; they are
-not project dependencies. Full app/native device tests have **not** been performed.
-After a full rebuild, verify native presentation on iPhone, iPad and Android,
-installed destinations, completion/cancellation and unchanged backend counts.
-If presentation still fails, the debug console now exposes the exact exception
-needed to identify the remaining runtime issue.
+Until then, Copy Link shows "Post links aren't available yet." and More Options shares
+the post text through the native `travibe/post_sharing` channel (see `PostShareActions`).
+A verified `https` URI passed to `PostShareActions` takes precedence automatically.

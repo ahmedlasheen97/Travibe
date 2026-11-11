@@ -186,7 +186,6 @@ void main() {
                 text: 'Text',
                 likes: '0',
                 comments: '0',
-                shares: '0',
                 onSaveTap: () => tapped++,
               ),
             ),

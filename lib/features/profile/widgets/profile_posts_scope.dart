@@ -9,7 +9,6 @@ import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 
 /// Keeps the author cache alive across Profile's tab switches, never unavailable profiles.
 class ProfilePostsScope extends StatefulWidget {
@@ -38,7 +37,6 @@ class _ProfilePostsScopeState extends State<ProfilePostsScope> {
       userId: widget.userId,
       postsRepo: widget.repo,
       likes: context.read<LikesCubit>(),
-      shares: context.read<SharesCubit>(),
       saves: context.read<SavesCubit>(),
       activity: context.read<PostActivityCubit>(),
     );

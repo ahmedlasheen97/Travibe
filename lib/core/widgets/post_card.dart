@@ -5,7 +5,6 @@ import 'package:travibe/core/widgets/home_post_caption.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
-import 'package:travibe/features/shares/cubit/shares_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -30,7 +29,6 @@ class PostCard extends StatefulWidget {
   final bool isLiked;
   final bool isLikePending;
   final VoidCallback? onShareTap;
-  final bool isSharePending;
 
   final String? avatar;
   final String time;
@@ -40,7 +38,6 @@ class PostCard extends StatefulWidget {
   final List<String>? images; // carousel
   final String likes;
   final String comments;
-  final String shares;
   final bool showFollowButton;
   final bool neutralFollowButton;
   final bool isFollowing;
@@ -67,7 +64,6 @@ class PostCard extends StatefulWidget {
     this.images,
     required this.likes,
     required this.comments,
-    required this.shares,
     this.showFollowButton = false,
     this.neutralFollowButton = false,
     this.isFollowing = false,
@@ -79,7 +75,6 @@ class PostCard extends StatefulWidget {
     this.isLiked = false,
     this.isLikePending = false,
     this.onShareTap,
-    this.isSharePending = false,
   });
 
   @override
@@ -487,9 +482,6 @@ class _PostCardState extends State<PostCard> {
         .watch<PostActivityCubit?>()
         ?.state
         .comments[widget.postId];
-    final id = int.tryParse(widget.postId ?? '');
-    final shared = context.watch<SharesCubit?>();
-    final shares = id == null ? null : shared?.post(id).count;
     final actions = <Widget>[
       Semantics(
         button: true,
@@ -516,13 +508,12 @@ class _PostCardState extends State<PostCard> {
       Semantics(
         button: true,
         label: 'Share post',
-        enabled: !widget.isSharePending && widget.onShareTap != null,
+        enabled: widget.onShareTap != null,
         child: ActionIconButton(
           key: const ValueKey('post-share'),
           responsive: widget.responsive,
           iconPath: 'assets/images/interactions/send.svg',
-          count: shares == null ? widget.shares : formatCount(shares),
-          onTap: widget.isSharePending ? null : widget.onShareTap,
+          onTap: widget.onShareTap,
         ),
       ),
     ];
