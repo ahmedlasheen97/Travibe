@@ -26,6 +26,8 @@ import 'package:travibe/features/buddies/screens/buddies_screen.dart';
 import 'package:travibe/features/buddies/widgets/buddies_visibility_invitation.dart';
 import 'package:travibe/main.dart' as app;
 import '../buddies/buddies_home_test.dart' as buddies;
+import 'package:travibe/core/notifications/push_notification_service.dart';
+import '../../core/notifications/push_fakes.dart';
 
 Map<String, dynamic> settingsUser({int id = 7, bool visible = false}) => {
   'id': id,
@@ -627,7 +629,13 @@ void main() {
           ),
         ],
       );
-      await tester.pumpWidget(app.MyApp(currentUser: user, router: router));
+      // Fake Messaging: real Firebase must never start in widget tests.
+      final push = PushNotificationService(
+        client: FakeMessagingClient()..available = false,
+      );
+      await tester.pumpWidget(
+        app.MyApp(currentUser: user, router: router, pushNotifications: push),
+      );
       await tester.pumpAndSettle();
       expect(
         tester.widget<MaterialApp>(find.byType(MaterialApp)).locale,

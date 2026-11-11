@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
+import 'package:travibe/core/notifications/push_notification_service.dart';
 import 'package:travibe/core/routing/router_generator.dart';
 import 'package:travibe/features/auth/screens/login_screen.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/main.dart';
+import 'core/notifications/push_fakes.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +34,13 @@ void main() {
       router.dispose();
       await currentUser.close();
     });
-    await tester.pumpWidget(MyApp(currentUser: currentUser, router: router));
+    // Fake Messaging: real Firebase must never start in widget tests.
+    final push = PushNotificationService(
+      client: FakeMessagingClient()..available = false,
+    );
+    await tester.pumpWidget(
+      MyApp(currentUser: currentUser, router: router, pushNotifications: push),
+    );
     await tester.pumpAndSettle();
     expect(find.byType(LoginScreen), findsOneWidget);
     expect(find.byTooltip('Show password'), findsOneWidget);
