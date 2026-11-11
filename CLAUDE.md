@@ -32,6 +32,9 @@ dart run tool/reverb_readiness.dart               # probe production Reverb webs
 - Integration entry points must call `IntegrationTestWidgetsFlutterBinding.ensureInitialized()`
   then `registerTestReporting(binding)` (`integration_test/support/`); see
   `docs/INTEGRATION_TEST_SETUP.md`.
+- Tests that build `MyApp` must pass a fake `pushNotifications`
+  (`FakeMessagingClient` from `test/core/notifications/push_fakes.dart`), or real
+  Firebase starts and the test fails with a pending timer.
 
 ## Architecture
 
