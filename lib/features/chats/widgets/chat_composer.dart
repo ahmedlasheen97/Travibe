@@ -123,8 +123,6 @@ class _ChatComposerState extends State<ChatComposer>
   void _insertEmoji(String emoji) {
     if (!mounted ||
         !widget.canSend ||
-        widget.composer.state.sending ||
-        widget.uploading ||
         widget.audio.recording ||
         widget.composer.isClosed ||
         widget.composer.state.session != _session) {
@@ -208,9 +206,7 @@ class _ChatComposerState extends State<ChatComposer>
                     ),
                     IconButton(
                       tooltip: 'Cancel reply',
-                      onPressed: state.sending
-                          ? null
-                          : () => widget.composer.setReply(null),
+                      onPressed: () => widget.composer.setReply(null),
                       icon: const Icon(Icons.close),
                     ),
                   ],
@@ -248,10 +244,7 @@ class _ChatComposerState extends State<ChatComposer>
                       ),
                     if (widget.audio.draft != null)
                       TextButton(
-                        onPressed:
-                            widget.canSend &&
-                                !widget.uploading &&
-                                !state.sending
+                        onPressed: widget.canSend && !widget.uploading
                             ? widget.onSendVoice
                             : null,
                         child: const Text('Send recording'),
@@ -289,9 +282,7 @@ class _ChatComposerState extends State<ChatComposer>
                             key: widget.attachmentAnchor,
                             tooltip: 'Attachments',
                             onPressed:
-                                widget.uploading ||
-                                    state.sending ||
-                                    widget.audio.recording
+                                widget.uploading || widget.audio.recording
                                 ? null
                                 : _attachments,
                             icon: const Icon(Icons.add, color: Colors.white70),
@@ -307,10 +298,7 @@ class _ChatComposerState extends State<ChatComposer>
                               onTap: () {
                                 if (_emojiVisible) _keyboard();
                               },
-                              readOnly:
-                                  state.sending ||
-                                  widget.uploading ||
-                                  widget.audio.recording,
+                              readOnly: widget.audio.recording,
                               minLines: 1,
                               maxLines: MediaQuery.sizeOf(context).height < 500
                                   ? 3
@@ -342,11 +330,7 @@ class _ChatComposerState extends State<ChatComposer>
                             tooltip: _emojiVisible
                                 ? 'Show keyboard'
                                 : 'Show emoji picker',
-                            onPressed:
-                                !widget.canSend ||
-                                    state.sending ||
-                                    widget.uploading ||
-                                    widget.audio.recording
+                            onPressed: !widget.canSend || widget.audio.recording
                                 ? null
                                 : _toggleEmoji,
                             icon: _emojiVisible
@@ -367,22 +351,19 @@ class _ChatComposerState extends State<ChatComposer>
                   const SizedBox(width: 8),
                   if (!widget.audio.recording &&
                       (widget.selectedMediaTray != null ||
-                          state.draft.trim().isNotEmpty ||
-                          widget.uploading ||
-                          state.sending))
+                          state.draft.trim().isNotEmpty))
+                    // Sending state lives on each bubble ("Sending…"); the
+                    // button never spins and stays usable for the next message.
                     ChatSendButton(
-                      tooltip: widget.uploading
-                          ? 'Uploading attachment'
-                          : state.sending
-                          ? 'Sending message'
-                          : widget.selectedMediaTray != null
+                      // While an attachment uploads, the button sends text.
+                      tooltip:
+                          widget.selectedMediaTray != null && !widget.uploading
                           ? 'Send attachments'
                           : 'Send message',
-                      loading: widget.uploading || state.sending,
-                      onPressed:
-                          !widget.canSend || widget.uploading || state.sending
+                      onPressed: !widget.canSend
                           ? null
-                          : widget.selectedMediaTray != null
+                          : widget.selectedMediaTray != null &&
+                                !widget.uploading
                           ? widget.onSendAttachments
                           : widget.composer.send,
                     )
@@ -399,8 +380,7 @@ class _ChatComposerState extends State<ChatComposer>
                           backgroundColor: DarkColors.primaryColor,
                           disabledBackgroundColor: const Color(0xFF803D14),
                         ),
-                        onPressed:
-                            !widget.canSend || widget.uploading || state.sending
+                        onPressed: !widget.canSend || widget.uploading
                             ? null
                             : widget.audio.recording
                             ? widget.audio.stopRecording

@@ -97,6 +97,24 @@ class ChatConversation {
     createdAt: createdAt,
   );
 
+  ChatConversation withUnread(int value) => ChatConversation(
+    id: id,
+    participant: participant,
+    preview: preview,
+    updatedAt: updatedAt,
+    unread: value,
+    hasUnreadCount: hasUnreadCount,
+    canSend: canSend,
+    lastMessage: lastMessage,
+    lastMessageAt: lastMessageAt,
+    isMuted: isMuted,
+    isBlocked: isBlocked,
+    acceptedAt: acceptedAt,
+    isAccepted: isAccepted,
+    lastReadMessageId: lastReadMessageId,
+    createdAt: createdAt,
+  );
+
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
     final other = chatObject(json['other_user']);
     final snapshot = chatObject(json['last_message']);

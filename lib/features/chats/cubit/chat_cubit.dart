@@ -362,6 +362,21 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
   final Map<String, String> _serverIds = {};
   int _sequence = 0;
   bool retryNeedsConfirmation(String id) => _uncertain.contains(id);
+  bool get _anySending =>
+      _local.values.any((item) => item.delivery == ChatDelivery.sending);
+
+  /// Every emit derives `sending` from the outbox; it never gates input.
+  void _publish({String? draft, String? error, int? session}) => emit(
+    ChatComposerState(
+      localMessages: List.unmodifiable(_local.values),
+      draft: draft ?? state.draft,
+      sending: _anySending,
+      error: error,
+      session: session ?? _ownerSession,
+      replyTo: _replyTo,
+    ),
+  );
+
   void setConversation(ChatConversation value) {
     if (value.id != conversation.id ||
         _ownerSession != _preferences.sessionRevision ||
@@ -369,33 +384,13 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
       return;
     }
     conversation = value;
-    emit(
-      ChatComposerState(
-        localMessages: List.unmodifiable(_local.values),
-        draft: state.draft,
-        sending: state.sending,
-        error: state.error,
-        session: _ownerSession,
-        replyTo: _replyTo,
-      ),
-    );
+    _publish(error: state.error);
   }
 
   void setReply(ChatMessage? value) {
-    if (state.sending ||
-        _ownerSession != _preferences.sessionRevision ||
-        isClosed) {
-      return;
-    }
+    if (_ownerSession != _preferences.sessionRevision || isClosed) return;
     _replyTo = value;
-    emit(
-      ChatComposerState(
-        localMessages: List.unmodifiable(_local.values),
-        draft: state.draft,
-        session: _ownerSession,
-        replyTo: _replyTo,
-      ),
-    );
+    _publish();
   }
 
   void _sessionChanged() {
@@ -413,15 +408,7 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
     // The sent text already left the composer, so typing during a send is a
     // new draft and must be kept.
     ChatDrafts.instance.write(conversation.id, value);
-    emit(
-      ChatComposerState(
-        localMessages: List.unmodifiable(_local.values),
-        draft: value,
-        sending: state.sending,
-        session: _preferences.sessionRevision,
-        replyTo: _replyTo,
-      ),
-    );
+    _publish(draft: value, session: _preferences.sessionRevision);
   }
 
   Future<void> send() => _sendText(state.draft, reply: _replyTo);
@@ -447,16 +434,13 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
     _localReplies.remove(localId);
     _uncertain.remove(localId);
     _serverIds.remove(localId);
-    emit(
-      ChatComposerState(
-        localMessages: List.unmodifiable(_local.values),
-        draft: state.draft,
-        session: _ownerSession,
-        replyTo: _replyTo,
-      ),
-    );
+    _publish();
     return true;
   }
+
+  /// Sends run one at a time so the server receives them in the order typed,
+  /// while the composer stays usable and each bubble shows its own state.
+  Future<void> _queue = Future.value();
 
   Future<void> _sendText(
     String text, {
@@ -465,21 +449,12 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
   }) async {
     if (isClosed ||
         _ownerSession != _preferences.sessionRevision ||
-        state.sending ||
         text.trim().isEmpty ||
         !_preferences.hasSession) {
       return;
     }
     if (!conversation.canSend || !repository.capabilities.sendText) {
-      emit(
-        ChatComposerState(
-          localMessages: List.unmodifiable(_local.values),
-          draft: state.draft,
-          error: ChatUnavailable().message,
-          session: _ownerSession,
-          replyTo: _replyTo,
-        ),
-      );
+      _publish(error: ChatUnavailable().message);
       return;
     }
     final id = retryId ?? 'local-$_ownerSession-${++_sequence}';
@@ -498,20 +473,26 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
     final session = _preferences.sessionRevision;
     // The bubble now owns the text (and reply): clear the composer immediately
     // and never restore it; a failure stays as a retryable bubble.
-    final draft = retryId == null ? '' : state.draft;
     if (retryId == null) {
-      ChatDrafts.instance.write(conversation.id, draft);
+      ChatDrafts.instance.write(conversation.id, '');
       _replyTo = null;
     }
-    emit(
-      ChatComposerState(
-        localMessages: List.unmodifiable(_local.values),
-        draft: draft,
-        sending: true,
-        session: session,
-        replyTo: _replyTo,
-      ),
+    _publish(draft: retryId == null ? '' : state.draft, session: session);
+    final job = _queue.then(
+      (_) => _deliver(id, text, reply, session, local(ChatDelivery.failed)),
     );
+    _queue = job.catchError((Object _) {});
+    await job;
+  }
+
+  Future<void> _deliver(
+    String id,
+    String text,
+    ChatMessage? reply,
+    int session,
+    ChatMessage failed,
+  ) async {
+    if (isClosed || session != _preferences.sessionRevision) return;
     try {
       final repo = repository;
       final message = reply != null && repo is ChatOperationsRepository
@@ -526,18 +507,11 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
       _localReplies.remove(id);
       _uncertain.remove(id);
       _serverIds.remove(id);
-      emit(
-        ChatComposerState(
-          localMessages: List.unmodifiable(_local.values),
-          draft: state.draft,
-          session: session,
-          replyTo: _replyTo,
-        ),
-      );
+      _publish(session: session);
       onSent(message);
     } catch (error) {
       if (isClosed || session != _preferences.sessionRevision) return;
-      _local[id] = local(ChatDelivery.failed);
+      _local[id] = failed;
       if (error is ChatUnconfirmedSend && error.serverMessageId != null) {
         _serverIds[id] = error.serverMessageId!;
       }
@@ -551,18 +525,13 @@ class ChatComposerCubit extends Cubit<ChatComposerState> {
         _uncertain.add(id);
       }
       // A failed retry must not erase ambiguity from an earlier timed-out send.
-      emit(
-        ChatComposerState(
-          localMessages: List.unmodifiable(_local.values),
-          draft: state.draft,
-          session: session,
-          replyTo: _replyTo,
-          error: error is ChatPreSendFailure
-              ? 'Unable to connect. Tap the failed message to retry.'
-              : explicitRejection
-              ? (error as ApiError).message
-              : 'Send was not confirmed. Check the conversation before trying again.',
-        ),
+      _publish(
+        session: session,
+        error: error is ChatPreSendFailure
+            ? 'Unable to connect. Tap the failed message to retry.'
+            : explicitRejection
+            ? (error as ApiError).message
+            : 'Send was not confirmed. Check the conversation before trying again.',
       );
     }
   }

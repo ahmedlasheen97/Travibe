@@ -321,7 +321,7 @@ void main() {
   );
 
   testWidgets(
-    'definite failed bubble retries directly, shows in-bubble spinner, locks taps and keeps ID on failure',
+    'definite failed bubble retries directly, shows Sending… label, locks taps and keeps ID on failure',
     (tester) async {
       final repo = RetryRepo()
         ..messageItems = []
@@ -364,8 +364,9 @@ void main() {
           of: find.byType(ChatMessageBubble),
           matching: find.byType(CupertinoActivityIndicator),
         ),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.text('Sending…'), findsOneWidget);
       await tester.tap(find.byType(ChatMessageBubble));
       await tester.pump();
       expect(repo.sends, 2);

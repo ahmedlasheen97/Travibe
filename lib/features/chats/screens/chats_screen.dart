@@ -48,16 +48,72 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     cacheGroup: 'inbox',
     cacheItemLimit: 200,
     cacheWhen: () => _serverQuery.isEmpty && _search.text.trim().isEmpty,
-    fetch: (next) => _repo is ConversationSearchRepository
-        ? (_repo as ConversationSearchRepository).searchConversations(
-            _serverQuery,
-            continuation: next,
-            requests: widget.requests,
-          )
-        : _repo.conversations(continuation: next, requests: widget.requests),
+    fetch: (next) async {
+      final started = _readClock;
+      final page = await (_repo is ConversationSearchRepository
+          ? (_repo as ConversationSearchRepository).searchConversations(
+              _serverQuery,
+              continuation: next,
+              requests: widget.requests,
+            )
+          : _repo.conversations(continuation: next, requests: widget.requests));
+      return _maskReads(page, started);
+    },
     idOf: (item) => item.id,
     cancel: _repo.cancel,
   );
+  // Reads use their own repository: list cancellation (search, close) must
+  // never abort a mark-read request.
+  late final ChatRepository _readRepo =
+      widget.repository ?? LaravelChatRepository();
+  final Map<String, int> _readAt = {};
+  final Set<String> _readsInFlight = {};
+  int _readClock = 0;
+
+  /// A page requested before a local read settled may still carry the old
+  /// unread count; never let it bring the badge back.
+  ChatPage<ChatConversation> _maskReads(
+    ChatPage<ChatConversation> page,
+    int started,
+  ) {
+    if (_readAt.isEmpty) return page;
+    return ChatPage(
+      page.items.map((item) {
+        final readAt = _readAt[item.id];
+        return readAt != null &&
+                item.unread > 0 &&
+                (_readsInFlight.contains(item.id) || readAt > started)
+            ? item.withUnread(0)
+            : item;
+      }),
+      continuation: page.continuation,
+      total: page.total,
+    );
+  }
+
+  Future<void> _markRead(ChatConversation conversation) async {
+    final id = conversation.id;
+    _readAt[id] = ++_readClock;
+    _readsInFlight.add(id);
+    _list.appendConfirmed(conversation.withUnread(0), session: _session);
+    final push = PushNotificationsScope.maybeOf(context);
+    final repo = _readRepo;
+    final request = repo is ChatOperationsRepository
+        ? (repo as ChatOperationsRepository).readConversation(id)
+        : repo.markRead(id);
+    unawaited(ChatReverbScope.unreadOf(context)?.trackRead(id, request));
+    try {
+      await request;
+      _readAt[id] = ++_readClock;
+      if (_valid) push?.refreshCount(invalidate: true);
+    } catch (_) {
+      // Roll back to the server count on the next refresh.
+      _readAt.remove(id);
+    } finally {
+      _readsInFlight.remove(id);
+    }
+  }
+
   final _search = TextEditingController();
   Timer? _searchDebounce;
   String _serverQuery = '';
@@ -187,10 +243,16 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   Future<void> _open(ChatConversation conversation) async {
     if (_opening || !_valid) return;
     _opening = true;
+    // Clear the badge immediately and mark read from this screen, so leaving
+    // the chat early (which cancels its requests) cannot lose the read.
+    final read = conversation.unread > 0 && _readRepo.capabilities.read
+        ? _markRead(conversation)
+        : null;
     final screen = chatRouteScope(
       context,
       ConversationScreen(
-        conversation: conversation,
+        conversation: read == null ? conversation : conversation.withUnread(0),
+        markReadOnOpen: read == null,
         receivedRequest: widget.requests,
         onDeleted: () {
           if (mounted && _valid) {
@@ -209,6 +271,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => screen));
     _opening = false;
+    await read;
     if (mounted && _valid) await _refresh();
   }
 

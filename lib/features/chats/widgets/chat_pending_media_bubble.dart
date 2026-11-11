@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/chat_media_selection.dart';
 import '../data/chat_models.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
-import 'chat_image_upload_overlay.dart';
+import 'chat_widgets.dart';
 
 class ChatPendingMediaBubble extends StatelessWidget {
   const ChatPendingMediaBubble({
@@ -10,11 +9,9 @@ class ChatPendingMediaBubble extends StatelessWidget {
     required this.media,
     required this.sending,
     required this.onRetry,
-    this.progress,
   });
   final ChatMediaSelection media;
   final bool sending;
-  final double? progress;
   final VoidCallback onRetry;
   @override
   Widget build(BuildContext context) => Align(
@@ -31,9 +28,8 @@ class ChatPendingMediaBubble extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (media.kind == ChatMessageKind.image)
-                ChatImageUploadOverlay(
-                  sending: sending,
-                  progress: progress,
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxHeight: 320),
                     child: Image.memory(
@@ -53,7 +49,7 @@ class ChatPendingMediaBubble extends StatelessWidget {
                     ),
                   ),
                 )
-              else ...[
+              else
                 Container(
                   padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
@@ -73,23 +69,9 @@ class ChatPendingMediaBubble extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (sending) ...[
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    width: 120,
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      color: DarkColors.primaryColor,
-                      backgroundColor: Colors.white12,
-                    ),
-                  ),
-                  const Text(
-                    'Sending…',
-                    style: TextStyle(fontSize: 12, color: Colors.white54),
-                  ),
-                ],
-              ],
-              if (!sending)
+              if (sending)
+                const ChatSendingLabel(fontSize: null)
+              else
                 TextButton(
                   onPressed: onRetry,
                   child: const Text(

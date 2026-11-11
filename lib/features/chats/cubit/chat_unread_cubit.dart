@@ -41,6 +41,15 @@ class ChatUnreadCubit extends Cubit<ChatUnreadState> {
   bool _foreground = true, _dirty = false;
   int _generation = 0, _revision = 0;
   Future<void>? _pending;
+
+  /// Per-conversation counts from the last confirmed scan.
+  final Map<String, int> _counts = {};
+
+  /// Conversations marked read locally, keyed by a logical clock. A scan that
+  /// started before a read settled could still carry the old server count.
+  final Map<String, int> _readAt = {};
+  final Set<String> _readsInFlight = {};
+  int _readClock = 0;
   bool get _eligible =>
       !isClosed &&
       _owner != null &&
@@ -88,6 +97,9 @@ class ChatUnreadCubit extends Cubit<ChatUnreadState> {
   }
 
   void _invalidate() {
+    _counts.clear();
+    _readAt.clear();
+    _readsInFlight.clear();
     ++_generation;
     _revision++;
     _dirty = false;
@@ -113,6 +125,45 @@ class ChatUnreadCubit extends Cubit<ChatUnreadState> {
     } else {
       _invalidate();
     }
+  }
+
+  /// Optimistically drops [id] from the total while [read] (the mark-read
+  /// request) runs, then reconciles with the server. Scans that started before
+  /// the read settled cannot restore the old count; a failed read rolls back
+  /// through the follow-up refresh.
+  Future<void> trackRead(String id, Future<void> read) async {
+    if (isClosed || id.isEmpty) return;
+    final session = _preferences.sessionRevision;
+    final previous = _counts[id] ?? 0;
+    _counts[id] = 0;
+    _readAt[id] = ++_readClock;
+    _readsInFlight.add(id);
+    // Drop any in-flight scan result; it may predate the read.
+    ++_revision;
+    if (previous > 0) {
+      emit(
+        ChatUnreadState(
+          count: (state.count - previous).clamp(0, state.count),
+          confirmed: state.confirmed,
+          session: state.session,
+        ),
+      );
+    }
+    var succeeded = false;
+    try {
+      await read;
+      succeeded = true;
+    } catch (_) {
+      // Rolled back below by the server count.
+    }
+    if (isClosed || session != _preferences.sessionRevision) return;
+    _readsInFlight.remove(id);
+    if (succeeded) {
+      _readAt[id] = ++_readClock;
+    } else {
+      _readAt.remove(id);
+    }
+    await refresh();
   }
 
   Future<void> refresh() {
@@ -163,6 +214,7 @@ class ChatUnreadCubit extends Cubit<ChatUnreadState> {
   }
 
   Future<int> _scan(int generation, int session) async {
+    final started = _readClock;
     final active = [true, _repository.capabilities.requests];
     final cursors = <String?>[null, null];
     final seen = [<String>{}, <String>{}];
@@ -202,6 +254,17 @@ class ChatUnreadCubit extends Cubit<ChatUnreadState> {
         active[index] = next != null;
       }
     }
+    for (final id in counts.keys) {
+      final readAt = _readAt[id];
+      if (readAt != null && (_readsInFlight.contains(id) || readAt > started)) {
+        counts[id] = 0;
+      } else if (readAt != null) {
+        _readAt.remove(id);
+      }
+    }
+    _counts
+      ..clear()
+      ..addAll(counts);
     return counts.values.fold<int>(0, (sum, count) => sum + count);
   }
 
