@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -67,13 +68,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
                   children: [
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _buildTopBar(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildLabel('Current password.'),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _passwordField(
                       controller: _currentPasswordController,
                       hint: 'enter your current password',
@@ -87,9 +88,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildLabel('New Password'),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _passwordField(
                       controller: _newPasswordController,
                       hint: 'enter your new password',
@@ -106,9 +107,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildLabel('Confirm New Password'),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _passwordField(
                       controller: _confirmPasswordController,
                       hint: 'renter your new password',
@@ -126,7 +127,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.pw20,
+                  AppSizes.ph12,
+                  AppSizes.pw20,
+                  AppSizes.ph20,
+                ),
                 child: _buildUpdateButton(),
               ),
             ],
@@ -138,15 +144,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
   Widget _buildTopBar() {
     return SizedBox(
-      height: 40,
+      height: AppSizes.h40,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const Text(
+          Text(
             'Change Password',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 17,
+              fontSize: AppSizes.sp17,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -154,8 +160,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             alignment: Alignment.centerLeft,
             child: BackButtonWidget(
               onTap: () => Navigator.of(context).maybePop(),
-              size: 36,
-              iconSize: 16,
             ),
           ),
         ],
@@ -166,9 +170,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Widget _buildLabel(String text) {
     return Text(
       text,
-      style: const TextStyle(
+      style: TextStyle(
         color: Colors.white,
-        fontSize: 14,
+        fontSize: AppSizes.sp14,
         fontWeight: FontWeight.w600,
       ),
     );
@@ -184,7 +188,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     return TextFormField(
       controller: controller,
       obscureText: obscure,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       validator: validator,
       decoration: InputDecoration(
         hintText: hint,
@@ -202,13 +206,13 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         ),
         filled: true,
         fillColor: const Color(0xFF1C1C1C),
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        contentPadding: EdgeInsets.symmetric(vertical: AppSizes.ph14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
           borderSide: BorderSide.none,
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
           borderSide: const BorderSide(color: Color(0xFFDB4A3D)),
         ),
       ),
@@ -218,7 +222,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   Widget _buildUpdateButton() {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: AppSizes.h56,
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _updatePassword,
         style: ElevatedButton.styleFrom(
@@ -228,9 +232,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           shape: ActionButtonStyle.shape,
         ),
         child: _isSubmitting
-            ? const SizedBox(
-                width: 22,
-                height: 22,
+            ? SizedBox(
+                width: AppSizes.w22,
+                height: AppSizes.h22,
                 child: CircularProgressIndicator(
                   color: Colors.white,
                   strokeWidth: 2.5,

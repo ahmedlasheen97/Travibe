@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:io';
@@ -46,36 +47,39 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
     final result = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF141414),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.r24)),
       ),
       builder: (context) => SafeArea(
         top: false,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: AppSizes.h12),
             Container(
-              width: 40,
-              height: 4,
+              width: AppSizes.w40,
+              height: AppSizes.h4,
               decoration: BoxDecoration(
                 color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(AppSizes.r2),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: AppSizes.h16),
             for (final category in _categories)
               ListTile(
                 title: Text(
                   category,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppSizes.sp14,
+                  ),
                 ),
                 trailing: _selectedCategory == category
                     ? Icon(Icons.check_rounded, color: DarkColors.primaryColor)
                     : null,
                 onTap: () => Navigator.pop(context, category),
               ),
-            const SizedBox(height: 8),
+            SizedBox(height: AppSizes.h8),
           ],
         ),
       ),
@@ -129,25 +133,30 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             children: [
               Expanded(
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
                   children: [
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _buildTopBar(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildCategoryField(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildLabel('Problem', required: true),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSizes.h8),
                     _buildDescriptionField(),
-                    const SizedBox(height: 24),
+                    SizedBox(height: AppSizes.h24),
                     _buildLabel('Add Screenshot (optional)'),
-                    const SizedBox(height: 10),
+                    SizedBox(height: AppSizes.h10),
                     _buildScreenshotPicker(),
                   ],
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.pw20,
+                  AppSizes.ph12,
+                  AppSizes.pw20,
+                  AppSizes.ph20,
+                ),
                 child: _buildSubmitButton(),
               ),
             ],
@@ -159,15 +168,15 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
 
   Widget _buildTopBar() {
     return SizedBox(
-      height: 40,
+      height: AppSizes.h40,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const Text(
+          Text(
             'Report a Problem',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 17,
+              fontSize: AppSizes.sp17,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -175,8 +184,6 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             alignment: Alignment.centerLeft,
             child: BackButtonWidget(
               onTap: () => Navigator.of(context).maybePop(),
-              size: 36,
-              iconSize: 16,
             ),
           ),
         ],
@@ -187,9 +194,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   Widget _buildLabel(String text, {bool required = false}) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 14,
+          fontSize: AppSizes.sp14,
           fontWeight: FontWeight.w600,
         ),
         children: [
@@ -207,12 +214,15 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   Widget _buildCategoryField() {
     return InkWell(
       onTap: _showCategoryPicker,
-      borderRadius: BorderRadius.circular(28),
+      borderRadius: BorderRadius.circular(AppSizes.r28),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSizes.pw20,
+          vertical: AppSizes.ph14,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
         ),
         child: Row(
           children: [
@@ -223,7 +233,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
                   color: _selectedCategory != null
                       ? Colors.white
                       : Colors.white.withValues(alpha: 0.4),
-                  fontSize: 14,
+                  fontSize: AppSizes.sp14,
                 ),
               ),
             ),
@@ -242,7 +252,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       controller: _descriptionController,
       maxLength: _descMaxLength,
       maxLines: 4,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       onChanged: (_) => setState(() {}),
       validator: (value) {
         if (value == null || value.isEmpty) {
@@ -257,9 +267,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
         fillColor: const Color(0xFF1C1C1C),
         counterText: '${_descriptionController.text.length}/$_descMaxLength',
         counterStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: EdgeInsets.all(AppSizes.pw16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppSizes.r20),
           borderSide: BorderSide.none,
         ),
       ),
@@ -271,11 +281,11 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       return Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppSizes.r16),
             child: Image.file(
               _screenshot!,
-              height: 100,
-              width: 100,
+              height: AppSizes.h100,
+              width: AppSizes.w100,
               fit: BoxFit.cover,
             ),
           ),
@@ -284,10 +294,14 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             right: -6,
             child: InkWell(
               onTap: () => setState(() => _screenshot = null),
-              child: const CircleAvatar(
+              child: CircleAvatar(
                 radius: 12,
                 backgroundColor: Colors.black87,
-                child: Icon(Icons.close_rounded, color: Colors.white, size: 14),
+                child: Icon(
+                  Icons.close_rounded,
+                  color: Colors.white,
+                  size: AppSizes.w14,
+                ),
               ),
             ),
           ),
@@ -297,18 +311,18 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
 
     return InkWell(
       onTap: _pickScreenshot,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppSizes.r16),
       child: Container(
-        width: 56,
-        height: 56,
+        width: AppSizes.w56,
+        height: AppSizes.h56,
         decoration: BoxDecoration(
           color: const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppSizes.r16),
         ),
-        child: const Icon(
+        child: Icon(
           Icons.add_photo_alternate_outlined,
           color: Colors.white54,
-          size: 24,
+          size: AppSizes.w24,
         ),
       ),
     );
@@ -317,7 +331,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
   Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: AppSizes.h56,
       child: ElevatedButton(
         onPressed: _isSubmitting ? null : _submitReport,
         style: ElevatedButton.styleFrom(
@@ -327,9 +341,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
           shape: ActionButtonStyle.shape,
         ),
         child: _isSubmitting
-            ? const SizedBox(
-                width: 22,
-                height: 22,
+            ? SizedBox(
+                width: AppSizes.w22,
+                height: AppSizes.h22,
                 child: CircularProgressIndicator(
                   color: Colors.white,
                   strokeWidth: 2.5,

@@ -1,6 +1,8 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:currency_picker/currency_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import '../data/settings_update.dart';
 
@@ -27,14 +29,16 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
   @override
   void initState() {
     super.initState();
-    _allCurrencies = CurrencyService()
-        .getAll()
-        .where(
-          (currency) =>
-              widget.allowedCodes == null ||
-              widget.allowedCodes!.contains(currency.code),
-        )
-        .toList();
+    _allCurrencies =
+        CurrencyService()
+            .getAll()
+            .where(
+              (currency) =>
+                  widget.allowedCodes == null ||
+                  widget.allowedCodes!.contains(currency.code),
+            )
+            .toList()
+          ..sort((a, b) => a.code.compareTo(b.code));
     _filtered = _allCurrencies;
     _searchController.addListener(_onSearchChanged);
   }
@@ -45,41 +49,46 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
     super.dispose();
   }
 
+  static String _normalize(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+
   void _onSearchChanged() {
-    final query = _searchController.text.trim().toLowerCase();
+    final query = _normalize(_searchController.text);
     setState(() {
       _filtered = query.isEmpty
           ? _allCurrencies
-          : _allCurrencies.where((c) {
-              return c.code.toLowerCase().contains(query) ||
-                  c.name.toLowerCase().contains(query);
-            }).toList();
+          : _allCurrencies
+                .where(
+                  (c) =>
+                      _normalize(c.code).contains(query) ||
+                      _normalize(c.name).contains(query),
+                )
+                .toList();
     });
   }
 
+  bool get _searching => _searchController.text.trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    // "None" leads the list (clears the preference) unless a search is active.
+    final offset = _searching ? 0 : 1;
     return Scaffold(
       backgroundColor: DarkColors.backgroundColor,
       body: SafeArea(
         child: Column(
           children: [
-            const SizedBox(height: 8),
+            SizedBox(height: AppSizes.h8),
             _buildTopBar(),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, const CurrencySelection(null)),
-              child: const Text('No preferred currency'),
-            ),
+            SizedBox(height: AppSizes.h16),
             _buildSearchField(),
-            const SizedBox(height: 16),
+            SizedBox(height: AppSizes.h16),
             Expanded(
               child: ListView.builder(
-                itemCount: _filtered.length,
+                itemCount: _filtered.length + offset,
                 itemBuilder: (context, index) {
-                  final currency = _filtered[index];
-                  return _currencyTile(currency);
+                  if (index < offset) return _noneTile();
+                  return _currencyTile(_filtered[index - offset]);
                 },
               ),
             ),
@@ -91,26 +100,24 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       child: SizedBox(
-        height: 40,
+        height: AppSizes.h44,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Text(
+            Text(
               'Currency',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 17,
+                fontSize: AppSizes.sp17,
                 fontWeight: FontWeight.w700,
               ),
             ),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: BackButtonWidget(
                 onTap: () => Navigator.of(context).maybePop(),
-                size: 36,
-                iconSize: 16,
               ),
             ),
           ],
@@ -121,19 +128,31 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
 
   Widget _buildSearchField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       child: TextField(
+        key: const ValueKey('currency-search'),
         controller: _searchController,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
+        cursorColor: DarkColors.whiteColor,
+        style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
         decoration: InputDecoration(
           hintText: 'Search for currency',
-          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-          prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+          hintStyle: TextStyle(
+            color: Colors.white.withValues(alpha: 0.4),
+            fontSize: AppSizes.sp14,
+          ),
+          prefixIcon: Padding(
+            padding: EdgeInsets.all(AppSizes.pw14),
+            child: SvgPicture.asset(
+              'assets/images/interactions/search-normal.svg',
+              width: AppSizes.w20,
+              height: AppSizes.w20,
+            ),
+          ),
           filled: true,
           fillColor: const Color(0xFF1C1C1C),
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          contentPadding: EdgeInsets.symmetric(vertical: AppSizes.ph14),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppSizes.r28),
             borderSide: BorderSide.none,
           ),
         ),
@@ -141,47 +160,71 @@ class _CurrencyScreenState extends State<CurrencyScreen> {
     );
   }
 
-  Widget _currencyTile(Currency currency) {
-    final isSelected = currency.code == _selectedCode;
+  Widget _row({
+    Key? key,
+    required String code,
+    required String name,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
-      onTap: () {
-        setState(() => _selectedCode = currency.code);
-        Navigator.pop(context, CurrencySelection(currency.code));
-      },
+      key: key,
+      onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        color: isSelected
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSizes.pw20,
+          vertical: AppSizes.ph14,
+        ),
+        color: selected
             ? DarkColors.primaryColor.withValues(alpha: 0.15)
             : Colors.transparent,
         child: Row(
           children: [
             SizedBox(
-              width: 44,
+              width: AppSizes.w44,
               child: Text(
-                currency.code,
-                style: const TextStyle(
+                code,
+                style: TextStyle(
                   color: Colors.white70,
-                  fontSize: 13,
+                  fontSize: AppSizes.sp13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
             Expanded(
               child: Text(
-                currency.name,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                name,
+                style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
               ),
             ),
-            if (isSelected)
+            if (selected)
               Icon(
                 Icons.check_rounded,
                 color: DarkColors.primaryColor,
-                size: 20,
+                size: AppSizes.w20,
               ),
           ],
         ),
       ),
     );
   }
+
+  Widget _noneTile() => _row(
+    key: const ValueKey('currency-none'),
+    code: '—',
+    name: 'None',
+    selected: _selectedCode == null,
+    onTap: () => Navigator.pop(context, const CurrencySelection(null)),
+  );
+
+  Widget _currencyTile(Currency currency) => _row(
+    code: currency.code,
+    name: currency.name,
+    selected: currency.code == _selectedCode,
+    onTap: () {
+      setState(() => _selectedCode = currency.code);
+      Navigator.pop(context, CurrencySelection(currency.code));
+    },
+  );
 }

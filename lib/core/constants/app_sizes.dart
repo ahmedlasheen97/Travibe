@@ -16,8 +16,11 @@ class AppSizes {
   /// Font Sizes
   static final double sp8 = 8.sp;
   static final double sp12 = 12.sp;
+  static final double sp13 = 13.sp;
   static final double sp14 = 14.sp;
+  static final double sp15 = 15.sp;
   static final double sp16 = 16.sp;
+  static final double sp17 = 17.sp;
   static final double sp18 = 18.sp;
   static final double sp20 = 20.sp;
   static final double sp22 = 22.sp;
@@ -32,10 +35,12 @@ class AppSizes {
   static final double h0_5 = 0.5.h;
   static final double h8 = 8.h;
   static final double h6 = 6.h;
+  static final double h10 = 10.h;
   static final double h12 = 12.h;
 
   static final double h16 = 16.h;
   static final double h20 = 20.h;
+  static final double h22 = 22.h;
   static final double h24 = 24.h;
   static final double h28 = 28.h;
   static final double h32 = 32.h;
@@ -73,9 +78,12 @@ class AppSizes {
   static final double w2 = 2.w;
   static final double w4 = 4.w;
   static final double w8 = 8.w;
+  static final double w10 = 10.w;
   static final double w12 = 12.w;
+  static final double w14 = 14.w;
   static final double w16 = 16.w;
   static final double w20 = 20.w;
+  static final double w22 = 22.w;
   static final double w24 = 24.w;
   static final double w28 = 28.w;
   static final double w32 = 32.w;
@@ -96,6 +104,7 @@ class AppSizes {
   static final double w74 = 74.w;
   static final double w80 = 80.w;
   static final double w95 = 95.w;
+  static final double w100 = 100.w;
   static final double w140 = 140.w;
   static final double w160 = 160.w;
   static final double w180 = 180.w;
@@ -106,7 +115,9 @@ class AppSizes {
   static final double ph4 = 4.h;
   static final double ph6 = 6.h;
   static final double ph8 = 8.h;
+  static final double ph10 = 10.h;
   static final double ph12 = 12.h;
+  static final double ph14 = 14.h;
   static final double ph16 = 16.h;
   static final double ph20 = 20.h;
   static final double ph24 = 24.h;
@@ -124,11 +135,14 @@ class AppSizes {
   static final double pw6 = 6.w;
   static final double pw8 = 8.w;
   static final double pw12 = 12.w;
+  static final double pw14 = 14.w;
   static final double pw16 = 16.w;
   static final double pw18 = 18.w;
+  static final double pw20 = 20.w;
   static final double pw24 = 24.w;
 
   /// Radius
+  static final double r2 = 2.r;
   static final double r4 = 4.r;
   static final double r8 = 8.r;
   static final double r10 = 10.r;
@@ -138,6 +152,7 @@ class AppSizes {
   static final double r22 = 22.r;
   static final double r24 = 24.r;
   static final double r26 = 26.r;
+  static final double r28 = 28.r;
   static final double r30 = 30.r;
   static final double r50 = 50.r;
   static final double r60 = 60.r;

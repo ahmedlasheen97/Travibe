@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/sheet_handle.dart';
 
 class LanguageBottomSheet extends StatefulWidget {
   final String selectedLanguageCode; // 'en' or 'ar'
@@ -9,9 +11,10 @@ class LanguageBottomSheet extends StatefulWidget {
   static Future<String?> show(BuildContext context, String currentCode) {
     return showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF141414),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      // Same frame as the post ⋮ sheet (PostOptionsSheet).
+      backgroundColor: const Color(0xFF0A0A0A),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.r24)),
       ),
       builder: (_) => LanguageBottomSheet(selectedLanguageCode: currentCode),
     );
@@ -34,36 +37,29 @@ class _LanguageBottomSheetState extends State<LanguageBottomSheet> {
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.only(bottom: AppSizes.ph16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 20),
+            SizedBox(height: AppSizes.h16),
+            const SheetHandle(),
+            SizedBox(height: AppSizes.h16),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'Language',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 17,
+                      fontSize: AppSizes.sp17,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: AppSizes.h12),
             for (final lang in _languages)
               _languageTile(lang['code']!, lang['label']!),
           ],
@@ -81,7 +77,10 @@ class _LanguageBottomSheetState extends State<LanguageBottomSheet> {
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSizes.pw20,
+          vertical: AppSizes.ph16,
+        ),
         color: isSelected
             ? DarkColors.primaryColor.withValues(alpha: 0.15)
             : Colors.transparent,
@@ -90,14 +89,14 @@ class _LanguageBottomSheetState extends State<LanguageBottomSheet> {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
+                style: TextStyle(color: Colors.white, fontSize: AppSizes.sp15),
               ),
             ),
             if (isSelected)
               Icon(
                 Icons.check_rounded,
                 color: DarkColors.primaryColor,
-                size: 20,
+                size: AppSizes.w20,
               ),
           ],
         ),

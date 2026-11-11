@@ -1,6 +1,8 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -73,9 +75,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           backgroundColor: DarkColors.backgroundColor,
           body: SafeArea(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: AppSizes.h8),
                 _buildTopBar(),
                 if (state.loading)
                   const LinearProgressIndicator(
@@ -90,17 +92,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: const Text('Retry settings'),
                   ),
                 ],
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _sectionTitle('Account'),
                 _card([
                   _settingsTile(
-                    icon: Icons.mail_outline_rounded,
+                    icon: _svgIcon('sms.svg'),
                     title: 'Email',
                     onTap: () {},
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: Icons.lock_outline_rounded,
+                    icon: _svgIcon('lock.svg'),
                     title: 'Change Password',
                     onTap: () {
                       Navigator.push(
@@ -112,11 +114,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                 ]),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _sectionTitle('Privacy'),
                 _card([
                   _settingsToggleTile(
-                    icon: Icons.person_outline_rounded,
+                    icon: _materialIcon(Icons.person_outline_rounded),
                     title: 'Active Status',
                     value: profile?.showActiveStatus,
                     saving: state.saving == 'show_active_status',
@@ -128,8 +130,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsToggleTile(
-                    icon: Icons.group_outlined,
-                    title: 'Show Me in Travel Buddy',
+                    icon: _svgIcon('profile-2user.svg'),
+                    title: 'Show Me in Buddies',
+                    subtitle: 'Show your current city.',
                     value: profile?.showInTravelBuddy,
                     saving: state.saving == 'show_in_travel_buddy',
                     onChanged: !ready || _busy
@@ -140,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: Icons.person_off_outlined,
+                    icon: _svgIcon('user-remove 3.svg'),
                     title: 'Blocked Accounts',
                     onTap: () {
                       Navigator.push(
@@ -155,11 +158,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                 ]),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _sectionTitle('App Preferences'),
                 _card([
                   _settingsTile(
-                    icon: Icons.language_rounded,
+                    icon: _svgIcon('global.svg'),
                     title: 'Language',
                     detail: state.saving == 'locale'
                         ? 'Saving…'
@@ -187,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: Icons.credit_card_rounded,
+                    icon: _svgIcon('moneys.svg'),
                     title: 'Currency',
                     detail: state.saving == 'currency_code'
                         ? 'Saving…'
@@ -219,11 +222,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                   ),
                 ]),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _sectionTitle('Notifications'),
                 _card([
                   _settingsToggleTile(
-                    icon: Icons.notifications_none_rounded,
+                    icon: _svgIcon('notification.svg'),
                     title: 'Push Notifications',
                     subtitle: 'Receive notifications on your phone',
                     value: profile?.pushNotificationsEnabled,
@@ -235,11 +238,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                   ),
                 ]),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _sectionTitle('Help & Legal'),
                 _card([
                   _settingsTile(
-                    icon: Icons.flag_outlined,
+                    icon: _svgIcon('flag.svg'),
                     title: 'Report a Problem',
                     onTap: () {
                       Navigator.push(
@@ -252,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: Icons.description_outlined,
+                    icon: _svgIcon('document-text.svg'),
                     title: 'Terms of Service',
                     onTap: () {
                       Navigator.push(
@@ -265,7 +268,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: Icons.shield_outlined,
+                    icon: _svgIcon('lock-circle.svg'),
                     title: 'Privacy Policy',
                     onTap: () {
                       Navigator.push(
@@ -277,10 +280,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                 ]),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.h24),
                 _card([
                   _settingsTile(
-                    icon: Icons.logout_rounded,
+                    icon: _svgIcon('logout.svg'),
                     title: 'Log Out',
                     onTap: _accountActionOpen
                         ? null
@@ -301,7 +304,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           },
                   ),
                 ]),
-                const SizedBox(height: 16),
+                SizedBox(height: AppSizes.h16),
                 _buildDeleteAccount(() async {
                   if (_accountActionOpen) return;
                   _accountActionOpen = true;
@@ -317,7 +320,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     if (mounted) _accountActionOpen = false;
                   }
                 }),
-                const SizedBox(height: 32),
+                SizedBox(height: AppSizes.h32),
               ],
             ),
           ),
@@ -329,18 +332,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildTopBar() {
     return Row(
       children: [
-        BackButtonWidget(
-          onTap: () => Navigator.of(context).maybePop(),
-          size: 36,
-          iconSize: 16,
-        ),
-        const SizedBox(width: 16),
-        const Expanded(
+        BackButtonWidget(onTap: () => Navigator.of(context).maybePop()),
+        SizedBox(width: AppSizes.w16),
+        Expanded(
           child: Text(
             'Settings and Privacy',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 17,
+              fontSize: AppSizes.sp17,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -351,12 +350,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _sectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: EdgeInsets.only(bottom: AppSizes.ph10),
       child: Text(
         title,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 15,
+          fontSize: AppSizes.sp15,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -367,23 +366,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppSizes.r16),
       ),
       child: Column(children: children),
     );
   }
 
   Widget _divider() {
-    return const Divider(
+    return Divider(
       height: 1,
       thickness: 1,
       color: Color(0xFF232323),
-      indent: 52,
+      indent: AppSizes.w52,
     );
   }
 
+  /// Figma row-icon grey; matches the exported SVGs' native fill.
+  static const _iconGrey = Color(0xFF989693);
+
+  Widget _svgIcon(String name, {Color color = _iconGrey}) => SvgPicture.asset(
+    'assets/images/icons/$name',
+    width: AppSizes.w20,
+    height: AppSizes.h20,
+    colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+  );
+
+  /// Rows still waiting for their Figma SVG keep the previous Material icon.
+  Widget _materialIcon(IconData icon) =>
+      Icon(icon, color: _iconGrey, size: AppSizes.w20);
+
   Widget _settingsTile({
-    required IconData icon,
+    required Widget icon,
     required String title,
     required VoidCallback? onTap,
     String? detail,
@@ -391,28 +404,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSizes.pw16,
+          vertical: AppSizes.ph14,
+        ),
         child: Row(
           children: [
-            Icon(icon, color: Colors.white70, size: 20),
-            const SizedBox(width: 14),
+            icon,
+            SizedBox(width: AppSizes.w14),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: Colors.white, fontSize: AppSizes.sp16),
               ),
             ),
-            if (detail != null)
-              Flexible(
+            // Value sits right-aligned beside the chevron, never mid-row.
+            if (detail != null) ...[
+              SizedBox(width: AppSizes.w8),
+              ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: AppSizes.w140),
                 child: Text(
                   detail,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(color: _iconGrey, fontSize: AppSizes.sp14),
                 ),
               ),
-            const Icon(
+              SizedBox(width: AppSizes.w4),
+            ],
+            Icon(
               Icons.chevron_right_rounded,
               color: Colors.white38,
-              size: 20,
+              size: AppSizes.w20,
             ),
           ],
         ),
@@ -421,7 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _settingsToggleTile({
-    required IconData icon,
+    required Widget icon,
     required String title,
     String? subtitle,
     required bool? value,
@@ -429,26 +453,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     bool saving = false,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSizes.pw16,
+        vertical: AppSizes.ph12,
+      ),
       child: Row(
         children: [
-          Icon(icon, color: Colors.white70, size: 20),
-          const SizedBox(width: 14),
+          icon,
+          SizedBox(width: AppSizes.w14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppSizes.sp16,
+                  ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+                  SizedBox(height: AppSizes.h2),
                   Text(
                     subtitle,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 12,
+                      fontSize: AppSizes.sp12,
                     ),
                   ),
                 ],
@@ -456,19 +486,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           if (saving)
-            const SizedBox(
-              width: 24,
-              height: 24,
+            SizedBox(
+              width: AppSizes.w24,
+              height: AppSizes.h24,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 semanticsLabel: 'Saving setting',
               ),
             ),
           if (value == null)
-            const Flexible(
+            Flexible(
               child: Text(
                 'Unavailable',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(
+                  color: Colors.white54,
+                  fontSize: AppSizes.sp12,
+                ),
               ),
             )
           else
@@ -488,35 +521,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildDeleteAccount(VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppSizes.r24),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSizes.pw16,
+          vertical: AppSizes.ph14,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xFFDB4A3D),
-          borderRadius: BorderRadius.circular(16),
+          color: const Color(0xFFDD312A),
+          borderRadius: BorderRadius.circular(AppSizes.r24),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.person_off_outlined,
               color: Colors.white,
-              size: 20,
+              size: AppSizes.w20,
             ),
-            const SizedBox(width: 14),
-            const Expanded(
+            SizedBox(width: AppSizes.w14),
+            Expanded(
               child: Text(
                 'Delete Account',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 14,
+                  fontSize: AppSizes.sp16,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
               color: Colors.white,
-              size: 20,
+              size: AppSizes.w20,
             ),
           ],
         ),

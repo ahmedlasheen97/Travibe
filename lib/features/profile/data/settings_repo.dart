@@ -3,15 +3,25 @@ import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'profile_model.dart';
 import 'settings_update.dart';
 
+/// Currencies the backend accepts: the `currency_code` enum of
+/// `UpdateSettingsRequest` in docs/openapi.json. Keep in sync with it.
+const backendCurrencyCodes = {
+  'AED', 'ARS', 'AUD', 'AZN', 'BGN', 'BHD', 'BRL', 'CAD', 'CHF', 'CLP', //
+  'CNY', 'COP', 'CZK', 'DKK', 'DZD', 'EGP', 'EUR', 'GBP', 'GEL', 'HKD', //
+  'HUF', 'IDR', 'ILS', 'INR', 'IQD', 'ISK', 'JOD', 'JPY', 'KES', 'KRW', //
+  'KWD', 'KZT', 'LBP', 'MAD', 'MXN', 'MYR', 'NGN', 'NOK', 'NZD', 'OMR', //
+  'PEN', 'PHP', 'PKR', 'PLN', 'QAR', 'RON', 'RSD', 'RUB', 'SAR', 'SEK', //
+  'SGD', 'THB', 'TND', 'TRY', 'TWD', 'UAH', 'USD', 'VND', 'ZAR',
+};
+
 class SettingsRepo {
   SettingsRepo({
     ApiService? apiService,
-    Set<String> supportedCurrencies = const {'AED'},
+    Set<String> supportedCurrencies = backendCurrencyCodes,
   }) : _api = apiService ?? ApiService(),
        supportedCurrencies = Set.unmodifiable(supportedCurrencies);
   final ApiService _api;
-  // AED is explicitly present in the supplied backend contract. Extend this
-  // only with a backend-confirmed list, not the generic currency picker data.
+  // Only backend-confirmed codes, not the generic currency picker data.
   final Set<String> supportedCurrencies;
 
   Future<ProfileModel> update(SettingsUpdate update) async {

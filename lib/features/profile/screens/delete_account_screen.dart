@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/cupertino.dart';
@@ -97,11 +98,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
         appBar: AppBar(
           backgroundColor: DarkColors.backgroundColor,
           centerTitle: true,
-          title: const Text(
+          title: Text(
             'Delete Account',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 17,
+              fontSize: AppSizes.sp17,
               fontWeight: FontWeight.w700,
               decoration: TextDecoration.none,
             ),
@@ -109,7 +110,6 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
           leading: BackButtonWidget(
             onTap: _cancel,
             enabled: !state.loading,
-            size: 44,
             iconSize: 18,
           ),
         ),
@@ -121,38 +121,38 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.all(20),
+                    padding: EdgeInsets.all(AppSizes.pw20),
                     children: [
-                      const Row(
+                      Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(
                             Icons.error_outline_rounded,
                             color: Color(0xFFDB4A3D),
                           ),
-                          SizedBox(width: 10),
+                          SizedBox(width: AppSizes.w10),
                           Expanded(
                             child: Text(
                               'Your account, profile and associated account data will be permanently deleted. This action cannot be undone.',
                               style: TextStyle(
                                 color: Color(0xFFDB4A3D),
-                                fontSize: 14,
+                                fontSize: AppSizes.sp14,
                                 height: 1.4,
                               ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 24),
-                      const Text(
+                      SizedBox(height: AppSizes.h24),
+                      Text(
                         'Current password *',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: AppSizes.sp14,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      SizedBox(height: AppSizes.h8),
                       TextFormField(
                         controller: _password,
                         cursorColor: DarkColors.primaryColor,
@@ -163,9 +163,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         keyboardType: TextInputType.visiblePassword,
                         enableSuggestions: false,
                         enableIMEPersonalizedLearning: false,
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: AppSizes.sp14,
                         ),
                         validator: (value) => value == null || value.isEmpty
                             ? 'Please enter your current password'
@@ -173,9 +173,9 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         decoration: InputDecoration(
                           hintText: 'Enter your current password',
                           hintStyle: const TextStyle(color: Colors.white54),
-                          errorStyle: const TextStyle(
+                          errorStyle: TextStyle(
                             color: Color(0xFFDB4A3D),
-                            fontSize: 12,
+                            fontSize: AppSizes.sp12,
                           ),
                           errorMaxLines: 3,
                           errorText: state.error?.statusCode == 422
@@ -203,7 +203,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                           fillColor: DarkColors.darkgreyColor,
                           focusColor: DarkColors.darkgreyColor,
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(AppSizes.r28),
                             borderSide: BorderSide(
                               color: DarkColors.greyColor.withValues(
                                 alpha: .25,
@@ -211,25 +211,28 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                             ),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(AppSizes.r28),
                             borderSide: const BorderSide(
                               color: DarkColors.primaryColor,
                             ),
                           ),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(28),
+                            borderRadius: BorderRadius.circular(AppSizes.r28),
                             borderSide: BorderSide.none,
                           ),
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      SizedBox(height: AppSizes.h20),
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
                         controlAffinity: ListTileControlAffinity.leading,
                         activeColor: DarkColors.primaryColor,
-                        title: const Text(
+                        title: Text(
                           'I understand that deleting my account is permanent.',
-                          style: TextStyle(fontSize: 14, color: Colors.white),
+                          style: TextStyle(
+                            fontSize: AppSizes.sp14,
+                            color: Colors.white,
+                          ),
                         ),
                         value: _confirmed,
                         onChanged: state.loading || state.sessionChanged
@@ -257,7 +260,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  padding: EdgeInsets.fromLTRB(
+                    AppSizes.pw20,
+                    AppSizes.ph12,
+                    AppSizes.pw20,
+                    AppSizes.ph20,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -271,7 +279,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         style: ElevatedButton.styleFrom(
                           textStyle: Theme.of(context).textTheme.labelLarge!
                               .copyWith(
-                                fontSize: 16,
+                                fontSize: AppSizes.sp16,
                                 fontWeight: FontWeight.w600,
                                 decoration: TextDecoration.none,
                               ),
@@ -288,10 +296,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                                   color: DarkColors.primaryColor,
                                 ),
                               )
-                            : const Text(
+                            : Text(
                                 'Delete my Account',
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: AppSizes.sp16,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -301,7 +309,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         style: TextButton.styleFrom(
                           textStyle: Theme.of(context).textTheme.labelLarge!
                               .copyWith(
-                                fontSize: 15,
+                                fontSize: AppSizes.sp15,
                                 decoration: TextDecoration.none,
                               ),
                         ),

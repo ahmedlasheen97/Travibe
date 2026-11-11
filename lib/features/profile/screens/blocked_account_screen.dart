@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -66,15 +67,17 @@ class BlockedAccountsScreen extends StatelessWidget {
                                   onRetry: list.load,
                                 ),
                               if (users.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.all(24),
+                                Padding(
+                                  padding: EdgeInsets.all(AppSizes.pw24),
                                   child: Text('No blocked accounts'),
                                 ),
                             ],
                           ),
                         ),
                         SliverPadding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSizes.pw20,
+                          ),
                           sliver: SliverList.builder(
                             itemCount: users.length,
                             itemBuilder: (context, index) => _BlockedUserTile(
@@ -124,11 +127,14 @@ class _BlockedUserTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    margin: const EdgeInsets.only(bottom: 12),
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    margin: EdgeInsets.only(bottom: AppSizes.ph12),
+    padding: EdgeInsets.symmetric(
+      horizontal: AppSizes.pw16,
+      vertical: AppSizes.ph12,
+    ),
     decoration: BoxDecoration(
       color: const Color(0xFF141414),
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppSizes.r20),
     ),
     child: Row(
       children: [
@@ -141,7 +147,7 @@ class _BlockedUserTile extends StatelessWidget {
               ? const Icon(Icons.person)
               : null,
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: AppSizes.w12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

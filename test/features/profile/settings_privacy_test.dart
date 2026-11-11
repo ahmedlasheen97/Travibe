@@ -1,3 +1,7 @@
+import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/glass_surface.dart';
+import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'dart:async';
 import 'package:go_router/go_router.dart';
@@ -582,7 +586,8 @@ void main() {
       expect(api.patches.last, {'locale': 'ar'});
       await tapVisible(tester, find.text('Currency'));
       expect(find.byType(CurrencyScreen), findsOneWidget);
-      await tester.tap(find.text('No preferred currency'));
+      expect(find.text('No preferred currency'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('currency-none')));
       await tester.pumpAndSettle();
       expect(api.patches.last, {'currency_code': null});
       await tester.pumpWidget(const SizedBox());
@@ -683,5 +688,180 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  group('Settings polish', () {
+    Future<void> pumpCurrency(WidgetTester tester, {String? selected}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: CurrencyScreen(
+            selectedCurrencyCode: selected,
+            allowedCodes: SettingsRepo().supportedCurrencies,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> search(WidgetTester tester, String query) async {
+      await tester.enterText(
+        find.byKey(const ValueKey('currency-search')),
+        query,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('default repo offers every backend currency', (tester) async {
+      expect(SettingsRepo().supportedCurrencies, backendCurrencyCodes);
+      expect(backendCurrencyCodes, hasLength(59));
+      expect(backendCurrencyCodes, containsAll(['AED', 'USD', 'EGP', 'EUR']));
+      await pumpCurrency(tester);
+      expect(find.text('None'), findsOneWidget);
+      expect(find.text('AED'), findsOneWidget);
+      expect(find.text('ARS'), findsOneWidget);
+    });
+
+    testWidgets('search matches code and name, case-insensitively', (
+      tester,
+    ) async {
+      Finder listed(String text) =>
+          find.descendant(of: find.byType(ListView), matching: find.text(text));
+      await pumpCurrency(tester, selected: 'AED');
+      await search(tester, 'usd');
+      expect(listed('USD'), findsOneWidget);
+      expect(listed('AED'), findsNothing);
+      // "None" only leads the unfiltered list.
+      expect(find.byKey(const ValueKey('currency-none')), findsNothing);
+
+      await search(tester, 'EGP');
+      expect(listed('EGP'), findsOneWidget);
+      expect(listed('Egypt Pound'), findsOneWidget);
+
+      await search(tester, 'dollar');
+      expect(listed('USD'), findsOneWidget);
+      expect(listed('AUD'), findsOneWidget);
+      expect(listed('CAD'), findsOneWidget);
+      expect(listed('EGP'), findsNothing);
+
+      await search(tester, 'zzzz');
+      expect(
+        find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+
+      await search(tester, '');
+      expect(find.byKey(const ValueKey('currency-none')), findsOneWidget);
+    });
+
+    testWidgets('search field: search-normal icon, white cursor, no orange '
+        'button', (tester) async {
+      await pumpCurrency(tester);
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('currency-search')),
+      );
+      expect(field.cursorColor, Colors.white);
+      final icon = tester.widget<SvgPicture>(
+        find.descendant(
+          of: find.byKey(const ValueKey('currency-search')),
+          matching: find.byType(SvgPicture),
+        ),
+      );
+      expect(
+        (icon.bytesLoader as SvgAssetLoader).assetName,
+        'assets/images/interactions/search-normal.svg',
+      );
+      expect(find.text('No preferred currency'), findsNothing);
+      expect(find.byType(TextButton), findsNothing);
+    });
+
+    testWidgets('Language and Currency values sit beside the chevron', (
+      tester,
+    ) async {
+      final api = SettingsApi();
+      final user = settingsCubit(api);
+      addTearDown(user.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: SettingsScreen(currentUser: user),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final (title, value) in [
+        ('Language', 'English'),
+        ('Currency', 'AED'),
+      ]) {
+        final row = find.ancestor(
+          of: find.text(title),
+          matching: find.byType(InkWell),
+        );
+        final chevron = find.descendant(
+          of: row.first,
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        );
+        final valueRect = tester.getRect(
+          find.descendant(of: row.first, matching: find.text(value)),
+        );
+        expect(
+          tester.getRect(chevron).left - valueRect.right,
+          inInclusiveRange(0, 8),
+        );
+        expect(
+          valueRect.left,
+          greaterThan(tester.getRect(find.text(title)).right),
+        );
+      }
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('Settings back button is 44x44', (tester) async {
+      final api = SettingsApi();
+      final user = settingsCubit(api);
+      addTearDown(user.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: SettingsScreen(currentUser: user),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final glass = find.descendant(
+        of: find.byType(BackButtonWidget),
+        matching: find.byType(GlassSurface),
+      );
+      expect(tester.getSize(glass), const Size(44, 44));
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('language sheet matches the post options sheet', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => LanguageBottomSheet.show(context, 'en'),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      expect(
+        sheet.shape,
+        const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+      );
+      expect(sheet.backgroundColor, const Color(0xFF0A0A0A));
+      expect(find.byType(SheetHandle), findsOneWidget);
+    });
   });
 }
