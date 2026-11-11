@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/action_icon_button.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -101,8 +102,8 @@ void main() {
       expect(tester.widget<PostCard>(find.byType(PostCard)).isSaved, true);
       expect(
         tester
-            .widget<IconButton>(find.byKey(const ValueKey('post-save')))
-            .onPressed,
+            .widget<ActionIconButton>(find.byKey(const ValueKey('post-save')))
+            .onTap,
         isNull,
       );
       repo.writes.single.result.complete(false);

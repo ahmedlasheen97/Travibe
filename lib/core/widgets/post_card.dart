@@ -7,7 +7,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/action_icon_button.dart';
@@ -517,18 +516,15 @@ class _PostCardState extends State<PostCard> {
       toggled: widget.isSaved,
       label: widget.isSaved ? 'Unsave post' : 'Save post',
       enabled: !widget.isSavePending && widget.onSaveTap != null,
-      child: IconButton(
-        key: const ValueKey('post-save'),
-        tooltip: widget.isSaved ? 'Unsave post' : 'Save post',
-        onPressed: widget.isSavePending ? null : widget.onSaveTap,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-        icon: SvgPicture.asset(
-          widget.isSaved
+      child: Tooltip(
+        message: widget.isSaved ? 'Unsave post' : 'Save post',
+        child: ActionIconButton(
+          key: const ValueKey('post-save'),
+          responsive: widget.responsive,
+          iconPath: widget.isSaved
               ? 'assets/images/interactions/archive 2.svg'
               : 'assets/images/interactions/archive.svg',
-          width: _r(20),
-          height: _r(20),
+          onTap: widget.isSavePending ? null : widget.onSaveTap,
         ),
       ),
     );
@@ -537,7 +533,12 @@ class _PostCardState extends State<PostCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Wrap(spacing: _w(8), runSpacing: _h(8), children: actions),
+            child: Wrap(
+              spacing: _w(8),
+              runSpacing: _h(8),
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: actions,
+            ),
           ),
           SizedBox(width: _w(8)),
           save,
@@ -545,6 +546,7 @@ class _PostCardState extends State<PostCard> {
       );
     }
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         actions[0],
         SizedBox(width: AppSizes.w8),
