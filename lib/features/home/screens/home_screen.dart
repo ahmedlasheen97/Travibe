@@ -18,6 +18,8 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/own_post_actions.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
 import 'dart:async';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
@@ -431,11 +433,24 @@ class _HomeViewState extends State<_HomeView> {
     if (_hiddenPosts.state.pending.contains(post.id)) return;
     final blocks = context.read<BlockCubit>();
     if (blocks.state.pending.contains(post.user.id)) return;
+    // Compare the author with the signed-in user; never assume ownership.
+    final own = isViewer(
+      context,
+      post.userId.isNotEmpty ? post.userId : post.user.id,
+      fallbackId: _account.state.account?.id,
+      fallbackSession: _storyOwnerSession,
+    );
+    final feed = _activeFeed;
     final action = await PostOptionsSheet.show(
       context,
-      actions: const {PostOptionAction.hidePost, PostOptionAction.blockUser},
+      actions: own ? ownPostActions : otherPostActions,
+      commentsDisabled: post.commentsDisabled,
     );
-    if (!mounted) return;
+    if (!mounted || action == null) return;
+    if (own) {
+      await runOwnPostAction(context, action: action, post: post, feed: feed);
+      return;
+    }
     if (action == PostOptionAction.hidePost) {
       await _setPostHidden(post.id, true);
     } else if (action == PostOptionAction.blockUser) {

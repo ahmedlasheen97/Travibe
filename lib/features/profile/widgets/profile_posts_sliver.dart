@@ -1,6 +1,6 @@
-import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
 import 'package:travibe/features/create_post/screens/create_post_screen.dart';
+import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -15,6 +15,8 @@ import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/own_post_actions.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
@@ -46,9 +48,10 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
     }
     _creating = true;
     try {
-      final post = await CreatePostScreen.open(context);
-      if (post != null && mounted) {
-        context.read<PostActivityCubit>().published(post);
+      final draft = await CreatePostScreen.open(context);
+      if (draft != null && mounted) {
+        // Root's uploader publishes it and notifies PostActivityCubit.
+        context.read<PostUploadCubit>().enqueue(draft);
       }
     } finally {
       _creating = false;
@@ -213,14 +216,25 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
         block?.state.pending.contains(post.user.id) == true) {
       return;
     }
+    final own =
+        widget.owner ||
+        isViewer(context, post.userId.isNotEmpty ? post.userId : post.user.id);
+    final feed = context.read<PostsCubit>();
     final action = await PostOptionsSheet.show(
       context,
-      actions: {
-        PostOptionAction.hidePost,
-        if (block != null) PostOptionAction.blockUser,
-      },
+      actions: own
+          ? ownPostActions
+          : {
+              PostOptionAction.hidePost,
+              if (block != null) PostOptionAction.blockUser,
+            },
+      commentsDisabled: post.commentsDisabled,
     );
-    if (!mounted) return;
+    if (!mounted || action == null) return;
+    if (own) {
+      await runOwnPostAction(context, action: action, post: post, feed: feed);
+      return;
+    }
     if (action == PostOptionAction.blockUser) {
       await confirmBlockChange(
         context,

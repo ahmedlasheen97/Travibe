@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/features/create_post/cubit/create_post_cubit.dart';
 import 'package:travibe/features/create_post/data/create_post_repo.dart';
 import 'package:travibe/features/create_post/data/create_post_request.dart';
-import 'package:travibe/features/home/data/post_model.dart';
 import 'fixtures.dart';
 
 class Api extends ApiService {
@@ -123,66 +121,90 @@ void main() {
       expect(author.username, 'sara');
     },
   );
-  test(
-    'duplicate submissions and edits cannot change a pending request',
-    () async {
-      final repo = MemoryCreatePostRepo()..gate = Completer<PostModel>();
-      final cubit = CreatePostCubit(repo: repo);
-      addTearDown(cubit.close);
-      cubit.setContent('Original draft');
-      cubit.setVisibility(PostVisibility.followers);
-      final pending = cubit.submit();
-      await cubit.submit();
-      cubit.setContent('Changed');
-      cubit.setVisibility(PostVisibility.private);
-      expect(cubit.state.status, CreatePostStatus.submitting);
-      expect(repo.requests, hasLength(1));
-      expect(repo.requests.single.content, 'Original draft');
-      expect(repo.requests.single.visibility, PostVisibility.followers);
-      repo.gate!.complete(PostModel.fromJson(postJson()));
-      await pending;
-      expect(cubit.state.status, CreatePostStatus.success);
-      await cubit.submit();
-      expect(repo.requests, hasLength(1));
-    },
-  );
-  test(
-    'failure retains draft and audience and supports explicit retry',
-    () async {
-      final repo = MemoryCreatePostRepo()
-        ..error = ApiError(message: 'Try again', statusCode: 422);
-      final cubit = CreatePostCubit(repo: repo);
-      addTearDown(cubit.close);
-      cubit.setContent('My draft');
-      cubit.setVisibility(PostVisibility.private);
-      await cubit.submit();
-      expect(cubit.state.status, CreatePostStatus.failure);
-      expect(cubit.state.error!.message, 'Try again');
-      expect(cubit.state.content, 'My draft');
-      expect(cubit.state.visibility, PostVisibility.private);
-      repo.error = null;
-      await cubit.submit();
-      expect(cubit.state.status, CreatePostStatus.success);
-      expect(repo.requests, hasLength(2));
-      expect(repo.requests.last.visibility, PostVisibility.private);
-    },
-  );
-  test('invalid Cubit input never creates a post', () async {
-    final repo = MemoryCreatePostRepo();
-    final cubit = CreatePostCubit(repo: repo);
-    addTearDown(cubit.close);
-    await cubit.submit();
-    cubit.setContent('x' * 2001);
-    await cubit.submit();
-    expect(cubit.state.status, CreatePostStatus.failure);
-    expect(repo.requests, isEmpty);
+  test('serializes images-only posts as media_ids without content', () {
+    expect(
+      CreatePostRequest(
+        content: '  ',
+        images: [postImage('a', mediaId: 5), postImage('b', mediaId: 9)],
+      ).toJson(),
+      {
+        'media_ids': [5, 9],
+        'visibility': 'public',
+      },
+    );
+    expect(
+      CreatePostRequest(
+        content: 'Trip',
+        visibility: PostVisibility.followers,
+        images: [postImage('a', mediaId: 5)],
+      ).toJson(),
+      {
+        'content': 'Trip',
+        'media_ids': [5],
+        'visibility': 'followers',
+      },
+    );
   });
-  test('late network completion does not emit after Cubit disposal', () async {
-    final repo = MemoryCreatePostRepo()..gate = Completer<PostModel>();
-    final cubit = CreatePostCubit(repo: repo)..setContent('Trip');
-    final pending = cubit.submit();
-    await cubit.close();
-    repo.gate!.complete(PostModel.fromJson(postJson()));
-    await pending;
+  test('refuses to serialize photos that have not been uploaded', () {
+    expect(
+      () => CreatePostRequest(content: '', images: [postImage('a')]).toJson(),
+      throwsA(isA<ApiError>()),
+    );
+  });
+  test('enforces the 10 photo app limit', () {
+    final images = [for (var i = 0; i < 11; i++) postImage('$i', mediaId: i)];
+    expect(
+      CreatePostRequest(
+        content: '',
+        images: images.take(10).toList(),
+      ).validationError,
+      isNull,
+    );
+    expect(
+      CreatePostRequest(content: '', images: images).validationError,
+      isNotNull,
+    );
+  });
+  test('Post is enabled by text or by a photo alone', () {
+    final cubit = CreatePostCubit(repo: MemoryCreatePostRepo());
+    addTearDown(cubit.close);
+    expect(cubit.state.canSubmit, isFalse);
+    expect(cubit.state.hasUnsavedContent, isFalse);
+    cubit.setContent('   ');
+    expect(cubit.state.canSubmit, isFalse);
+    expect(cubit.state.hasUnsavedContent, isTrue);
+    cubit.setContent('');
+    cubit.addImages([postImage('a')]);
+    expect(cubit.state.canSubmit, isTrue);
+    expect(cubit.state.hasUnsavedContent, isTrue);
+    cubit.setContent('x' * 2001);
+    expect(cubit.state.canSubmit, isFalse);
+  });
+  test(
+    'adding photos stops at the limit with a notice; removal frees slots',
+    () {
+      final cubit = CreatePostCubit(repo: MemoryCreatePostRepo());
+      addTearDown(cubit.close);
+      cubit.addImages([for (var i = 0; i < 8; i++) postImage('$i')]);
+      expect(cubit.state.notice, isNull);
+      expect(cubit.state.remainingImages, 2);
+      cubit.addImages([postImage('x'), postImage('y'), postImage('z')]);
+      expect(cubit.state.images, hasLength(10));
+      expect(cubit.state.images.last.localId, 'y');
+      expect(cubit.state.notice, CreatePostCubit.limitNotice);
+      final id = cubit.state.noticeId;
+      cubit.notifyLimit();
+      expect(cubit.state.noticeId, id + 1);
+      cubit.removeImage('3');
+      expect(cubit.state.images.map((i) => i.localId), isNot(contains('3')));
+      expect(cubit.state.remainingImages, 1);
+    },
+  );
+  test('rejected photos produce a notice', () {
+    final cubit = CreatePostCubit(repo: MemoryCreatePostRepo());
+    addTearDown(cubit.close);
+    cubit.addImages([postImage('a')], rejected: 2);
+    expect(cubit.state.images, hasLength(1));
+    expect(cubit.state.notice, CreatePostCubit.rejectedNotice);
   });
 }

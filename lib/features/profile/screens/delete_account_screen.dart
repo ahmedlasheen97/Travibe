@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -42,50 +43,16 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
     }
     _showingConfirmation = true;
     try {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          scrollable: true,
-          backgroundColor: const Color(0xFF141414),
-          titleTextStyle: Theme.of(context).textTheme.titleMedium!.copyWith(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-            decoration: TextDecoration.none,
-          ),
-          title: const Text('Permanently Delete Account?'),
-          content: const Text(
+      final confirmed = await showGlassConfirmDialog(
+        context,
+        title: 'Permanently Delete Account?',
+        message:
             'This action cannot be undone. Your Travibe account will be permanently deleted.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: TextButton.styleFrom(
-                textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(
-                  fontSize: 14,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              child: const Text('Keep Account'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: TextButton.styleFrom(
-                textStyle: Theme.of(context).textTheme.labelLarge!.copyWith(
-                  fontSize: 14,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              child: const Text(
-                'Delete Permanently',
-                style: TextStyle(color: Color(0xFFDB4A3D)),
-              ),
-            ),
-          ],
-        ),
+        confirmLabel: 'Delete Permanently',
+        cancelLabel: 'Keep Account',
       );
       if (!mounted) return;
-      if (confirmed != true) {
+      if (!confirmed) {
         _password.clear();
         setState(() => _confirmed = false);
         return;

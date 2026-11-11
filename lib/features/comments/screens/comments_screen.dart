@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'dart:async';
 import 'package:travibe/features/chats/screens/chat_navigation.dart';
 import 'dart:math' as math;
@@ -183,26 +184,14 @@ class _CommentsViewState extends State<_CommentsView> {
   }
 
   Future<void> _delete(CommentModel comment) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: const Text('Delete comment?'),
-        content: const Text(
+    final confirmed = await showGlassConfirmDialog(
+      context,
+      title: 'Delete comment?',
+      message:
           'Replies may also be affected. Deleted replies are restored individually.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      confirmLabel: 'Delete',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     final cubit = context.read<CommentsCubit>();
     final result = await cubit.delete(comment);
     if (!mounted) return;

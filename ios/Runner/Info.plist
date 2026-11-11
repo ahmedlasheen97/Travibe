@@ -30,9 +30,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Take a photo to preview and edit your Travibe story.</string>
+	<string>Take photos to add to your Travibe posts and stories.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Select a photo to preview and edit your Travibe story.</string>
+	<string>Choose photos to add to your Travibe posts and stories.</string>
 
 	<!-- Google Sign-In URL Scheme -->
 	<key>CFBundleURLTypes</key>

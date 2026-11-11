@@ -1,4 +1,5 @@
 import 'package:travibe/core/widgets/user_profile_link.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/widgets/home_post_caption.dart';
@@ -205,23 +206,17 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
-  String? _currentUserId() {
-    final session = PreferencesManager();
-    final current = context.read<CurrentUserCubit?>();
-    // The app-level Cubit clears its resource synchronously on account changes.
-    if (current != null && !session.hasSession) return null;
-    final shared = _normalizedUserId(current?.state.profile?.id);
-    if (shared != null) return shared;
-    return widget.currentUserSessionRevision == session.sessionRevision
-        ? _normalizedUserId(widget.currentUserId)
-        : null;
-  }
+  String? _currentUserId() => viewerUserId(
+    context,
+    fallbackId: widget.currentUserId,
+    fallbackSession: widget.currentUserSessionRevision,
+  );
 
   bool _canDisplayFollow() {
     // Keep the existing API for static/legacy cards without author metadata.
     // Every model-backed follow-enabled card supplies the real author ID.
     if (widget.authorId == null) return true;
-    final author = _normalizedUserId(widget.authorId);
+    final author = normalizeUserId(widget.authorId);
     final viewer = _currentUserId();
     // Unknown identity is not ownership proof, and must not flash a follow CTA.
     return author != null && viewer != null && author != viewer;
@@ -567,13 +562,4 @@ class _PostCardState extends State<PostCard> {
 ImageProvider _imageProvider(String path) {
   if (path.startsWith('http')) return NetworkImage(path);
   return AssetImage(path);
-}
-
-final _userIdDigits = RegExp(r'^[0-9]+$');
-String? _normalizedUserId(Object? value) {
-  if (value is! int && value is! String) return null;
-  final text = value.toString().trim();
-  if (!_userIdDigits.hasMatch(text)) return null;
-  final id = BigInt.tryParse(text);
-  return id != null && id > BigInt.zero ? id.toString() : null;
 }

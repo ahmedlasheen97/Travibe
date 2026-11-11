@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -194,26 +195,13 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
               widget.profile.followsYou == true)) {
             break;
           }
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (dialog) => AlertDialog(
-              title: const Text('Remove follower?'),
-              content: Text(
-                '${widget.profile.displayName} will no longer follow you.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialog, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(dialog, true),
-                  child: const Text('Remove'),
-                ),
-              ],
-            ),
+          final confirmed = await showGlassConfirmDialog(
+            context,
+            title: 'Remove follower?',
+            message: '${widget.profile.displayName} will no longer follow you.',
+            confirmLabel: 'Remove',
           );
-          if (!mounted || !_valid || confirmed != true || _blocked) break;
+          if (!mounted || !_valid || !confirmed || _blocked) break;
           final error = await follow.removeFollower(widget.profile.id);
           if (!mounted || !_valid) break;
           if (error != null) {

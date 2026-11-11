@@ -25,6 +25,10 @@ import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/features/create_post/screens/create_post_screen.dart';
 import 'package:travibe/features/create_post/data/create_post_repo.dart';
+import 'package:travibe/features/create_post/data/post_image_picker.dart';
+import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
+import 'package:travibe/features/create_post/widgets/post_upload_toast.dart';
+import 'package:travibe/features/create_post/widgets/create_post_styles.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
 
@@ -37,6 +41,8 @@ class Root extends StatefulWidget {
     this.followRepo,
     this.buddiesRepo,
     this.profileRepo,
+    this.mediaUploads,
+    this.postImagePicker,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
@@ -44,6 +50,8 @@ class Root extends StatefulWidget {
   final FollowRepo? followRepo;
   final BuddiesRepo? buddiesRepo;
   final ProfileRepo? profileRepo;
+  final MediaUploadFactory? mediaUploads;
+  final PostImagePicker? postImagePicker;
 
   @override
   State<Root> createState() => _RootState();
@@ -108,6 +116,10 @@ class _RootState extends State<Root> {
     repo: widget.postsRepo ?? PostsRepo(),
     feeds: [],
   );
+  late final _postUploads = PostUploadCubit(
+    repo: widget.createPostRepo,
+    uploads: widget.mediaUploads,
+  );
   final _publications = ValueNotifier<int>(0);
   final _homeRefreshes = ValueNotifier<int>(0);
   final _buddiesRefreshes = ValueNotifier<int>(0);
@@ -122,6 +134,7 @@ class _RootState extends State<Root> {
     _reverb?.detach(this);
     _chatUnread?.detach(this);
     unawaited(_reverbBlocks?.cancel() ?? Future.value());
+    _postUploads.close();
     _publications.dispose();
     _homeRefreshes.dispose();
     _buddiesRefreshes.dispose();
@@ -185,106 +198,130 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _hidden),
         BlocProvider.value(value: _followCubit),
         BlocProvider.value(value: _blockCubit),
+        BlocProvider.value(value: _postUploads),
       ],
-      child: Scaffold(
-        body: NotificationListener<UserScrollNotification>(
-          onNotification: (notification) {
-            if (notification.metrics.axis != Axis.vertical) return false;
-            if (notification.direction == ScrollDirection.reverse) {
-              // scrolling down → hide
-              if (_isNavVisible) setState(() => _isNavVisible = false);
-            } else if (notification.direction == ScrollDirection.forward) {
-              // scrolling up → show
-              if (!_isNavVisible) setState(() => _isNavVisible = true);
-            }
-            return false; // let the notification keep bubbling
-          },
-          child: IndexedStack(
-            index: _currentIndex,
+      child: BlocListener<PostUploadCubit, PostUploadState>(
+        listener: _onPostUpload,
+        child: Scaffold(
+          body: Stack(
             children: [
-              for (var i = 0; i < screens.length; i++)
-                _visitedTabs.contains(i)
-                    ? TickerMode(enabled: i == _currentIndex, child: screens[i])
-                    : const SizedBox.shrink(),
+              NotificationListener<UserScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.metrics.axis != Axis.vertical) return false;
+                  if (notification.direction == ScrollDirection.reverse) {
+                    // scrolling down → hide
+                    if (_isNavVisible) setState(() => _isNavVisible = false);
+                  } else if (notification.direction ==
+                      ScrollDirection.forward) {
+                    // scrolling up → show
+                    if (!_isNavVisible) setState(() => _isNavVisible = true);
+                  }
+                  return false; // let the notification keep bubbling
+                },
+                child: IndexedStack(
+                  index: _currentIndex,
+                  children: [
+                    for (var i = 0; i < screens.length; i++)
+                      _visitedTabs.contains(i)
+                          ? TickerMode(
+                              enabled: i == _currentIndex,
+                              child: screens[i],
+                            )
+                          : const SizedBox.shrink(),
+                  ],
+                ),
+              ),
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: PostUploadToast(),
+              ),
             ],
           ),
-        ),
-        bottomNavigationBar: AnimatedSlide(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeInOut,
-          offset: _isNavVisible ? Offset.zero : const Offset(0, 1.5),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 200),
-            opacity: _isNavVisible ? 1 : 0,
-            child: LiquidGlassBottomNav(
-              navigation: BottomNavigationBar(
-                currentIndex: _currentIndex,
-                onTap: (value) {
-                  if (value == 0) {
-                    _push?.refreshCount();
-                    unawaited(_chatUnread?.refresh() ?? Future.value());
-                  }
-                  if (value == 2) {
-                    _showCreateOptions();
-                    return;
-                  }
-                  if (value == 0 && _currentIndex == 0) {
-                    _homeRefreshes.value++;
-                    return;
-                  }
-                  if (value == 3 && _currentIndex == 3) {
-                    _buddiesRefreshes.value++;
-                    return;
-                  }
-                  if (value == 4 && _currentIndex == 4) {
-                    _profileRefreshes.value++;
-                    return;
-                  }
-                  setState(() {
-                    _currentIndex = value;
-                    _visitedTabs.add(value);
-                  });
-                },
-                backgroundColor: Colors.transparent,
-                elevation: 0,
-                items: [
-                  for (int i = 0; i < 5; i++)
-                    if (i == 2)
-                      BottomNavigationBarItem(
-                        icon: Container(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(
-                                  0xFFE45C10,
-                                ).withValues(alpha: 0.6),
-                                blurRadius: 10,
-                                spreadRadius: 0,
-                                offset: Offset.zero,
-                              ),
-                            ],
+          bottomNavigationBar: AnimatedSlide(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            offset: _isNavVisible ? Offset.zero : const Offset(0, 1.5),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: _isNavVisible ? 1 : 0,
+              child: LiquidGlassBottomNav(
+                navigation: BottomNavigationBar(
+                  currentIndex: _currentIndex,
+                  onTap: (value) {
+                    if (value == 0) {
+                      _push?.refreshCount();
+                      unawaited(_chatUnread?.refresh() ?? Future.value());
+                    }
+                    if (value == 2) {
+                      _showCreateOptions();
+                      return;
+                    }
+                    if (value == 0 && _currentIndex == 0) {
+                      _homeRefreshes.value++;
+                      return;
+                    }
+                    if (value == 3 && _currentIndex == 3) {
+                      _buddiesRefreshes.value++;
+                      return;
+                    }
+                    if (value == 4 && _currentIndex == 4) {
+                      _profileRefreshes.value++;
+                      return;
+                    }
+                    setState(() {
+                      _currentIndex = value;
+                      _visitedTabs.add(value);
+                    });
+                  },
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  items: [
+                    for (int i = 0; i < 5; i++)
+                      if (i == 2)
+                        BottomNavigationBarItem(
+                          icon: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFFE45C10,
+                                  ).withValues(alpha: 0.6),
+                                  blurRadius: 10,
+                                  spreadRadius: 0,
+                                  offset: Offset.zero,
+                                ),
+                              ],
+                            ),
+                            child: SvgPicture.asset(
+                              'assets/images/home/Component 53 (1).svg',
+                              width: AppSizes.w42,
+                              height: AppSizes.h42,
+                            ),
                           ),
-                          child: SvgPicture.asset(
-                            'assets/images/home/Component 53 (1).svg',
-                            width: AppSizes.w42,
-                            height: AppSizes.h42,
+                          label: ' ',
+                        )
+                      else
+                        BottomNavigationBarItem(
+                          icon: SvgPicture.asset(
+                            i == _currentIndex
+                                ? _filledIcons[i]
+                                : _outlineIcons[i],
+                            width: 22,
+                            height: 22,
                           ),
+                          label: [
+                            'Home',
+                            'Explore',
+                            '',
+                            'Buddies',
+                            'Profile',
+                          ][i],
                         ),
-                        label: ' ',
-                      )
-                    else
-                      BottomNavigationBarItem(
-                        icon: SvgPicture.asset(
-                          i == _currentIndex
-                              ? _filledIcons[i]
-                              : _outlineIcons[i],
-                          width: 22,
-                          height: 22,
-                        ),
-                        label: ['Home', 'Explore', '', 'Buddies', 'Profile'][i],
-                      ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -306,39 +343,52 @@ class _RootState extends State<Root> {
     });
   }
 
+  void _onPostUpload(BuildContext context, PostUploadState state) {
+    if (state is! PostUploadDone) return;
+    // Home stays mounted, so its existing Cubits and scroll/tab state survive.
+    _publications.value++;
+    _activity.published(state.post);
+    // Figma: floating green toast, 20px side margins, radius 4.
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: createPostSuccess,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+        elevation: 0,
+        content: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white, size: 20),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Post published successfully',
+                style: createPostTextStyle,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _showCreateOptions() async {
     if (_openingComposer) return;
     _openingComposer = true;
     try {
-      final post = await CreatePostScreen.open(
+      final draft = await CreatePostScreen.open(
         context,
         repo: widget.createPostRepo,
+        picker: widget.postImagePicker,
       );
-      if (!mounted || post == null) return;
+      if (!mounted || draft == null) return;
       setState(() {
         _currentIndex = 0;
         _isNavVisible = true;
       });
-      // Home stays mounted, so its existing Cubits and scroll/tab state survive.
-      _publications.value++;
-      _activity.published(post);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Color(0xFF159947),
-          content: Row(
-            children: [
-              Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-              SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Post published successfully',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      // The composer is already closed; the toast reports upload progress.
+      _postUploads.enqueue(draft);
     } finally {
       _openingComposer = false;
     }

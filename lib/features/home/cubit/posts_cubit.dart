@@ -43,6 +43,8 @@ class PostsCubit extends Cubit<PostsState> {
         _postOrder.clear();
         _commentCounts.clear();
         _commentVersions.clear();
+        _commentsDisabled.clear();
+        _deletedPosts.clear();
         _commentRevision = 0;
         emit(PostsInitial());
         if (userId == null && saves!.authenticated) unawaited(loadPosts());
@@ -63,6 +65,8 @@ class PostsCubit extends Cubit<PostsState> {
     _postOrder.clear();
     _commentCounts.clear();
     _commentVersions.clear();
+    _commentsDisabled.clear();
+    _deletedPosts.clear();
     _commentRevision = 0;
     emit(PostsInitial());
   }
@@ -74,8 +78,12 @@ class PostsCubit extends Cubit<PostsState> {
   void _syncActivity() {
     final current = state;
     if (isClosed || current is! PostsLoaded) return;
-    final posts = current.posts.map(_withCommentCount).toList();
-    if (posts.indexed.every((e) => identical(e.$2, current.posts[e.$1]))) {
+    final posts = [
+      for (final post in current.posts)
+        if (!_isDeleted(post.id)) _withCommentCount(post),
+    ];
+    if (posts.length == current.posts.length &&
+        posts.indexed.every((e) => identical(e.$2, current.posts[e.$1]))) {
       return;
     }
     emit(
@@ -205,9 +213,49 @@ class PostsCubit extends Cubit<PostsState> {
 
   PostModel _withCommentCount(PostModel post) {
     final count = activity?.state.comments[post.id] ?? _commentCounts[post.id];
+    final disabled =
+        activity?.state.commentsDisabled[post.id] ?? _commentsDisabled[post.id];
+    if (disabled != null && disabled != post.commentsDisabled) {
+      post = post.copyWith(commentsDisabled: disabled);
+    }
     return count == null || count == post.commentsCount
         ? post
         : post.copyWith(commentsCount: count, hasCommentCount: true);
+  }
+
+  // Local fallbacks when no shared PostActivityCubit is attached.
+  final Map<String, bool> _commentsDisabled = {};
+  final Set<String> _deletedPosts = {};
+  bool _isDeleted(String id) =>
+      _deletedPosts.contains(id) ||
+      activity?.state.deleted.contains(id) == true;
+
+  /// Deletes the viewer's own post, then removes it from every list.
+  Future<ApiError?> deletePost(PostModel post) async {
+    try {
+      await _postsRepo.deletePost(post.id);
+    } catch (error) {
+      return _errorFrom(error);
+    }
+    if (isClosed) return null;
+    _deletedPosts.add(post.id);
+    activity?.postDeleted(post.id);
+    _syncActivity();
+    return null;
+  }
+
+  /// Turns commenting on/off for the viewer's own post.
+  Future<ApiError?> setCommentsDisabled(PostModel post, bool disabled) async {
+    try {
+      await _postsRepo.setCommentsDisabled(post.id, disabled);
+    } catch (error) {
+      return _errorFrom(error);
+    }
+    if (isClosed) return null;
+    _commentsDisabled[post.id] = disabled;
+    activity?.setCommentsDisabled(post.id, disabled);
+    _syncActivity();
+    return null;
   }
 
   /// Apply one authoritative post count to every visible/cached feed occurrence.
@@ -279,7 +327,7 @@ class PostsCubit extends Cubit<PostsState> {
     final visible = <PostModel>[];
     for (var i = 0; i < posts.length; i++) {
       final post = _withSavedState(_withLikeState(_withCommentCount(posts[i])));
-      if (_isBlockedPost(post)) continue;
+      if (_isBlockedPost(post) || _isDeleted(post.id)) continue;
       _postOrder.putIfAbsent(post.id, () => _postOrder.length);
       if (userId == null && _hiddenPostIds.contains(post.id)) {
         _removedPosts.putIfAbsent(

@@ -274,7 +274,7 @@ void main() {
       await capture(tester, 'confirmation');
       final confirm = find.descendant(
         of: find.byType(ChatDeclineRequestDialog),
-        matching: action('Decline'),
+        matching: find.widgetWithText(TextButton, 'Decline'),
       );
       await tester.tap(confirm);
       await tester.pumpAndSettle();
@@ -399,7 +399,7 @@ void main() {
       find.text('This request will be removed from your requests.'),
       findsOneWidget,
     );
-    await tester.tap(action('Cancel'));
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await tester.pumpAndSettle();
     expect(repo.declines, 0);
     expect(find.byType(ConversationScreen), findsOneWidget);
@@ -418,7 +418,7 @@ void main() {
         await tester.pumpAndSettle();
         final confirm = find.descendant(
           of: find.byType(ChatDeclineRequestDialog),
-          matching: action('Decline'),
+          matching: find.widgetWithText(TextButton, 'Decline'),
         );
         final target = tester.getCenter(confirm);
         await tester.tapAt(target);
@@ -476,7 +476,7 @@ void main() {
       await tester.pumpAndSettle();
       final confirm = find.descendant(
         of: find.byType(ChatDeclineRequestDialog),
-        matching: action('Decline'),
+        matching: find.widgetWithText(TextButton, 'Decline'),
       );
       await tester.tap(confirm);
       await tester.pump();
@@ -684,9 +684,9 @@ void main() {
         await tester.tap(action('Decline'));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        await tester.ensureVisible(action('Cancel'));
+        await tester.ensureVisible(find.widgetWithText(TextButton, 'Cancel'));
         await tester.pumpAndSettle();
-        await tester.tap(action('Cancel'));
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
         await tester.pumpAndSettle();
         expect(find.byType(ChatDeclineRequestDialog), findsNothing);
         await tester.pumpWidget(const SizedBox());

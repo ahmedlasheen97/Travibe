@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/cupertino.dart';
@@ -348,28 +349,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (!_formKey.currentState!.validate() || _errors.isNotEmpty) return;
     if (_draft.clearsRequired) {
       _confirming = true;
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Clear profile details?'),
-          content: const Text(
+      final confirmed = await showGlassConfirmDialog(
+        context,
+        title: 'Clear profile details?',
+        message:
             'Clearing your username or required selections may make your profile incomplete.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Clear and Save'),
-            ),
-          ],
-        ),
+        confirmLabel: 'Clear and Save',
       );
       if (!mounted) return;
       setState(() => _confirming = false);
-      if (confirmed != true || _isSaving) return;
+      if (!confirmed || _isSaving) return;
     }
     final saving = _editor.save(_draft);
     setState(() {});

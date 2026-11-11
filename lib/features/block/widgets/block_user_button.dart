@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
@@ -23,28 +24,16 @@ Future<void> confirmBlockChange(
     return;
   }
   final action = blocked ? 'Block' : 'Unblock';
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      title: Text('$action user?'),
-      content: Text(
-        blocked
-            ? 'Block ${name ?? 'this user'}? Existing follows will remain.'
-            : 'Unblock ${name ?? 'this user'}? Existing follow relationships will remain.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, false),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(dialogContext, true),
-          child: Text(action),
-        ),
-      ],
-    ),
+  final confirmed = await showGlassConfirmDialog(
+    context,
+    title: '$action user?',
+    message: blocked
+        ? 'Block ${name ?? 'this user'}? Existing follows will remain.'
+        : 'Unblock ${name ?? 'this user'}? Existing follow relationships will remain.',
+    confirmLabel: action,
+    destructive: blocked,
   );
-  if (confirmed != true || !context.mounted) return;
+  if (!confirmed || !context.mounted) return;
   final result = await cubit.setBlocked(userId, blocked);
   if (!context.mounted) return;
   if (result != null) {

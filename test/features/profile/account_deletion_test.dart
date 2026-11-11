@@ -1,3 +1,5 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/widgets/glass_surface.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:async';
@@ -422,12 +424,13 @@ void main() {
       await tester.tap(find.text('Delete my Account'));
       await tester.pumpAndSettle();
       expect(find.text('Permanently Delete Account?'), findsOneWidget);
+      expect(find.byType(GlassConfirmDialog), findsOneWidget);
       expect(
-        tester
-            .widget<AlertDialog>(find.byType(AlertDialog))
-            .titleTextStyle!
-            .fontFamily,
-        darkTheme.textTheme.titleMedium!.fontFamily,
+        find.descendant(
+          of: find.byType(GlassConfirmDialog),
+          matching: find.byType(GlassSurface),
+        ),
+        findsOneWidget,
       );
       expect(repo.calls, 0);
       await tester.tap(find.widgetWithText(TextButton, 'Keep Account').last);
@@ -554,7 +557,7 @@ void main() {
       await tester.tap(find.byType(Checkbox));
       await tester.tap(find.text('Delete my Account'));
       await tester.pumpAndSettle();
-      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.byType(GlassConfirmDialog), findsOneWidget);
       expect(tester.takeException(), isNull);
       expect(repo.calls, 0);
       await tester.pumpWidget(const SizedBox());

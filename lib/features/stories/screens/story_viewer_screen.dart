@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/stories/widgets/story_reply_composer.dart';
 import 'package:travibe/features/stories/widgets/story_other_options_sheet.dart';
@@ -148,27 +149,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           ),
         );
         if (delete != true || !mounted || !currentOwner()) return;
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (dialogContext) => AlertDialog(
-            title: const Text('Delete story?'),
-            content: const Text('This story will be removed.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text(
-                  'Delete',
-                  style: TextStyle(color: Colors.red),
-                ),
-              ),
-            ],
-          ),
+        final confirmed = await showGlassConfirmDialog(
+          context,
+          title: 'Delete story?',
+          message: 'This story will be removed.',
+          confirmLabel: 'Delete',
         );
-        if (confirmed != true || !currentOwner()) return;
+        if (!confirmed || !currentOwner()) return;
         final operation = _viewer.deleteCurrent();
         if (mounted) setState(() {});
         final error = await operation;

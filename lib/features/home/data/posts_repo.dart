@@ -6,6 +6,7 @@ import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/hidden_post_response.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 
 enum FeedType { explore, following }
 
@@ -110,6 +111,46 @@ class PostsRepo {
       throw ApiExceptions.handleError(e);
     } catch (_) {
       throw ApiError(message: 'Unable to load saved posts. Please try again.');
+    }
+  }
+
+  /// `DELETE /posts/{post}` (author only; soft delete).
+  Future<void> deletePost(String postId) async {
+    final id = int.tryParse(postId);
+    if (id == null || id < 1) throw ArgumentError.value(postId, 'postId');
+    try {
+      await _apiService.delete('posts/$id');
+    } on ApiError {
+      rethrow;
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    } catch (_) {
+      throw ApiError(message: 'Unable to delete the post. Please try again.');
+    }
+  }
+
+  /// `PUT /posts/{post}` with `comments_disabled` (author only).
+  Future<PostModel> setCommentsDisabled(String postId, bool disabled) async {
+    final id = int.tryParse(postId);
+    if (id == null || id < 1) throw ArgumentError.value(postId, 'postId');
+    try {
+      final response = await _apiService.put('posts/$id', {
+        'comments_disabled': disabled,
+      });
+      final data = response is Map ? response['data'] : null;
+      if (data is! Map || data['comments_disabled'] != disabled) {
+        throw ApiError(
+          message:
+              'The server did not confirm the commenting change. Please refresh and try again.',
+        );
+      }
+      return PostModel.fromJson(Map<String, dynamic>.from(data));
+    } on ApiError {
+      rethrow;
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    } catch (_) {
+      throw ApiError(message: 'Unable to update commenting. Please try again.');
     }
   }
 

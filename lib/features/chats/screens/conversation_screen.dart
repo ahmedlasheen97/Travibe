@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import '../data/chat_history_cache.dart';
 import '../widgets/chat_request_controls.dart';
@@ -30,7 +31,6 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'package:travibe/core/widgets/glass_surface.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -1073,42 +1073,17 @@ class _ConversationScreenState extends State<ConversationScreen>
     }
   }
 
-  Future<bool> _confirm(String title, String description) async =>
-      await showDialog<bool>(
-        context: context,
-        builder: (context) => Dialog(
-          backgroundColor: Colors.transparent,
-          child: GlassSurface(
-            radius: 28,
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    description,
-                    style: const TextStyle(color: Colors.white60),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Confirm'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ) ??
-      false;
+  Future<bool> _confirm(
+    String title,
+    String description, {
+    bool destructive = true,
+  }) => showGlassConfirmDialog(
+    context,
+    title: title,
+    message: description,
+    confirmLabel: 'Confirm',
+    destructive: destructive,
+  );
   void _notice(String message) {
     if (mounted && _valid) {
       ScaffoldMessenger.of(
@@ -1130,6 +1105,7 @@ class _ConversationScreenState extends State<ConversationScreen>
         if (!await _confirm(
           'Delivery unknown',
           'History was refreshed, but this send cannot be identified reliably. Sending again may create a duplicate.',
+          destructive: false,
         )) {
           return;
         }
@@ -1600,6 +1576,7 @@ class _ConversationScreenState extends State<ConversationScreen>
         if (!await _confirm(
           'Delivery unknown',
           'History could not confirm this attachment. Sending again may create a duplicate.',
+          destructive: false,
         )) {
           return;
         }

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui';
+import 'package:travibe/core/media/image_content_type.dart';
 import 'package:travibe/features/stories/data/story_audience.dart';
 
 /// Local editing data only. This is deliberately not an API request model.
@@ -18,25 +19,7 @@ class StorySourceImage {
   final int height;
 
   /// Detect the original upload MIME from bytes, never from the filename.
-  String? get contentType {
-    bool starts(List<int> signature) =>
-        bytes.length >= signature.length &&
-        List.generate(
-          signature.length,
-          (i) => bytes[i] == signature[i],
-        ).every((v) => v);
-    if (starts([137, 80, 78, 71, 13, 10, 26, 10])) return 'image/png';
-    if (starts([255, 216, 255])) return 'image/jpeg';
-    if (starts([71, 73, 70, 56, 55, 97]) || starts([71, 73, 70, 56, 57, 97])) {
-      return 'image/gif';
-    }
-    if (starts([82, 73, 70, 70]) &&
-        bytes.length >= 12 &&
-        String.fromCharCodes(bytes.sublist(8, 12)) == 'WEBP') {
-      return 'image/webp';
-    }
-    return null;
-  }
+  String? get contentType => sniffImageContentType(bytes);
 
   // Retain a local snapshot even if the picker's temporary file disappears.
   final Uint8List bytes;

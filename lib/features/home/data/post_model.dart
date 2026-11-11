@@ -170,6 +170,7 @@ class PostModel {
     int? commentsCount,
     bool? hasCommentCount,
     bool? hasLikeState,
+    bool? commentsDisabled,
   }) {
     return PostModel(
       id: id,
@@ -183,7 +184,7 @@ class PostModel {
       commentsCount: commentsCount ?? this.commentsCount,
       hasCommentCount: hasCommentCount ?? this.hasCommentCount,
       isPinned: isPinned,
-      commentsDisabled: commentsDisabled,
+      commentsDisabled: commentsDisabled ?? this.commentsDisabled,
       originalPost: originalPost,
       originalPostUnavailable: originalPostUnavailable,
       isLiked: isLiked ?? this.isLiked,

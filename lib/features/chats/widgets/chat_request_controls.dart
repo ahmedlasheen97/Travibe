@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
 
 /// Small, clipped glass surfaces; no full-screen blur or animation dependency.
@@ -242,67 +243,12 @@ class _ChatDeclineRequestDialogState extends State<ChatDeclineRequestDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !_busy,
-    child: Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: GlassSurface(
-        radius: 30,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                widget.title,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                widget.description,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 14),
-              ),
-              if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: Text(
-                    _error!,
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChatRequestButton(
-                      label: widget.confirmLabel,
-                      color: const Color(0xFFDD312A),
-                      loading: _busy,
-                      onPressed: _busy ? null : _confirm,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ChatRequestButton(
-                      label: 'Cancel',
-                      onPressed: _busy
-                          ? null
-                          : () => Navigator.pop(context, false),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
+  Widget build(BuildContext context) => GlassConfirmDialog(
+    title: widget.title,
+    message: widget.description,
+    confirmLabel: widget.confirmLabel,
+    loading: _busy,
+    error: _error,
+    onConfirm: _confirm,
   );
 }

@@ -28,7 +28,6 @@ import 'package:travibe/features/chats/widgets/chat_widgets.dart';
 import 'package:travibe/features/chats/widgets/chat_options.dart';
 import 'package:travibe/features/chats/widgets/chat_expandable_text.dart';
 import 'package:travibe/features/chats/widgets/chat_network_banner.dart';
-import 'package:travibe/features/chats/widgets/chat_request_controls.dart';
 import 'package:travibe/features/chats/widgets/chat_video_message.dart';
 import 'chat_fakes.dart';
 import 'chat_widgets_test.dart' show harness;
@@ -290,7 +289,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete chat'));
       await tester.pumpAndSettle();
-      final button = find.widgetWithText(ChatRequestButton, 'Delete');
+      final button = find.widgetWithText(TextButton, 'Delete');
       final position = tester.getCenter(button);
       await tester.tapAt(position);
       await tester.pump();
