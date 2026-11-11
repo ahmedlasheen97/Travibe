@@ -144,9 +144,9 @@ setup must await a successful initialization result. Firebase Core is device
 configuration, not Laravel authentication, and is not recreated on account
 switches.
 
-Android's actual applicationId is still `com.example.travibe`; there is no
-`android/app/google-services.json` or Google Services Gradle plugin. No Android
-Firebase app identity was guessed, changed or initialized. Web/macOS similarly
+Android has since been configured: applicationId `com.travibe.app` (matching iOS),
+the Google Services Gradle plugin, and a gitignored `android/app/google-services.json`
+from project `travibe-adc4d`; the bootstrap now initializes on Android. Web/macOS
 have no verified Firebase app options; initialization is skipped there. A future
 FlutterFire CLI configuration should match existing Firebase app registrations
 and generate platform options without overwriting the working iOS plist.
@@ -199,9 +199,8 @@ Existing notification REST/session tests still run in the complete suite.
    token without logging it publicly, and send a Firebase Console test message.
    Confirm actual receipt before claiming push delivery, then test Laravel sends,
    foreground/background/terminated taps, logout and account switching.
-7. Configure a Firebase Android app matching the actual applicationId (or make
-   a separately authorized identifier migration), then add its official config
-   and Gradle plugin. Web needs its own options, service worker and VAPID setup.
+7. Done: Android migrated to `com.travibe.app` with google-services.json and the
+   Gradle plugin (see FIREBASE_PUSH_NOTIFICATIONS.md). Web needs its own options, service worker and VAPID setup.
 
 Official references:
 [Flutter setup](https://firebase.google.com/docs/flutter/setup),

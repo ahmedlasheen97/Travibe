@@ -98,7 +98,8 @@ remain important safeguards.
 ## Firebase transport and notifications UI
 
 FirebaseBootstrap still coalesces Core initialization once per isolate, reuses
-the default Firebase app and reads the existing iOS plist. Notification startup
+the default Firebase app and reads native config: the existing iOS plist or the
+Android `google-services.json` (applied by the Google Services Gradle plugin). Notification startup
 is asynchronous and does not alter the 1500ms splash.
 
 Permission is checked without prompting on startup. The inbox offers an explicit
@@ -179,11 +180,13 @@ GoogleService-Info.plist, signing and Google/Apple/Laravel authentication remain
   aps-environment entitlement, Background Modes remote-notification and matching
   Apple provisioning still require configuration. Confirm APNs key/certificate
   in Firebase Console for this app. No credentials/entitlement values invented.
-- Android: adapter accepts android, but Core remains intentionally disabled on
-  this unconfigured platform. Actual applicationId is com.example.travibe;
-  configure its matching Firebase app/google-services.json/Gradle integration
-  before enabling it. Plugin manifest already supplies POST_NOTIFICATIONS and
-  services. Android 13 permission/channel/icon/device behavior requires testing.
+- Android: applicationId/namespace is com.travibe.app (matching iOS) and Core is
+  enabled. The `com.google.gms.google-services` Gradle plugin reads
+  `android/app/google-services.json` (gitignored; download it from Firebase project
+  travibe-adc4d for package com.travibe.app). Plugin manifest already supplies
+  POST_NOTIFICATIONS and services. FCM uses the default "Miscellaneous" channel
+  and launcher icon; a monochrome notification icon and a custom channel remain.
+  Android 13 permission/channel/icon/device behavior requires testing.
 - Real-device APNs/FCM token retrieval, Laravel/Kreait sends, foreground/background/
   terminated delivery and logout/account-switch delivery remain to be tested.
   A simulator build or mocked transport is not proof of real push delivery.

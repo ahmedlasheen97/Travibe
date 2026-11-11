@@ -595,7 +595,7 @@ Git metadata is unavailable in this workspace, so no Git diff/commit was possibl
   `chat_pending_media_bubble.dart`
 - `lib/core/media/media_upload_service.dart` (optional progress callback)
 - `ios/Runner/AppDelegate.swift`, `ios/Runner/Info.plist`
-- `android/app/src/main/kotlin/com/example/travibe/MainActivity.kt`,
+- `android/app/src/main/kotlin/com/travibe/app/MainActivity.kt`,
   `android/app/src/main/AndroidManifest.xml`
 - `test/features/chats/chat_interactions_test.dart`,
   `chat_media_queue_send_test.dart`, `chat_widgets_test.dart`
@@ -901,7 +901,7 @@ mocked download/native adapters. Actual Reverb delivery is not re-certified here
   status and add-only video saving. No signing/capability/Firebase changes.
 - `ios/Runner/Info.plist` — add-only Photos purpose text now mentions videos too;
   Bundle ID, existing permission keys and Firebase configuration are unchanged.
-- `android/app/src/main/kotlin/com/example/travibe/MainActivity.kt`,
+- `android/app/src/main/kotlin/com/travibe/app/MainActivity.kt`,
   `android/app/src/main/AndroidManifest.xml` — same channel and network permission.
 - `test/features/chats/chat_edge_states_test.dart` (new),
   `message_requests_test.dart` (expects the requested Cupertino loading control).

@@ -1,4 +1,4 @@
-package com.example.travibe
+package com.travibe.app
 
 import android.content.Intent
 import android.Manifest

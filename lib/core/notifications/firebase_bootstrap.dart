@@ -1,7 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
-/// Core initialization for the only Firebase-configured platform in this app.
+/// Core initialization for the Firebase-configured platforms (iOS, Android).
 /// Messaging permission/token/session flows consume this shared readiness gate.
 class FirebaseBootstrap {
   FirebaseBootstrap({
@@ -15,6 +15,7 @@ class FirebaseBootstrap {
        _onError = onError ?? _reportError;
 
   static final instance = FirebaseBootstrap();
+  static const _configured = {TargetPlatform.iOS, TargetPlatform.android};
   final TargetPlatform _platform;
   final bool _isWeb;
   final Future<void> Function() _initializeCore;
@@ -26,7 +27,7 @@ class FirebaseBootstrap {
   Future<bool> initialize() => _pending ??= _initialize();
 
   Future<bool> _initialize() async {
-    if (_isWeb || _platform != TargetPlatform.iOS) return false;
+    if (_isWeb || !_configured.contains(_platform)) return false;
     try {
       await _initializeCore();
       return true;
@@ -37,7 +38,8 @@ class FirebaseBootstrap {
   }
 
   static Future<void> _initializeNative() async {
-    // Native iOS options come from the existing bundled GoogleService plist.
+    // Native options come from the bundled iOS GoogleService plist or the
+    // Android google-services.json resources.
     // Reuse a default app if native startup or another owner already made it.
     if (!Firebase.apps.any((app) => app.name == '[DEFAULT]')) {
       await Firebase.initializeApp();

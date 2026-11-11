@@ -6,29 +6,33 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/notifications/firebase_bootstrap.dart';
 
 void main() {
-  test(
-    'configured iOS initializes Core exactly once across concurrent callers',
-    () async {
-      final gate = Completer<void>();
-      var calls = 0;
-      final bootstrap = FirebaseBootstrap(
-        platform: TargetPlatform.iOS,
-        isWeb: false,
-        initializeCore: () {
-          calls++;
-          return gate.future;
-        },
-      );
-      final first = bootstrap.initialize();
-      final second = bootstrap.initialize();
-      expect(identical(first, second), isTrue);
-      expect(calls, 1);
-      gate.complete();
-      expect(await first, isTrue);
-      expect(await bootstrap.initialize(), isTrue);
-      expect(calls, 1);
-    },
-  );
+  const configured = {TargetPlatform.iOS, TargetPlatform.android};
+
+  for (final platform in configured) {
+    test(
+      'configured $platform initializes Core exactly once across concurrent callers',
+      () async {
+        final gate = Completer<void>();
+        var calls = 0;
+        final bootstrap = FirebaseBootstrap(
+          platform: platform,
+          isWeb: false,
+          initializeCore: () {
+            calls++;
+            return gate.future;
+          },
+        );
+        final first = bootstrap.initialize();
+        final second = bootstrap.initialize();
+        expect(identical(first, second), isTrue);
+        expect(calls, 1);
+        gate.complete();
+        expect(await first, isTrue);
+        expect(await bootstrap.initialize(), isTrue);
+        expect(calls, 1);
+      },
+    );
+  }
 
   test('native failure is reported once without failing app startup', () async {
     var calls = 0;
@@ -60,7 +64,7 @@ void main() {
       expect(await bootstrap.initialize(), isFalse);
       expect(calls, 0);
     });
-    if (platform != TargetPlatform.iOS) {
+    if (!configured.contains(platform)) {
       test('unconfigured native $platform is left operational', () async {
         var calls = 0;
         final bootstrap = FirebaseBootstrap(
