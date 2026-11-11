@@ -50,8 +50,12 @@ class ConversationScreen extends StatefulWidget {
     this.receivedRequest = false,
     this.onRequestResolved,
     this.onDeleted,
+    this.markReadOnOpen = true,
   });
   final ChatConversation conversation;
+
+  /// False when the caller already marked this conversation read.
+  final bool markReadOnOpen;
   final VoidCallback? onDeleted;
   final bool receivedRequest;
   final void Function(ChatConversation conversation, bool accepted)?
@@ -67,6 +71,10 @@ class ConversationScreen extends StatefulWidget {
 class _ConversationScreenState extends State<ConversationScreen>
     with WidgetsBindingObserver {
   late final _repo = widget.repository ?? LaravelChatRepository();
+  // Closing the history list cancels `_repo`; a read must survive leaving.
+  late final ChatRepository _readRepo =
+      widget.repository ?? LaravelChatRepository();
+  bool _openReadStarted = false;
   Object get _historyKey =>
       (widget.repository ?? LaravelChatRepository, widget.conversation.id);
   late final _list = ChatListCubit<ChatMessage>(
@@ -271,6 +279,13 @@ class _ConversationScreenState extends State<ConversationScreen>
       covered?.addStatusListener(_visibility);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) => _bindConversation());
+    if (!_openReadStarted) {
+      _openReadStarted = true;
+      // Read at open, not after history: leaving early must not skip it.
+      if (widget.markReadOnOpen) {
+        unawaited(_markRead().then<void>((_) {}, onError: (Object _) {}));
+      }
+    }
     _activity ??= PushNotificationsScope.maybeOf(context)?.service.activities
         .listen((event) {
           if (_valid &&
@@ -405,26 +420,15 @@ class _ConversationScreenState extends State<ConversationScreen>
             (WidgetsBinding.instance.lifecycleState == null ||
                 WidgetsBinding.instance.lifecycleState ==
                     AppLifecycleState.resumed)) {
-          if (_repo case ChatOperationsRepository operations) {
-            final result = await operations.readConversation(
-              widget.conversation.id,
-            );
-            if (mounted && _valid && headerEpoch == _headerEpoch) {
-              _assignConversation(result);
-              if (_requestResolved && _details?.isAccepted == true) {
-                widget.onRequestResolved?.call(_details!, true);
-              }
+          final result = await _markRead();
+          if (result != null &&
+              mounted &&
+              _valid &&
+              headerEpoch == _headerEpoch) {
+            _assignConversation(result);
+            if (_requestResolved && _details?.isAccepted == true) {
+              widget.onRequestResolved?.call(_details!, true);
             }
-          } else {
-            await _repo.markRead(widget.conversation.id);
-          }
-          if (mounted && _valid) {
-            PushNotificationsScope.maybeOf(
-              context,
-            )?.refreshCount(invalidate: true);
-            unawaited(
-              ChatReverbScope.unreadOf(context)?.refresh() ?? Future.value(),
-            );
           }
         }
       }
@@ -440,6 +444,23 @@ class _ConversationScreenState extends State<ConversationScreen>
         unawaited(_refresh());
       }
     }
+  }
+
+  /// Marks the conversation read on [_readRepo] and updates the app badges
+  /// even if this screen is popped before the request finishes.
+  Future<ChatConversation?> _markRead() async {
+    if (!_valid || !_readRepo.capabilities.read) return null;
+    final id = widget.conversation.id;
+    final push = PushNotificationsScope.maybeOf(context);
+    final unread = ChatReverbScope.unreadOf(context);
+    final repo = _readRepo;
+    final request = repo is ChatOperationsRepository
+        ? (repo as ChatOperationsRepository).readConversation(id)
+        : repo.markRead(id).then<ChatConversation?>((_) => null);
+    unawaited(unread?.trackRead(id, request));
+    final result = await request;
+    if (_valid) push?.refreshCount(invalidate: true);
+    return result;
   }
 
   void _bottom() => WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -689,7 +710,6 @@ class _ConversationScreenState extends State<ConversationScreen>
                                               sending:
                                                   _uploading ||
                                                   _sendingSelections,
-                                              progress: _uploadProgress,
                                               onRetry: () => unawaited(
                                                 _selections.isNotEmpty
                                                     ? _sendSelections()
@@ -1118,7 +1138,7 @@ class _ConversationScreenState extends State<ConversationScreen>
   }
 
   Future<void> _retryMessage(ChatMessage message) async {
-    if (!_valid || !_canSend || _composer.state.sending || _retryBusy) return;
+    if (!_valid || !_canSend || _retryBusy) return;
     _retryBusy = true;
     try {
       if (_composer.retryNeedsConfirmation(message.id)) {

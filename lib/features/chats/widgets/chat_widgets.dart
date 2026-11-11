@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'chat_history_image.dart';
 import '../screens/chat_image_viewer.dart';
 export 'chat_attachment_menu.dart';
@@ -6,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 import 'chat_loading.dart';
 import 'chat_expandable_text.dart';
-import 'chat_image_upload_overlay.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/utils/formatters.dart';
@@ -356,12 +354,7 @@ class ChatMessageBubble extends StatelessWidget {
                             text: message.text,
                             messageId: message.id,
                           ),
-                          ChatMessageKind.image => ChatImageUploadOverlay(
-                            sending:
-                                outgoing &&
-                                message.delivery == ChatDelivery.sending,
-                            child: _image(context),
-                          ),
+                          ChatMessageKind.image => _image(context),
                           ChatMessageKind.audio =>
                             audio == null
                                 ? ChatVoiceMessage(duration: message.duration)
@@ -394,17 +387,6 @@ class ChatMessageBubble extends StatelessWidget {
                             style: TextStyle(color: Colors.white60),
                           ),
                         },
-                      if (outgoing &&
-                          message.kind == ChatMessageKind.text &&
-                          message.delivery == ChatDelivery.sending)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: CupertinoActivityIndicator(
-                            radius: 7,
-                            color: Colors.white,
-                            animating: !MediaQuery.disableAnimationsOf(context),
-                          ),
-                        ),
                       if (message.kind == ChatMessageKind.image &&
                           message.text.isNotEmpty &&
                           !message.isDeleted)
@@ -420,7 +402,9 @@ class ChatMessageBubble extends StatelessWidget {
                 ),
               ),
             ),
-            if (message.delivery == ChatDelivery.failed)
+            if (outgoing && message.delivery == ChatDelivery.sending)
+              const ChatSendingLabel()
+            else if (message.delivery == ChatDelivery.failed)
               TextButton(
                 onPressed: onRetry,
                 child: const Text(
@@ -496,4 +480,23 @@ class ChatMessageBubble extends StatelessWidget {
         : 'Sent';
     return time.isEmpty ? status : '$time · $status';
   }
+}
+
+/// Muted status shown under an outgoing message while it is being sent. It
+/// occupies the same slot (a [TextButton]) as "Failed to send. Tap to retry."
+/// so the bubble does not shift when a send fails.
+class ChatSendingLabel extends StatelessWidget {
+  const ChatSendingLabel({super.key, this.fontSize = 12});
+
+  /// Matches the sibling failure text; null keeps the theme size.
+  final double? fontSize;
+  @override
+  Widget build(BuildContext context) => TextButton(
+    key: const ValueKey('chat-message-sending'),
+    onPressed: null,
+    child: Text(
+      'Sending…',
+      style: TextStyle(color: Colors.white54, fontSize: fontSize),
+    ),
+  );
 }

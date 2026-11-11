@@ -27,7 +27,6 @@ import 'package:travibe/features/chats/widgets/chat_send_button.dart';
 import 'package:travibe/features/chats/widgets/chat_composer.dart';
 import 'package:travibe/features/chats/widgets/chat_selected_media_tray.dart';
 import 'package:travibe/features/chats/widgets/chat_pending_media_bubble.dart';
-import 'package:travibe/features/chats/widgets/chat_image_upload_overlay.dart';
 import 'package:travibe/features/chats/widgets/chat_widgets.dart';
 import 'package:travibe/features/home/widgets/home_top_bar.dart';
 import '../chats/chat_fakes.dart';
@@ -541,7 +540,7 @@ void main() {
   }
   for (final reduced in [false, true]) {
     testWidgets(
-      'pending image has transparent surface, Cupertino overlay and retry; reduced=$reduced',
+      'pending image shows muted Sending… label (no spinner) and retry; reduced=$reduced',
       (tester) async {
         final item = ChatMediaSelection(
           png,
@@ -560,7 +559,6 @@ void main() {
               body: ChatPendingMediaBubble(
                 media: item,
                 sending: sending,
-                progress: .5,
                 onRetry: () => retries++,
               ),
             ),
@@ -568,28 +566,16 @@ void main() {
         );
         await tester.pumpWidget(screen(true));
         await tester.pump();
-        expect(
-          find.byKey(const ValueKey('chat-image-upload-overlay')),
-          findsOneWidget,
-        );
-        final spinner = tester.widget<CupertinoActivityIndicator>(
-          find.byType(CupertinoActivityIndicator),
-        );
-        expect(spinner.color, Colors.white);
-        expect(spinner.animating, !reduced);
+        expect(find.byType(CupertinoActivityIndicator), findsNothing);
         expect(find.byType(LinearProgressIndicator), findsNothing);
-        expect(find.text('Sending…'), findsNothing);
+        expect(find.text('Sending…'), findsOneWidget);
+        expect(find.text('Failed to send. Tap to retry.'), findsNothing);
         expect(find.byType(Image), findsOneWidget);
-        final animation = tester.widget<AnimatedSwitcher>(
-          find.byType(AnimatedSwitcher),
-        );
-        expect(
-          animation.duration,
-          reduced ? Duration.zero : const Duration(milliseconds: 180),
-        );
+        await tester.tap(find.text('Sending…'));
+        expect(retries, 0);
         await tester.pumpWidget(screen(false));
         await tester.pumpAndSettle();
-        expect(find.byType(CupertinoActivityIndicator), findsNothing);
+        expect(find.text('Sending…'), findsNothing);
         await tester.tap(find.text('Failed to send. Tap to retry.'));
         expect(retries, 1);
         await tester.pumpWidget(const SizedBox());
@@ -629,7 +615,6 @@ void main() {
           Colors.transparent,
         );
         expect(surface.padding, EdgeInsets.zero);
-        expect(find.byType(ChatImageUploadOverlay), findsOneWidget);
         await tester.pumpWidget(
           harness(
             Scaffold(
@@ -650,7 +635,7 @@ void main() {
   );
   for (final switchAccount in [false, true]) {
     testWidgets(
-      'image batch has one Send control and confirmed overlay lifecycle; account switch=$switchAccount',
+      'image batch has one Send control and Sending… label lifecycle; account switch=$switchAccount',
       (tester) async {
         final mediaRepo = MediaRepositoryFake()..failSecond = false;
         final upload = WaitingImageUpload();
@@ -687,10 +672,10 @@ void main() {
             of: find.byType(ChatPendingMediaBubble),
             matching: find.byType(CupertinoActivityIndicator),
           ),
-          findsOneWidget,
+          findsNothing,
         );
         expect(find.byType(LinearProgressIndicator), findsNothing);
-        expect(find.text('Sending…'), findsNothing);
+        expect(find.text('Sending…'), findsOneWidget);
         if (switchAccount) {
           await prefs.saveToken('new-account');
           await tester.pumpAndSettle();
@@ -699,10 +684,7 @@ void main() {
         upload.gate.complete();
         await tester.pumpAndSettle();
         expect(mediaRepo.sent, switchAccount ? isEmpty : [101]);
-        expect(
-          find.byKey(const ValueKey('chat-image-upload-overlay')),
-          findsNothing,
-        );
+        expect(find.text('Sending…'), findsNothing);
         if (!switchAccount) {
           expect(find.byType(ChatSelectedMediaTray), findsNothing);
           expect(find.byIcon(Icons.mic_none_rounded), findsOneWidget);
