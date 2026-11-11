@@ -722,7 +722,11 @@ void main() {
             story ? 'notification-story-preview' : 'notification-post-preview',
           ),
         );
-        expect(tester.getSize(preview), Size(56, story ? 76 : 56));
+        // Figma: square post, portrait Story.
+        expect(
+          tester.getSize(preview),
+          story ? const Size(48, 72) : const Size(52, 52),
+        );
         await tester.pumpWidget(
           app(
             Scaffold(

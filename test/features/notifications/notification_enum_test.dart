@@ -36,6 +36,17 @@ const cases = <String, (NotificationKind, String?, String)>{
     'sent you a message',
   ),
   'user_mentioned': (NotificationKind.unknown, null, 'mentioned you'),
+  // Proposed backend types (not yet in docs/openapi.json).
+  'message_request_accepted': (
+    NotificationKind.messageRequest,
+    'messagerequest.svg',
+    'accepted your message request',
+  ),
+  'buddy_nearby': (
+    NotificationKind.nearby,
+    'someone in yourcity.svg',
+    'Someone is currently in your city. discover your new buddy.',
+  ),
 };
 InboxNotification notification(
   String type, {
@@ -110,7 +121,7 @@ void main() {
     });
   }
   test(
-    'only the eight documented exact enum values are production aliases',
+    'only the exact documented and proposed enum values are production aliases',
     () {
       expect(resolver.verifiedTypes.keys.toSet(), cases.keys.toSet());
       for (final type in [

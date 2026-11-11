@@ -12,7 +12,25 @@ import 'package:travibe/features/chats/data/chat_repository.dart';
 import 'notification_model.dart';
 import 'notification_presentation.dart';
 
-enum NotificationTargetKind { post, story, comment, profile, conversation }
+enum NotificationTargetKind {
+  post,
+  story,
+  comment,
+  profile,
+  conversation,
+  buddies,
+}
+
+/// Documented short `target_type` values; legacy morph names still accepted.
+NotificationTargetKind? normalizedTargetKind(String? targetType) =>
+    switch (targetType) {
+      'post' || r'App\Models\Post' => NotificationTargetKind.post,
+      'story' || r'App\Models\Story' => NotificationTargetKind.story,
+      'comment' || r'App\Models\Comment' => NotificationTargetKind.comment,
+      'user' || r'App\Models\User' => NotificationTargetKind.profile,
+      'message' || r'App\Models\Message' => NotificationTargetKind.conversation,
+      _ => null,
+    };
 
 class NotificationTarget {
   const NotificationTarget(this.kind, this.id, {this.postId});
@@ -27,19 +45,18 @@ class NotificationTarget {
 
   static NotificationTarget? from(InboxNotification item) {
     final id = positive(item.targetId);
-    final morph = switch (item.targetType) {
-      r'App\Models\Post' => NotificationTargetKind.post,
-      r'App\Models\Story' => NotificationTargetKind.story,
-      r'App\Models\Comment' => NotificationTargetKind.comment,
-      _ => null,
-    };
+    final morph = normalizedTargetKind(item.targetType);
+    if (item.type == 'buddy_nearby') {
+      return const NotificationTarget(NotificationTargetKind.buddies, 0);
+    }
     if (item.type == 'user_followed') {
       final actor = positive(item.actor?.id);
       return actor == null || item.actor?.isBlocked == true
           ? null
           : NotificationTarget(NotificationTargetKind.profile, actor);
     }
-    if (item.type == 'message_received') {
+    if (item.type == 'message_received' ||
+        item.type == 'message_request_accepted') {
       final conversation = positive(item.data['conversation_id']);
       return conversation == null
           ? null
@@ -314,6 +331,7 @@ class NotificationTargetsRepository {
         }
         return NotificationContent(target, conversation: conversation);
       case NotificationTargetKind.profile:
+      case NotificationTargetKind.buddies:
         return NotificationContent(target);
     }
   }

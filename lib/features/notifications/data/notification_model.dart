@@ -37,6 +37,22 @@ class NotificationActor {
   );
 }
 
+/// Read-time `preview` block from NotificationResource (null when withheld).
+class NotificationPreviewData {
+  const NotificationPreviewData({this.thumbnailUrl, this.excerpt});
+  final String? thumbnailUrl, excerpt;
+  static NotificationPreviewData? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final preview = NotificationPreviewData(
+      thumbnailUrl: _text(json['thumbnail_url']),
+      excerpt: _text(json['excerpt']),
+    );
+    return preview.thumbnailUrl == null && preview.excerpt == null
+        ? null
+        : preview;
+  }
+}
+
 /// Presentation is derived exclusively from the Laravel inbox, never FCM data.
 class InboxNotification {
   InboxNotification.fromJson(Map<String, dynamic> json)
@@ -52,6 +68,7 @@ class InboxNotification {
       data = json['data'] is Map
           ? Map<String, dynamic>.from(json['data'])
           : const {},
+      preview = NotificationPreviewData.fromJson(json['preview']),
       readAt = _date(json['read_at']),
       createdAt = _date(json['created_at']),
       isRead = json['read_at'] != null;
@@ -59,8 +76,14 @@ class InboxNotification {
   final String? targetType, targetId;
   final NotificationActor? actor;
   final Map<String, dynamic> data;
+  final NotificationPreviewData? preview;
   final DateTime? readAt, createdAt;
   final bool isRead;
+
+  /// Proposed backend keys; absent today, so these fall back to 0/false.
+  int get othersCount => _count(data['others_count']);
+  int get mutualFollowers => _count(data['mutual_followers_count']);
+  bool get isRequest => data['is_request'] == true;
   String get title =>
       _text(data['title']) ?? actor?.name ?? actor?.username ?? 'Notification';
   String? get description => _text(data['body']) ?? _text(data['message']);
@@ -69,6 +92,7 @@ class InboxNotification {
 
 String? _text(Object? value) =>
     value is String && value.trim().isNotEmpty ? value : null;
+int _count(Object? value) => value is int && value > 0 ? value : 0;
 DateTime? _date(Object? value) =>
     value is String ? DateTime.tryParse(value) : null;
 

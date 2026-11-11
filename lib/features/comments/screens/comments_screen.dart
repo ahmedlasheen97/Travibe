@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:travibe/features/chats/screens/chat_navigation.dart';
 import 'dart:math' as math;
 import 'dart:ui';
@@ -18,9 +19,13 @@ class CommentsScreen extends StatelessWidget {
     super.key,
     this.parentId,
     this.commentsDisabled = false,
+    this.highlightCommentId,
   });
   final int? parentId;
   final bool commentsDisabled;
+
+  /// Scrolled into view and briefly tinted once loaded (notification deep link).
+  final int? highlightCommentId;
 
   static Future<void> open(
     BuildContext context, {
@@ -28,6 +33,7 @@ class CommentsScreen extends StatelessWidget {
     int initialCount = 0,
     bool commentsDisabled = false,
     int? parentId,
+    int? highlightCommentId,
     CommentsRepo? repo,
     LikesCubit? likes,
     void Function(int)? onCountChanged,
@@ -66,6 +72,7 @@ class CommentsScreen extends StatelessWidget {
                   child: CommentsScreen(
                     parentId: parentId,
                     commentsDisabled: commentsDisabled,
+                    highlightCommentId: highlightCommentId,
                   ),
                 ),
               );
@@ -77,14 +84,22 @@ class CommentsScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      _CommentsView(parentId: parentId, commentsDisabled: commentsDisabled);
+  Widget build(BuildContext context) => _CommentsView(
+    parentId: parentId,
+    commentsDisabled: commentsDisabled,
+    highlightCommentId: highlightCommentId,
+  );
 }
 
 class _CommentsView extends StatefulWidget {
-  const _CommentsView({this.parentId, required this.commentsDisabled});
+  const _CommentsView({
+    this.parentId,
+    required this.commentsDisabled,
+    this.highlightCommentId,
+  });
   final int? parentId;
   final bool commentsDisabled;
+  final int? highlightCommentId;
   @override
   State<_CommentsView> createState() => _CommentsViewState();
 }
@@ -96,6 +111,39 @@ class _CommentsViewState extends State<_CommentsView> {
   String? _mutationError;
   final _focus = FocusNode();
   final Set<int> _expanded = {};
+  final _scroll = ScrollController();
+  final _highlightKey = GlobalKey();
+  bool _highlightScheduled = false, _highlighting = false;
+
+  /// Lazily built rows: step down the list until the target row exists.
+  Future<void> _revealHighlight() async {
+    for (var step = 0; step < 20; step++) {
+      if (!mounted) return;
+      final target = _highlightKey.currentContext;
+      if (target != null && target.mounted) {
+        setState(() => _highlighting = true);
+        await Scrollable.ensureVisible(
+          target,
+          alignment: 0.3,
+          duration: const Duration(milliseconds: 250),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 1500));
+        if (mounted) setState(() => _highlighting = false);
+        return;
+      }
+      if (!_scroll.hasClients ||
+          _scroll.offset >= _scroll.position.maxScrollExtent) {
+        return;
+      }
+      _scroll.jumpTo(
+        (_scroll.offset + _scroll.position.viewportDimension * 0.8).clamp(
+          0,
+          _scroll.position.maxScrollExtent,
+        ),
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+  }
 
   int? get _parentId => _replying?.id ?? widget.parentId;
 
@@ -103,6 +151,7 @@ class _CommentsViewState extends State<_CommentsView> {
   void dispose() {
     _text.dispose();
     _focus.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -484,6 +533,12 @@ class _CommentsViewState extends State<_CommentsView> {
         onRetry: () => cubit.load(parentId: widget.parentId),
       );
     }
+    if (widget.highlightCommentId != null && !_highlightScheduled) {
+      _highlightScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(_revealHighlight()),
+      );
+    }
     return RefreshIndicator(
       onRefresh: () async {
         await Future.wait([
@@ -499,6 +554,7 @@ class _CommentsViewState extends State<_CommentsView> {
           return false;
         },
         child: CustomScrollView(
+          controller: _scroll,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -553,23 +609,20 @@ class _CommentsViewState extends State<_CommentsView> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CommentRow(
-              comment: comment,
-              busy:
-                  state.busy ||
-                  context.read<CommentsCubit>().isLikePending(comment.id),
-              likePending: context.read<CommentsCubit>().isLikePending(
-                comment.id,
-              ),
-              onLike: () => _like(comment),
-              expanded: _expanded.contains(comment.id),
-              onReply: widget.commentsDisabled || state.busy
-                  ? null
-                  : () => _expand(comment, reply: true),
-              onToggleReplies: () => _expand(comment),
-              onEdit: () => _edit(comment),
-              onDelete: () => _delete(comment),
-            ),
+            if (comment.id == widget.highlightCommentId)
+              AnimatedContainer(
+                key: _highlightKey,
+                duration: const Duration(milliseconds: 300),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: _highlighting
+                      ? DarkColors.primaryColor.withValues(alpha: 0.15)
+                      : Colors.transparent,
+                ),
+                child: _commentRow(comment, state),
+              )
+            else
+              _commentRow(comment, state),
             if (_expanded.contains(comment.id))
               Padding(
                 padding: EdgeInsets.only(left: depth < 2 ? 40 : 0, top: 12),
@@ -578,6 +631,20 @@ class _CommentsViewState extends State<_CommentsView> {
           ],
         ),
       );
+
+  Widget _commentRow(CommentModel comment, CommentsState state) => CommentRow(
+    comment: comment,
+    busy: state.busy || context.read<CommentsCubit>().isLikePending(comment.id),
+    likePending: context.read<CommentsCubit>().isLikePending(comment.id),
+    onLike: () => _like(comment),
+    expanded: _expanded.contains(comment.id),
+    onReply: widget.commentsDisabled || state.busy
+        ? null
+        : () => _expand(comment, reply: true),
+    onToggleReplies: () => _expand(comment),
+    onEdit: () => _edit(comment),
+    onDelete: () => _delete(comment),
+  );
 
   Widget _replies(int parentId, CommentsState state, int depth) {
     final thread = state.thread(parentId);

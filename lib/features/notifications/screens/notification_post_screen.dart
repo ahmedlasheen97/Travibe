@@ -22,8 +22,10 @@ class NotificationPostScreen extends StatefulWidget {
     required this.content,
     this.openComments = false,
     this.comments,
+    this.highlightCommentId,
   });
   final NotificationContent content;
+  final int? highlightCommentId;
   final bool openComments;
   final CommentsRepo? comments;
   @override
@@ -83,12 +85,10 @@ class _NotificationPostScreenState extends State<NotificationPostScreen> {
         initialCount: _commentCount ?? post.commentsCount,
         commentsDisabled: post.commentsDisabled,
         likes: _likes,
-        parentId:
-            comment?.parentId ??
-            (comment != null &&
-                    widget.content.target.kind == NotificationTargetKind.comment
-                ? comment.id
-                : null),
+        highlightCommentId: widget.highlightCommentId,
+        // Top-level comments are highlighted in the main thread; replies
+        // open their parent's thread.
+        parentId: comment?.parentId,
         onCountChanged: (count) {
           if (!_active) return;
           setState(() => _commentCount = count);

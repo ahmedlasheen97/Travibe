@@ -22,8 +22,8 @@ import 'package:travibe/features/notifications/widgets/notification_row.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/follow/widgets/follow_pill.dart';
-import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/notifications/data/notifications_repo.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 
 /// Laravel inbox. Read actions never navigate to unverified payload destinations.
 class NotificationsScreen extends StatefulWidget {
@@ -63,7 +63,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   final Set<String> _autoAttempted = {};
   bool _autoReading = false, _entryAttempted = false, _opening = false;
   late int _revision;
-  int _previewRevision = 0;
   Animation<double>? _covered;
   void _returned(AnimationStatus status) {
     if (status == AnimationStatus.dismissed && mounted && _session.hasSession) {
@@ -265,7 +264,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 _autoAttempted.clear();
                 _entryAttempted = false;
                 _targets.invalidate();
-                setState(() => _previewRevision++);
                 await Future.wait([
                   _list.refresh(),
                   _notifications.refresh(invalidate: true),
@@ -336,33 +334,35 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                               final item = InboxNotification.fromJson(
                                 state.items[index],
                               );
+                              final followState = context.watch<FollowCubit>();
+                              final actor = item.actor;
+                              // Viewer id is optional: when known, never offer
+                              // to follow yourself.
                               final viewer = context
                                   .watch<CurrentUserCubit?>()
                                   ?.state
                                   .profile
                                   ?.id;
-                              final viewerId = BigInt.tryParse(viewer ?? '');
-                              final followState = context.watch<FollowCubit>();
-                              final actor = item.actor;
+                              // Follow is never self-sent; hide when already
+                              // following. Tapping flips the pill to Following.
                               final canFollow =
                                   widget.presentation.kind(item) ==
                                       NotificationKind.follow &&
                                   actor?.id != null &&
-                                  actor?.isBlocked == false &&
-                                  actor?.isFollowing != null &&
-                                  viewerId != null &&
-                                  viewerId > BigInt.zero &&
-                                  actor!.id != viewerId.toString() &&
+                                  actor?.isBlocked != true &&
+                                  actor?.isFollowing == false &&
+                                  actor!.id != viewer &&
                                   followState.canInteract(actor.id!);
                               _diagnostics.inspect(item);
-                              return _ResolvedNotificationRow(
+                              return NotificationRow(
                                 key: ValueKey(
-                                  '${_session.sessionRevision}:$_previewRevision:${item.id}',
+                                  '${_session.sessionRevision}:${item.id}',
                                 ),
-                                targets: _targets,
                                 item: item,
                                 resolver: widget.presentation,
                                 onRead: () => _openNotification(item),
+                                onAvatarTap: () =>
+                                    _openNotification(item, profile: true),
                                 followAction: canFollow
                                     ? FollowActionBuilder(
                                         userId: actor.id!,
@@ -425,7 +425,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
-  Future<void> _openNotification(InboxNotification item) async {
+  Future<void> _openNotification(
+    InboxNotification item, {
+    bool profile = false,
+  }) async {
     if (_opening || !_session.hasSession) return;
     _opening = true;
     final revision = _session.sessionRevision;
@@ -437,7 +440,24 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         if (!mounted || !current()) return;
         if (!ok) _showReadError();
       }
-      final target = NotificationTarget.from(item);
+      final actorId = NotificationTarget.positive(item.actor?.id);
+      final target = profile
+          ? (actorId == null || item.actor?.isBlocked == true
+                ? null
+                : NotificationTarget(NotificationTargetKind.profile, actorId))
+          : NotificationTarget.from(item);
+      if (target == null && !profile && item.isRequest) {
+        // Missing conversation_id: fall back to the Requests tab.
+        if (!mounted || !current()) return;
+        await (widget.openDestination ?? openNotificationDestination)(
+          context,
+          item,
+          const NotificationContent(
+            NotificationTarget(NotificationTargetKind.conversation, 0),
+          ),
+        );
+        return;
+      }
       if (target == null) {
         if (mounted && current()) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -448,7 +468,17 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         }
         return;
       }
-      final content = await _targets.resolve(target, fresh: true);
+      NotificationContent content;
+      try {
+        content = await _targets.resolve(target, fresh: true);
+      } catch (_) {
+        // A request that cannot be fetched still lands on the Requests tab.
+        if (target.kind != NotificationTargetKind.conversation ||
+            !item.isRequest) {
+          rethrow;
+        }
+        content = NotificationContent(target);
+      }
       if (!mounted || !current()) return;
       await (widget.openDestination ?? openNotificationDestination)(
         context,
@@ -497,70 +527,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         _notifications.error?.message ??
             'Unable to mark notifications as read. Please retry.',
       ),
-    ),
-  );
-}
-
-class _ResolvedNotificationRow extends StatefulWidget {
-  const _ResolvedNotificationRow({
-    super.key,
-    required this.item,
-    required this.resolver,
-    required this.targets,
-    required this.onRead,
-    this.followAction,
-  });
-  final InboxNotification item;
-  final NotificationPresentationResolver resolver;
-  final NotificationTargetsRepository targets;
-  final VoidCallback onRead;
-  final Widget? followAction;
-  @override
-  State<_ResolvedNotificationRow> createState() =>
-      _ResolvedNotificationRowState();
-}
-
-class _ResolvedNotificationRowState extends State<_ResolvedNotificationRow> {
-  Future<NotificationContent>? _preview;
-  String? _key;
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ResolvedNotificationRow old) {
-    super.didUpdateWidget(old);
-    _load();
-  }
-
-  void _load() {
-    final target = NotificationTarget.from(widget.item);
-    final key = target?.key;
-    if (key == _key) return;
-    _key = key;
-    _preview =
-        target != null &&
-            {
-              NotificationTargetKind.post,
-              NotificationTargetKind.story,
-              NotificationTargetKind.comment,
-            }.contains(target.kind)
-        ? widget.targets.resolve(target)
-        : null;
-  }
-
-  @override
-  Widget build(BuildContext context) => FutureBuilder<NotificationContent>(
-    key: ValueKey(_key),
-    future: _preview,
-    builder: (context, snapshot) => NotificationRow(
-      item: widget.item,
-      resolver: widget.resolver,
-      onRead: widget.onRead,
-      followAction: widget.followAction,
-      thumbnail: snapshot.hasError ? null : snapshot.data?.thumbnail,
     ),
   );
 }

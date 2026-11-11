@@ -5,6 +5,8 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/chats/screens/chat_navigation.dart';
+import 'package:travibe/features/buddies/screens/buddies_screen.dart';
+import 'package:travibe/features/chats/screens/chats_screen.dart';
 import 'package:travibe/features/chats/screens/conversation_screen.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
 import 'package:travibe/features/comments/data/comments_repo.dart';
@@ -90,17 +92,31 @@ Future<void> openNotificationDestination(
       screen = NotificationPostScreen(
         content: content,
         comments: comments,
+        highlightCommentId: content.comment?.id,
         openComments:
             target.kind == NotificationTargetKind.comment ||
             notification.type == 'post_commented' ||
             notification.type == 'comment_replied',
       );
     case NotificationTargetKind.conversation:
-      final conversation = content.conversation!;
-      screen = ConversationScreen(
-        conversation: conversation,
-        repository: chats,
-        receivedRequest: conversation.isAccepted == false,
+      final conversation = content.conversation;
+      // Unresolvable request: open the Requests tab instead of a dead end.
+      screen = conversation == null
+          ? ChatsScreen(repository: chats, requests: true)
+          : ConversationScreen(
+              conversation: conversation,
+              repository: chats,
+              receivedRequest: conversation.isAccepted == false,
+            );
+    case NotificationTargetKind.buddies:
+      screen = Scaffold(
+        backgroundColor: const Color(0xFF0B0B0B),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFF0B0B0B),
+          leading: const BackButtonWidget(),
+          title: const Text('Buddies'),
+        ),
+        body: const BuddiesScreen(),
       );
     case NotificationTargetKind.story:
       final story = content.story!;

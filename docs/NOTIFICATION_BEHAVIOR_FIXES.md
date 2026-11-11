@@ -186,3 +186,36 @@ tests cover 320/375/393/430 logical widths, larger text and RTL.
 Live notification navigation/read-all still requires an eligible full-access,
 verified session that can access `/notifications`. No live push delivery or
 production notification flow is claimed from mocked tests or a Simulator build.
+
+## Figma parity update — 2026-11-10
+
+Supersedes the "Thumbnails" section above and the morph-only target rules.
+
+- **Contract drift fixed:** `docs/openapi.json` documents short `target_type`
+  values (`post|comment|story|user|message`). `normalizedTargetKind` accepts
+  these and the legacy `App\Models\*` morphs. Previously short values resolved
+  to no target, so rows neither navigated nor showed thumbnails.
+- **Previews come from the payload:** `preview.thumbnail_url` / `preview.excerpt`
+  (parsed as `NotificationPreviewData`). The per-row GET lookups are removed;
+  tap-time `resolve(fresh: true)` still validates deleted/expired/blocked content.
+  Thumbnails: post 52×52 square, Story 48×72 portrait, none without a preview.
+- **Text:** comment/reply/mention rows append the excerpt ("commented: …");
+  `message_received` with `data.is_request` reads "sent you a message request";
+  text-only liked posts show the excerpt as a secondary line.
+- **Taps:** the avatar opens the actor profile for every type; thumbnail = row.
+  Comment targets open the post's comments, scroll to and briefly tint the
+  comment (`CommentsScreen.highlightCommentId`); replies open the parent thread.
+  An unresolvable message request opens `ChatsScreen(requests: true)`.
+- **Follow pill:** shown when `actor.is_following == false` (hidden when
+  already following); no longer requires a loaded `CurrentUserCubit`.
+
+### Backend requests (not in the API yet; client has graceful fallbacks)
+
+1. `data.post_id` (+ `comment_id`, `parent_comment_id`) on `post_commented` and
+   `comment_replied` when they target a comment. Without it the row shows the
+   "unavailable" snackbar.
+2. `data.others_count` (int) for grouped likes/comments → "X and N others".
+3. `data.mutual_followers_count` on `user_followed` → "N mutual followers".
+4. New types `message_request_accepted` (`data.conversation_id`) and
+   `buddy_nearby` (opens Buddies). Both are already mapped client-side.
+5. Optional `preview.media_type` if video posts/stories are ever allowed.

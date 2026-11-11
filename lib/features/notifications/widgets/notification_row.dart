@@ -17,9 +17,13 @@ class NotificationRow extends StatelessWidget {
     this.resolver = const NotificationPresentationResolver(),
     this.followAction,
     this.thumbnail,
+    this.onAvatarTap,
   });
   final InboxNotification item;
   final VoidCallback? onRead;
+
+  /// Opens the actor's profile; null when there is no actor (e.g. nearby).
+  final VoidCallback? onAvatarTap;
   final NotificationPresentationResolver resolver;
   final Widget? followAction;
   final NotificationThumbnail? thumbnail;
@@ -76,60 +80,64 @@ class NotificationRow extends StatelessWidget {
                         ),
                 ),
               ),
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  if (item.actor == null &&
-                      resolver.kind(item) == NotificationKind.nearby)
-                    Container(
-                      width: avatarSize,
-                      height: avatarSize,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Color(0xFF171717),
-                      ),
-                      alignment: Alignment.center,
-                      child: SvgPicture.asset(icon!, width: 32, height: 32),
-                    )
-                  else
-                    HomeUserAvatar(
-                      url: item.actor?.avatarUrl,
-                      size: avatarSize,
-                    ),
-                  if (icon != null &&
-                      !(item.actor == null &&
-                          resolver.kind(item) == NotificationKind.nearby))
-                    PositionedDirectional(
-                      bottom: 0,
-                      end: 0,
-                      child: SvgPicture.asset(
-                        icon,
-                        key: ValueKey('notification-icon-${item.id}'),
-                        width: overlaySize,
-                        height: overlaySize,
-                        excludeFromSemantics: true,
-                      ),
-                    ),
-                  if (icon == null)
-                    const PositionedDirectional(
-                      bottom: 0,
-                      end: 0,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          color: Color(0xFF292929),
+              _AvatarTap(
+                onTap: item.actor == null ? null : onAvatarTap,
+                id: item.id,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (item.actor == null &&
+                        resolver.kind(item) == NotificationKind.nearby)
+                      Container(
+                        width: avatarSize,
+                        height: avatarSize,
+                        decoration: const BoxDecoration(
                           shape: BoxShape.circle,
+                          color: Color(0xFF171717),
                         ),
-                        child: SizedBox.square(
-                          dimension: 20,
-                          child: Icon(
-                            Icons.notifications_none,
-                            size: 14,
-                            color: Colors.white70,
+                        alignment: Alignment.center,
+                        child: SvgPicture.asset(icon!, width: 32, height: 32),
+                      )
+                    else
+                      HomeUserAvatar(
+                        url: item.actor?.avatarUrl,
+                        size: avatarSize,
+                      ),
+                    if (icon != null &&
+                        !(item.actor == null &&
+                            resolver.kind(item) == NotificationKind.nearby))
+                      PositionedDirectional(
+                        bottom: 0,
+                        end: 0,
+                        child: SvgPicture.asset(
+                          icon,
+                          key: ValueKey('notification-icon-${item.id}'),
+                          width: overlaySize,
+                          height: overlaySize,
+                          excludeFromSemantics: true,
+                        ),
+                      ),
+                    if (icon == null)
+                      const PositionedDirectional(
+                        bottom: 0,
+                        end: 0,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0xFF292929),
+                            shape: BoxShape.circle,
+                          ),
+                          child: SizedBox.square(
+                            dimension: 20,
+                            child: Icon(
+                              Icons.notifications_none,
+                              size: 14,
+                              color: Colors.white70,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
               SizedBox(width: AppSizes.adaptiveWidth(8)),
               Expanded(
@@ -174,20 +182,47 @@ class NotificationRow extends StatelessWidget {
   }
 }
 
+class _AvatarTap extends StatelessWidget {
+  const _AvatarTap({
+    required this.onTap,
+    required this.id,
+    required this.child,
+  });
+  final VoidCallback? onTap;
+  final String id;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => onTap == null
+      ? child
+      : Semantics(
+          button: true,
+          label: 'Open profile',
+          child: GestureDetector(
+            key: ValueKey('notification-avatar-$id'),
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: child,
+          ),
+        );
+}
+
 class _Preview extends StatelessWidget {
   const _Preview({required this.preview});
   final NotificationThumbnail preview;
   @override
   Widget build(BuildContext context) {
+    // Figma: posts are square, Stories are a portrait rectangle.
     final story = preview.kind == NotificationMediaKind.story;
     return ClipRRect(
-      borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(10)),
+      borderRadius: BorderRadius.circular(
+        AppSizes.adaptiveRadius(story ? 8 : 10),
+      ),
       child: SizedBox(
         key: ValueKey(
           story ? 'notification-story-preview' : 'notification-post-preview',
         ),
-        width: 56,
-        height: story ? 76 : 56,
+        width: story ? 48 : 52,
+        height: story ? 72 : 52,
         child: Image.network(
           preview.url,
           fit: BoxFit.cover,
