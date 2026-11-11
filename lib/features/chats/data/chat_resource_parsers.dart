@@ -46,6 +46,17 @@ DateTime? chatDate(Object? value) {
   return parsed;
 }
 
+/// An https URL without credentials, otherwise null.
+Uri? chatHttpsUri(Object? value) {
+  final uri = value is String ? Uri.tryParse(value) : null;
+  return uri != null &&
+          uri.scheme == 'https' &&
+          uri.host.isNotEmpty &&
+          uri.userInfo.isEmpty
+      ? uri
+      : null;
+}
+
 Object? freezeChatJson(Object? value) {
   if (value is Map) {
     return Map<String, Object?>.unmodifiable({

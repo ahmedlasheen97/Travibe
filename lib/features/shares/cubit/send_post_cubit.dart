@@ -193,6 +193,9 @@ class SendPostCubit extends Cubit<SendPostState> {
     );
   }
 
+  /// People from the last [send] who got the post but not the note.
+  List<PublicUserModel> noteFailed = const [];
+
   /// Sends to every selected person. Returns the people it was sent to, or
   /// null when nothing was attempted. Failed recipients stay selected.
   Future<List<PublicUserModel>?> send(String note) async {
@@ -204,6 +207,7 @@ class SendPostCubit extends Cubit<SendPostState> {
       to: recipients,
       note: note,
     );
+    noteFailed = result.noteFailed;
     if (isClosed) return result.sent;
     emit(
       state.withSelection(

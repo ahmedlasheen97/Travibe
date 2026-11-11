@@ -190,12 +190,48 @@ void main() {
     await tester.tap(send);
     await tester.pumpAndSettle();
     expect(chat.created, ['2', '3']);
-    expect(
-      chat.sent.map((s) => s.text).toSet().single,
-      'You should go!\n\nShared a post by Sara: “Post text fixture”',
-    );
+    expect(chat.posts.map((p) => p.postId).toSet().single, 10);
+    expect(chat.sent.map((s) => s.text).toSet().single, 'You should go!');
     expect(find.byType(SendPostSheet), findsNothing);
     expect(find.text('Sent to 2 people'), findsOneWidget);
+  });
+
+  testWidgets('a failed note is reported without resending the post', (
+    tester,
+  ) async {
+    chat.noteFailures['c-2'] = ApiError(message: 'Network');
+    await show(tester);
+    await tester.tap(user('2'));
+    await tester.pump();
+    await tester.enterText(message, 'Note');
+    await tester.tap(send);
+    await tester.pumpAndSettle();
+    expect(find.byType(SendPostSheet), findsNothing);
+    expect(
+      find.text(
+        "Sent to Traveller 2. Your message didn't send to Traveller 2.",
+      ),
+      findsOneWidget,
+    );
+    expect(chat.posts, hasLength(1));
+  });
+
+  testWidgets('422 explains the recipient cannot see the post', (tester) async {
+    chat.postFailures['c-3'] = ApiError(
+      message: 'The message or request was not accepted.',
+      statusCode: 422,
+    );
+    await show(tester);
+    await tester.tap(user('3'));
+    await tester.pump();
+    await tester.tap(send);
+    await tester.pumpAndSettle();
+    expect(find.byType(SendPostSheet), findsOneWidget);
+    expect(
+      find.text("Traveller 3: Traveller 3 can't see this post."),
+      findsOneWidget,
+    );
+    expect(badge('3'), findsOneWidget);
   });
 
   testWidgets('single recipient snackbar names them', (tester) async {
@@ -358,35 +394,42 @@ void main() {
     expect(find.text('Link copied'), findsOneWidget);
   });
 
-  testWidgets(
-    'missing URL: Copy Link explains, More Options shares post text',
-    (tester) async {
-      MethodCall? call;
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      messenger.setMockMethodCallHandler(PostShareActions.channel, (
-        value,
-      ) async {
-        call = value;
-        return null;
-      });
-      addTearDown(
-        () =>
-            messenger.setMockMethodCallHandler(PostShareActions.channel, null),
-      );
-      await show(tester, hasLink: false);
-      await tester.tap(find.text('Copy Link'));
-      await tester.pump();
-      expect(find.text("Post links aren't available yet."), findsOneWidget);
-      expect(find.text('Link copied'), findsNothing);
-      await tester.tap(find.text('More Options'));
-      await tester.pumpAndSettle();
-      expect((call!.arguments as Map)['text'], 'Post text fixture');
-      expect((call!.arguments as Map).containsKey('url'), isFalse);
-    },
-  );
+  testWidgets('Copy Link copies post.url; More Options shares it', (
+    tester,
+  ) async {
+    MethodCall? call;
+    final copied = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(PostShareActions.channel, (value) async {
+      call = value;
+      return null;
+    });
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (value) async {
+      if (value.method == 'Clipboard.setData') {
+        copied.add((value.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(PostShareActions.channel, null);
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+    });
+    await show(tester, hasLink: false);
+    await tester.tap(find.text('Copy Link'));
+    await tester.pumpAndSettle();
+    expect(copied, ['https://travibeapp.com/p/10']);
+    expect(find.text('Link copied'), findsOneWidget);
+    expect(find.text("Post links aren't available yet."), findsNothing);
+    await tester.tap(find.text('More Options'));
+    await tester.pumpAndSettle();
+    expect((call!.arguments as Map)['url'], 'https://travibeapp.com/p/10');
+    expect((call!.arguments as Map).containsKey('text'), isFalse);
+  });
 
-  testWidgets('posts without text share the fallback text', (tester) async {
+  testWidgets('a payload without url shares the documented post link', (
+    tester,
+  ) async {
     MethodCall? call;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -397,10 +440,18 @@ void main() {
     addTearDown(
       () => messenger.setMockMethodCallHandler(PostShareActions.channel, null),
     );
-    await show(tester, hasLink: false, post: sharedPost(content: null));
+    await show(
+      tester,
+      hasLink: false,
+      post: PostModel.fromJson({
+        'id': 77,
+        'user': {'id': 2, 'name': 'Sara'},
+        'visibility': 'public',
+      }),
+    );
     await tester.tap(find.text('More Options'));
     await tester.pumpAndSettle();
-    expect((call!.arguments as Map)['text'], 'A post on Travibe.');
+    expect((call!.arguments as Map)['url'], 'https://travibeapp.com/p/77');
   });
 
   testWidgets(

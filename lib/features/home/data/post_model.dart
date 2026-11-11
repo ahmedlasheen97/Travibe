@@ -96,6 +96,13 @@ class PostModel {
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
+  /// Share link from `PostResource.url` (https only).
+  final Uri? url;
+
+  /// [url], or the documented `https://travibeapp.com/p/{id}` form when an
+  /// older payload omits it.
+  Uri get shareUri => url ?? Uri.https('travibeapp.com', '/p/$id');
+
   const PostModel({
     required this.id,
     required this.type,
@@ -117,6 +124,7 @@ class PostModel {
     this.hasSaveState = true,
     this.createdAt,
     this.updatedAt,
+    this.url,
   });
 
   factory PostModel.fromJson(Map<String, dynamic> json) {
@@ -158,7 +166,18 @@ class PostModel {
       hasSaveState: json['is_saved'] is bool,
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
       updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
+      url: _httpsUri(json['url']),
     );
+  }
+
+  static Uri? _httpsUri(Object? value) {
+    final uri = value is String ? Uri.tryParse(value) : null;
+    return uri != null &&
+            uri.scheme == 'https' &&
+            uri.host.isNotEmpty &&
+            uri.userInfo.isEmpty
+        ? uri
+        : null;
   }
 
   /// Update interaction fields without replacing the post's content.
@@ -193,6 +212,7 @@ class PostModel {
       hasSaveState: hasSaveState ?? this.hasSaveState,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      url: url,
     );
   }
 }

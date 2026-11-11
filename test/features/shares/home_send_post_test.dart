@@ -26,6 +26,7 @@ class HomePosts extends PostsRepo {
     posts: [
       PostModel.fromJson({
         'id': 10,
+        'url': 'https://travibeapp.com/p/10',
         'user_id': 2,
         'user': {'id': 2, 'name': 'Sara'},
         'content': 'Post text',
@@ -42,7 +43,7 @@ class HomePosts extends PostsRepo {
 }
 
 void main() {
-  testWidgets('Home share icon opens Send Post with the actual post text', (
+  testWidgets('Home share icon opens Send Post and shares the post link', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -90,7 +91,10 @@ void main() {
     await tester.tap(find.text('More Options'));
     await tester.pumpAndSettle();
     expect(calls.single.method, 'share');
-    expect((calls.single.arguments as Map)['text'], 'Post text');
+    expect(
+      (calls.single.arguments as Map)['url'],
+      'https://travibeapp.com/p/10',
+    );
     expect(tester.takeException(), isNull);
   });
 }

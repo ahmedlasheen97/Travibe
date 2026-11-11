@@ -7,84 +7,103 @@ class SharePostResult {
   SharePostResult({
     required List<PublicUserModel> sent,
     required Map<String, String> failed,
+    List<PublicUserModel> noteFailed = const [],
   }) : sent = List.unmodifiable(sent),
-       failed = Map.unmodifiable(failed);
+       failed = Map.unmodifiable(failed),
+       noteFailed = List.unmodifiable(noteFailed);
 
   final List<PublicUserModel> sent;
 
   /// User ID → user-facing failure message.
   final Map<String, String> failed;
+
+  /// People who got the post but not the typed note. They count as [sent] so
+  /// a retry never shares the post twice.
+  final List<PublicUserModel> noteFailed;
 }
 
-/// Sends a post to people as chat messages.
-///
-/// The chat API (`StoreMessageRequest.type`) only supports text/image/voice/
-/// video, so the post is sent as a `text` message with an excerpt. Once the
-/// backend adds a `post` message type (with `post_id`), replace [_sendOne]'s
-/// `sendText` call with that payload; the sheet and cubit need no changes.
+/// Sends a post to people as a `type: post` chat message, followed by the
+/// optional note as a separate text message.
 class SharePostMessenger {
   SharePostMessenger({ChatRepository? chat})
     : _chat = chat ?? LaravelChatRepository();
 
   final ChatRepository _chat;
 
-  static const excerptLength = 280;
-  static const maxMessageLength = 5000;
-
   Future<SharePostResult> send({
     required PostModel post,
     required List<PublicUserModel> to,
     String? note,
   }) async {
-    final text = composeText(post, note);
-    final outcomes = await Future.wait(to.map((user) => _sendOne(user, text)));
+    final postId = int.tryParse(post.id);
+    final text = (note ?? '').trim();
+    final outcomes = await Future.wait(
+      to.map((user) => _sendOne(user, postId, text)),
+    );
     final sent = <PublicUserModel>[];
+    final noteFailed = <PublicUserModel>[];
     final failed = <String, String>{};
     for (var i = 0; i < to.length; i++) {
-      final error = outcomes[i];
-      if (error == null) {
-        sent.add(to[i]);
-      } else {
-        failed[to[i].id] = error;
+      switch (outcomes[i]) {
+        case _Sent():
+          sent.add(to[i]);
+        case _NoteFailed():
+          sent.add(to[i]);
+          noteFailed.add(to[i]);
+        case _Failed(:final message):
+          failed[to[i].id] = message;
       }
     }
-    return SharePostResult(sent: sent, failed: failed);
+    return SharePostResult(sent: sent, failed: failed, noteFailed: noteFailed);
   }
 
-  /// Returns null on success, otherwise a message for this recipient.
-  Future<String?> _sendOne(PublicUserModel user, String text) async {
+  Future<_Outcome> _sendOne(
+    PublicUserModel user,
+    int? postId,
+    String note,
+  ) async {
+    final chat = _chat;
+    if (postId == null || postId < 1 || chat is! ChatOperationsRepository) {
+      return const _Failed('This post cannot be shared.');
+    }
+    final String conversationId;
     try {
-      final conversation = await _chat.create(user.id);
-      await _chat.sendText(conversation.id, text);
-      return null;
+      conversationId = (await chat.create(user.id)).id;
+      await (chat as ChatOperationsRepository).sendPost(conversationId, postId);
     } on ChatUnconfirmedSend {
-      return 'May not have been sent to ${user.name}.';
+      return _Failed('May not have been sent to ${user.name}.');
     } on ApiError catch (error) {
-      if (error.statusCode == 403) return "You can't message ${user.name}.";
-      return error.message;
+      return _Failed(switch (error.statusCode) {
+        403 => "You can't message ${user.name}.",
+        422 => "${user.name} can't see this post.",
+        _ => error.message,
+      });
     } catch (_) {
-      return 'Unable to send. Please try again.';
+      return const _Failed('Unable to send. Please try again.');
+    }
+    if (note.isEmpty) return const _Sent();
+    try {
+      await chat.sendText(conversationId, note);
+      return const _Sent();
+    } catch (_) {
+      return const _NoteFailed();
     }
   }
+}
 
-  static String composeText(PostModel post, String? note) {
-    final author = post.user.name.trim().isEmpty
-        ? 'a Travibe member'
-        : post.user.name.trim();
-    final content = (post.content ?? '').trim().replaceAll(RegExp(r'\s+'), ' ');
-    final shared = content.isEmpty
-        ? 'Shared a post by $author.'
-        : 'Shared a post by $author: “${_clip(content, excerptLength)}”';
-    final message = (note ?? '').trim();
-    return _clip(
-      message.isEmpty ? shared : '$message\n\n$shared',
-      maxMessageLength,
-    );
-  }
+sealed class _Outcome {
+  const _Outcome();
+}
 
-  static String _clip(String value, int max) {
-    final runes = value.runes;
-    if (runes.length <= max) return value;
-    return '${String.fromCharCodes(runes.take(max - 1)).trimRight()}…';
-  }
+class _Sent extends _Outcome {
+  const _Sent();
+}
+
+class _NoteFailed extends _Outcome {
+  const _NoteFailed();
+}
+
+class _Failed extends _Outcome {
+  const _Failed(this.message);
+  final String message;
 }

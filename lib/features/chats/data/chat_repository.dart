@@ -65,6 +65,10 @@ abstract interface class ChatOperationsRepository
   Future<ChatConversation> readConversation(String id);
   Future<void> typing(String id, bool typing);
   Future<ChatMessage> reply(String id, String text, String replyToId);
+
+  /// Shares a post (`type: post`). 422 when the post is not visible to both
+  /// participants or is blocked from either.
+  Future<ChatMessage> sendPost(String id, int postId);
   Future<ChatMessage> sendMedia(
     String id, {
     required ChatMessageKind kind,
@@ -449,6 +453,21 @@ class LaravelChatRepository
         'POST',
         'conversations/${_id(id)}/messages',
         body: {...wire.textBody(text), 'reply_to_id': _numeric(replyToId)},
+      ),
+    );
+  }
+
+  @override
+  Future<ChatMessage> sendPost(String id, int postId) async {
+    if (postId < 1) throw ApiError(message: 'This post cannot be shared.');
+    final wire = _require(capabilities.sendText);
+    return _decodeSent(
+      wire,
+      id,
+      await _request(
+        'POST',
+        'conversations/${_id(id)}/messages',
+        body: {'type': 'post', 'post_id': postId},
       ),
     );
   }

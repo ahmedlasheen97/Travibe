@@ -90,7 +90,10 @@ class _SendPostSheetState extends State<SendPostSheet> {
     super.initState();
     _actions =
         widget.actions ??
-        PostShareActions(text: SendPostSheet.fallbackText(widget.post));
+        PostShareActions(
+          verifiedPostUri: widget.post.shareUri,
+          text: SendPostSheet.fallbackText(widget.post),
+        );
     _people = SendPostCubit(
       post: widget.post,
       repo: widget.repo,
@@ -110,31 +113,36 @@ class _SendPostSheetState extends State<SendPostSheet> {
     final navigator = Navigator.of(context);
     final sent = await _people.send(_message.text);
     if (!mounted || sent == null || sent.isEmpty) return;
+    final label = _sentLabel(sent, _people.noteFailed);
     if (_people.state.selected.isNotEmpty) {
       // Partial failure: keep the sheet open so failed people can be retried.
-      messenger.showSnackBar(SnackBar(content: Text(_sentLabel(sent))));
+      messenger.showSnackBar(SnackBar(content: Text(label)));
       return;
     }
     navigator.pop();
-    messenger.showSnackBar(SnackBar(content: Text(_sentLabel(sent))));
+    messenger.showSnackBar(SnackBar(content: Text(label)));
   }
 
-  static String _sentLabel(List<PublicUserModel> sent) => sent.length == 1
-      ? 'Sent to ${sent.single.name}'
-      : 'Sent to ${sent.length} people';
+  static String _sentLabel(
+    List<PublicUserModel> sent,
+    List<PublicUserModel> noteFailed,
+  ) {
+    final label = sent.length == 1
+        ? 'Sent to ${sent.single.name}'
+        : 'Sent to ${sent.length} people';
+    if (noteFailed.isEmpty) return label;
+    final who = noteFailed.length == 1
+        ? noteFailed.single.name
+        : '${noteFailed.length} people';
+    return "$label. Your message didn't send to $who.";
+  }
 
   Future<void> _external({
     required bool copy,
     required BuildContext anchor,
   }) async {
     if (_busy) return;
-    if (copy && !_actions.available) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Post links aren't available yet.")),
-      );
-      return;
-    }
-    if (!copy && !_actions.canShare) return;
+    if (copy ? !_actions.available : !_actions.canShare) return;
     setState(() {
       _busy = true;
       _feedback = null;

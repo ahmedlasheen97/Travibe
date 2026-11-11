@@ -149,6 +149,8 @@ class RequestsRepo extends FakeChatRepository
   Future<ChatMessage> reply(String id, String text, String replyToId) =>
       sendText(id, text);
   @override
+  Future<ChatMessage> sendPost(String id, int postId) async => message;
+  @override
   Future<ChatMessage> sendMedia(
     String id, {
     required ChatMessageKind kind,
