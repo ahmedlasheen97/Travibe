@@ -127,6 +127,8 @@ class ChatConversation {
       lastMessage: last,
       preview: last?.isDeleted == true
           ? ''
+          : last?.type == 'post'
+          ? 'Shared a post'
           : last?.body ??
                 switch (last?.type) {
                   'image' => 'Photo',
@@ -169,6 +171,8 @@ class ChatLastMessage {
       poster = freezeChatJson(json['poster']),
       replyTo = freezeChatJson(json['reply_to']),
       durationMs = chatCount(json['duration_ms']),
+      postId = json['post_id'] == null ? null : chatId(json['post_id']),
+      sharedPost = ChatSharedPost.tryParse(json['post']),
       isDeleted = chatBool(json['is_deleted']),
       deliveredAt = chatDate(json['delivered_at']),
       readAt = chatDate(json['read_at']),
@@ -178,11 +182,56 @@ class ChatLastMessage {
   final String? id, conversationId, senderId, type, body;
   final Object? media, poster, replyTo;
   final int? durationMs;
+
+  /// Shared post ID for `post` messages; kept when [sharedPost] is null.
+  final String? postId;
+  final ChatSharedPost? sharedPost;
   final bool? isDeleted;
   final DateTime? deliveredAt, readAt, createdAt, updatedAt, deletedAt;
 }
 
-enum ChatMessageKind { text, image, audio, video, unsupported }
+/// Compact post card embedded in `post` messages (`SharedPostResource`).
+/// Null on a message when the post was removed or the viewer may no longer
+/// open it; the message keeps its `post_id`.
+class ChatSharedPost {
+  const ChatSharedPost({
+    required this.id,
+    required this.author,
+    this.content,
+    this.imageUrl,
+    this.url,
+    this.createdAt,
+  });
+  final String id;
+  final ChatParticipant author;
+  final String? content;
+  final Uri? imageUrl, url;
+  final DateTime? createdAt;
+
+  /// Returns null for a missing card; throws for a malformed one.
+  static ChatSharedPost? tryParse(Object? value) {
+    final json = chatObject(value);
+    if (json == null) return null;
+    final user = chatObject(json['user']);
+    final media = json['media'];
+    final first = media is List && media.isNotEmpty
+        ? chatObject(media.first)
+        : null;
+    return ChatSharedPost(
+      id: chatId(json['id']),
+      author: user == null
+          ? const ChatParticipant(id: '', name: 'Travibe member')
+          : ChatParticipant.fromJson(user),
+      content: chatString(json['content']),
+      imageUrl:
+          chatHttpsUri(first?['thumbnail_url']) ?? chatHttpsUri(first?['url']),
+      url: chatHttpsUri(json['url']),
+      createdAt: chatDate(json['created_at']),
+    );
+  }
+}
+
+enum ChatMessageKind { text, image, audio, video, post, unsupported }
 
 enum ChatDelivery { sending, sent, delivered, seen, failed }
 
@@ -207,6 +256,8 @@ class ChatMessage {
     this.readAt,
     this.isDeleted = false,
     this.replyTo,
+    this.postId,
+    this.sharedPost,
   });
   final String id, senderId, text;
   final ChatMessageKind kind;
@@ -220,6 +271,11 @@ class ChatMessage {
   final DateTime? updatedAt, deletedAt, deliveredAt, readAt;
   final bool isDeleted;
   final ChatLastMessage? replyTo;
+
+  /// Shared post ID for [ChatMessageKind.post]; kept when [sharedPost] is
+  /// null so the bubble can show "Post unavailable".
+  final String? postId;
+  final ChatSharedPost? sharedPost;
   ChatMessage asDeleted() => ChatMessage(
     id: id,
     senderId: senderId,
@@ -285,8 +341,13 @@ class ChatMessage {
         'image' => ChatMessageKind.image,
         'voice' => ChatMessageKind.audio,
         'video' => ChatMessageKind.video,
+        'post' => ChatMessageKind.post,
         _ => ChatMessageKind.unsupported,
       },
+      postId: deleted || json['post_id'] == null
+          ? null
+          : chatId(json['post_id']),
+      sharedPost: deleted ? null : ChatSharedPost.tryParse(json['post']),
       text: deleted ? '' : chatString(json['body']) ?? '',
       createdAt: chatDate(json['created_at']),
       updatedAt: chatDate(json['updated_at']),
@@ -396,6 +457,8 @@ ChatMessage reconcileChatMessage(ChatMessage existing, ChatMessage incoming) {
     deletedAt: selected.deletedAt,
     isDeleted: selected.isDeleted,
     replyTo: selected.replyTo,
+    postId: selected.postId,
+    sharedPost: selected.sharedPost,
     deliveredAt: delivered,
     readAt: read,
     delivery: read != null

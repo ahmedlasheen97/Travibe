@@ -2,6 +2,7 @@ import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
 import 'package:travibe/features/chats/data/chat_reverb_service.dart';
 import 'package:travibe/features/chats/cubit/chat_unread_cubit.dart';
 import 'dart:async';
+import 'package:travibe/core/deeplinks/post_deep_links.dart';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
@@ -59,6 +60,7 @@ class Root extends StatefulWidget {
 
 class _RootState extends State<Root> {
   PushNotificationsCoordinator? _push;
+  PostDeepLinkCoordinator? _postLinks;
   ChatReverbService? _reverb;
   ChatUnreadCubit? _chatUnread;
   StreamSubscription<BlockState>? _reverbBlocks;
@@ -90,6 +92,17 @@ class _RootState extends State<Root> {
         (state) =>
             reverb?.blockedUsers({...state.blockedIds, ...state.pending}),
       );
+    }
+    final links = PostDeepLinksScope.maybeOf(context);
+    if (!identical(links, _postLinks)) {
+      _postLinks?.detach(this);
+      _postLinks = links;
+      // After the first frame, so the post opens above the Root shell.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(links, _postLinks)) {
+          links?.attach(this, context);
+        }
+      });
     }
     final next = PushNotificationsScope.maybeOf(context);
     if (identical(next, _push)) return;
@@ -131,6 +144,7 @@ class _RootState extends State<Root> {
   @override
   void dispose() {
     _push?.detach(this);
+    _postLinks?.detach(this);
     _reverb?.detach(this);
     _chatUnread?.detach(this);
     unawaited(_reverbBlocks?.cancel() ?? Future.value());

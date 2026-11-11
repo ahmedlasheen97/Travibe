@@ -10,6 +10,8 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:go_router/go_router.dart';
 import 'package:travibe/core/notifications/push_notification_service.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
+import 'package:app_links/app_links.dart';
+import 'package:travibe/core/deeplinks/post_deep_links.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,7 +39,12 @@ void main() async {
   //   print('Message: ${e.message}');
   // }
 
-  runApp(const MyApp());
+  // Subscribe early so a cold-start `travibe://posts/{id}` link is caught.
+  runApp(
+    MyApp(
+      postDeepLinks: PostDeepLinkCoordinator(links: AppLinks().uriLinkStream),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
@@ -46,10 +53,14 @@ class MyApp extends StatelessWidget {
     this.currentUser,
     this.router,
     this.pushNotifications,
+    this.postDeepLinks,
   });
   final CurrentUserCubit? currentUser;
   final GoRouter? router;
   final PushNotificationService? pushNotifications;
+
+  /// `travibe://posts/{id}` links; tests omit it to stay off the platform.
+  final PostDeepLinkCoordinator? postDeepLinks;
 
   // This widget is the root of your application.
   @override
@@ -73,7 +84,9 @@ class MyApp extends StatelessWidget {
     );
     final hosted = PushNotificationsHost(
       service: pushNotifications,
-      child: ChatReverbHost(child: app),
+      child: ChatReverbHost(
+        child: PostDeepLinksHost(coordinator: postDeepLinks, child: app),
+      ),
     );
     return currentUser == null
         ? BlocProvider(create: (_) => CurrentUserCubit()..load(), child: hosted)

@@ -12,6 +12,8 @@ import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import '../data/chat_models.dart';
 import '../cubit/chat_audio_controller.dart';
 import 'chat_video_message.dart';
+import 'chat_post_card.dart';
+import 'package:travibe/features/shares/screens/open_shared_post.dart';
 
 class ChatListTile extends StatelessWidget {
   const ChatListTile({
@@ -252,8 +254,12 @@ class ChatMessageBubble extends StatelessWidget {
     this.detailsExpanded = false,
     this.onDetailsTap,
     this.onRetry,
+    this.onOpenPost,
   });
   final ChatMessage message;
+
+  /// Opens a shared post; defaults to [openSharedPost].
+  final void Function(int postId)? onOpenPost;
   final bool outgoing;
   final ChatAudioController? audio;
   final Set<String> deletedMessageIds;
@@ -334,6 +340,8 @@ class ChatMessageBubble extends StatelessWidget {
                                       message.replyTo!.id,
                                     )
                                 ? 'Deleted message'
+                                : message.replyTo!.type == 'post'
+                                ? 'Shared a post'
                                 : message.replyTo!.body ?? 'Attachment',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -382,6 +390,10 @@ class ChatMessageBubble extends StatelessWidget {
                             url: message.mediaUrl,
                             audio: audio,
                           ),
+                          ChatMessageKind.post => ChatPostCard(
+                            post: message.sharedPost,
+                            onOpen: _postOpener(context),
+                          ),
                           ChatMessageKind.unsupported => const Text(
                             'Unsupported message',
                             style: TextStyle(color: Colors.white60),
@@ -428,6 +440,13 @@ class ChatMessageBubble extends StatelessWidget {
       ),
     ),
   );
+  VoidCallback? _postOpener(BuildContext context) {
+    final id = int.tryParse(message.sharedPost?.id ?? message.postId ?? '');
+    if (message.sharedPost == null || id == null || id < 1) return null;
+    return () =>
+        onOpenPost != null ? onOpenPost!(id) : openSharedPost(context, id);
+  }
+
   Widget _image(BuildContext context) {
     final url = message.mediaUrl;
     if (url == null || url.scheme != 'https' || url.host.isEmpty) {

@@ -12,20 +12,31 @@ void main() {
     messenger = SharePostMessenger(chat: chat);
   });
 
-  test('starts or reuses a conversation and sends to each person', () async {
+  test('sends a post message, then the trimmed note as text', () async {
     final result = await messenger.send(
       post: sharedPost(),
       to: [person('2'), person('3')],
       note: '  Look at this!  ',
     );
     expect(chat.created, ['2', '3']);
-    expect(chat.sent.map((s) => s.conversationId), ['c-2', 'c-3']);
-    expect(
-      chat.sent.first.text,
-      'Look at this!\n\nShared a post by Sara: “Sunset over Petra”',
-    );
+    expect(chat.posts, [
+      (conversationId: 'c-2', postId: 10),
+      (conversationId: 'c-3', postId: 10),
+    ]);
+    expect(chat.sent.map((s) => s.text).toSet(), {'Look at this!'});
+    expect(chat.calls.where((c) => c.endsWith('c-2')), [
+      'post:c-2',
+      'text:c-2',
+    ]);
     expect(result.sent.map((u) => u.id), ['2', '3']);
     expect(result.failed, isEmpty);
+    expect(result.noteFailed, isEmpty);
+  });
+
+  test('a blank note sends only the post', () async {
+    await messenger.send(post: sharedPost(), to: [person('2')], note: '   ');
+    expect(chat.calls, ['post:c-2']);
+    expect(chat.sent, isEmpty);
   });
 
   test('one failure does not stop the others; errors map per user', () async {
@@ -33,9 +44,21 @@ void main() {
     chat.failures['3'] = ChatUnconfirmedSend();
     chat.failures['4'] = ApiError(message: 'Account unavailable');
     chat.failures['5'] = StateError('boom');
+    chat.postFailures['c-7'] = ApiError(
+      message: 'The message or request was not accepted.',
+      statusCode: 422,
+    );
     final result = await messenger.send(
       post: sharedPost(),
-      to: [person('2'), person('3'), person('4'), person('5'), person('6')],
+      to: [
+        person('2'),
+        person('3'),
+        person('4'),
+        person('5'),
+        person('6'),
+        person('7'),
+      ],
+      note: 'hi',
     );
     expect(result.sent.map((u) => u.id), ['6']);
     expect(result.failed, {
@@ -43,39 +66,22 @@ void main() {
       '3': 'May not have been sent to Traveller 3.',
       '4': 'Account unavailable',
       '5': 'Unable to send. Please try again.',
+      '7': "Traveller 7 can't see this post.",
     });
-    expect(chat.sent.single.conversationId, 'c-6');
+    expect(chat.posts.single.conversationId, 'c-6');
+    // No note follows a post that was not accepted.
+    expect(chat.calls.where((c) => c.endsWith('c-7')), ['post:c-7']);
   });
 
-  group('composeText', () {
-    test('without a note or content', () {
-      expect(
-        SharePostMessenger.composeText(sharedPost(content: null), null),
-        'Shared a post by Sara.',
-      );
-      expect(
-        SharePostMessenger.composeText(sharedPost(content: '  '), '   '),
-        'Shared a post by Sara.',
-      );
-    });
-
-    test('collapses whitespace and clips long content', () {
-      final text = SharePostMessenger.composeText(
-        sharedPost(content: 'a\n\nb ${'x' * 400}'),
-        null,
-      );
-      expect(text, startsWith('Shared a post by Sara: “a b x'));
-      expect(text, endsWith('…”'));
-      final excerpt = text.substring(
-        text.indexOf('“') + 1,
-        text.lastIndexOf('”'),
-      );
-      expect(excerpt.runes.length, SharePostMessenger.excerptLength);
-    });
-
-    test('never exceeds the chat body limit', () {
-      final text = SharePostMessenger.composeText(sharedPost(), 'n' * 6000);
-      expect(text.runes.length, SharePostMessenger.maxMessageLength);
-    });
+  test('a failed note still counts as sent so retry never reposts', () async {
+    chat.noteFailures['c-2'] = ApiError(message: 'Network');
+    final result = await messenger.send(
+      post: sharedPost(),
+      to: [person('2'), person('3')],
+      note: 'hi',
+    );
+    expect(result.sent.map((u) => u.id), ['2', '3']);
+    expect(result.failed, isEmpty);
+    expect(result.noteFailed.map((u) => u.id), ['2']);
   });
 }

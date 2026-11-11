@@ -3,9 +3,7 @@ import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
-
-/// Same copy as the share sheet until the backend exposes post URLs.
-const postLinksUnavailable = "Post links aren't available yet.";
+import 'package:travibe/features/shares/data/post_share_actions.dart';
 
 Future<bool> showDeletePostDialog(BuildContext context) =>
     showGlassConfirmDialog(
@@ -30,7 +28,12 @@ Future<void> runOwnPostAction(
 
   switch (action) {
     case PostOptionAction.copyLink:
-      show(postLinksUnavailable);
+      try {
+        await PostShareActions(verifiedPostUri: post.shareUri).copyLink();
+        show('Link copied');
+      } catch (_) {
+        show('Unable to copy the link. Please try again.');
+      }
     case PostOptionAction.toggleComments:
       final disable = !post.commentsDisabled;
       final error = await feed.setCommentsDisabled(post, disable);

@@ -13,16 +13,41 @@ posts, Saved posts, notification post detail.
 - No selection → Copy Link / More Options (left-aligned).
 - Any selection → "Write Message" field (≤1000 chars) + full-width orange "Send".
 - Send → for each person: `POST /conversations {user_id}` (returns the existing thread or
-  creates one) then `POST /conversations/{id}/messages` as `type: text`. All succeed →
-  sheet closes, SnackBar "Sent to {name}" / "Sent to N people". Partial failure → sheet
-  stays open, sent people are deselected, failed people stay selected with an inline
-  error each (403 → "You can't message {name}."), and Send retries only them.
+  creates one), then `POST /conversations/{id}/messages {type: post, post_id}`, then the
+  optional note as a separate `type: text` message. All succeed → sheet closes, SnackBar
+  "Sent to {name}" / "Sent to N people". Partial failure → sheet stays open, sent people
+  are deselected, failed people stay selected with an inline error each (403 → "You can't
+  message {name}.", 422 → "{name} can't see this post."), and Send retries only them. If
+  the post sends but the note fails, the person counts as sent (no duplicate post on
+  retry) and the SnackBar adds "Your message didn't send to {name}."
+- Copy Link copies `PostModel.shareUri` (`PostResource.url`, falling back to
+  `https://travibeapp.com/p/{id}`) and shows "Link copied". More Options shares the same
+  URL through the native `travibe/post_sharing` channel (`PostShareActions`).
 
 Code: `features/shares/data/share_post_messenger.dart` (send seam),
 `cubit/send_post_cubit.dart` (people, selection, send state), `widgets/send_post_sheet.dart`.
 
-The message text is the optional note, a blank line, then
-`Shared a post by {author}: “{excerpt ≤280 chars}”` (clamped to 5000 chars).
+## Post messages in chat
+
+- `ChatMessageKind.post`; `ChatMessage.postId` + `ChatMessage.sharedPost`
+  (`ChatSharedPost`, from `SharedPostResource`), same on `ChatLastMessage`.
+- Bubble: `widgets/chat_post_card.dart` — author, first image, 3-line excerpt; tap opens
+  the post via `shares/screens/open_shared_post.dart` (reuses
+  `NotificationTargetsRepository` + `NotificationPostScreen`). `post == null` with a
+  `post_id` → "Post unavailable", not tappable.
+- Inbox preview: "Shared a post".
+- `updated_since` re-delivers a post message when its card changes;
+  `reconcileChatMessage` keeps the incoming card.
+
+## Deep links
+
+`travibe://posts/{id}` (the backend redirects `https://travibeapp.com/p/{id}` there) is
+registered in `Info.plist` (`CFBundleURLTypes`) and the Android manifest. Flutter's
+default deep linking is disabled so links never reach GoRouter. `app_links` feeds
+`core/deeplinks/post_deep_links.dart`: the coordinator keeps the latest post ID until
+`Root` attaches with a session (cold start, background, or after login), then calls
+`openSharedPost`. Universal links still need `apple-app-site-association` /
+`assetlinks.json` on the backend.
 
 ## Removed
 
@@ -30,43 +55,3 @@ The backend removed `/posts/{post}/shares*` and `PostResource.shares_count`. `Sh
 `SharesCubit`, `ShareModel` and `SharePostDialog` were deleted, unwired from Root, Home,
 Profile, Saved and `PostsCubit`, and `PostModel.sharesCount` was dropped. The PostCard
 share button shows no count.
-
-## Backend requirements
-
-### Post card in chat (not supported today)
-
-`StoreMessageRequest.type` only allows `text | image | voice | video`; there is no
-post field, and `MessageResource` has no post payload. To render a real post card:
-
-1. Add `MessageType` `post`. Request: `post_id` (required for `post`), optional
-   `body` (≤1000) as the note.
-2. Validate: post exists and is not deleted; visible to both sender and recipient
-   (public, or followers-only and the recipient may see it); no block in either
-   direction between sender/recipient or recipient/author → `422`/`403` accordingly.
-3. `MessageResource` for `post` messages embeds `shared_post`: `id`, `user {id, name,
-   username, avatar_url}`, `content` (excerpt), first media `{type, url, thumbnail_url}`,
-   `visibility`, and `is_available` (false once deleted/hidden/blocked — clients show
-   "Post unavailable").
-4. Send the same shape in the Reverb message event and use a `last_message` preview
-   such as "Sent a post".
-5. Optional: `POST /posts/{post}/send {user_ids[], body?}` returning per-user results,
-   to avoid N×2 round trips.
-
-Client change once shipped: replace the `sendText` call in
-`SharePostMessenger._sendOne` with the `post` payload, add `ChatMessageKind.post`
-parsing and a post-card bubble. The sheet and cubit need no changes.
-
-### Copy Link (no public URL today)
-
-`PostResource` has no `url`/`share_url`/`slug`, and there is no public web route.
-
-1. A public post page, e.g. `https://travibeapp.com/p/{id}`, that respects visibility,
-   returns 404/410 for deleted posts, and serves Open Graph tags.
-2. `PostResource.share_url` (null when the post is not shareable).
-3. For opening in the app: `apple-app-site-association` and `assetlinks.json` on the
-   domain, Associated Domains / intent filters in the app, and a GoRouter route to post
-   detail.
-
-Until then, Copy Link shows "Post links aren't available yet." and More Options shares
-the post text through the native `travibe/post_sharing` channel (see `PostShareActions`).
-A verified `https` URI passed to `PostShareActions` takes precedence automatically.

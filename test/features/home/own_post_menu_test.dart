@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -208,11 +209,25 @@ void main() {
     expect(feeds.commentChanges.last, ('10', false));
   });
 
-  testWidgets('Copy link reuses the links-unavailable message', (tester) async {
+  testWidgets('Copy link copies the post URL and confirms', (tester) async {
+    final copied = <String>[];
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied.add((call.arguments as Map)['text'] as String);
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
     await pumpHome(tester);
     await openMenu(tester, 'Post 10');
     await tester.tap(find.text('Copy link'));
     await tester.pumpAndSettle();
-    expect(find.text("Post links aren't available yet."), findsOneWidget);
+    expect(copied, ['https://travibeapp.com/p/10']);
+    expect(find.text('Link copied'), findsOneWidget);
+    expect(find.text("Post links aren't available yet."), findsNothing);
   });
 }

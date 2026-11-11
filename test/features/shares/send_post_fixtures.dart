@@ -51,6 +51,7 @@ PostModel sharedPost({
   String visibility = 'public',
 }) => PostModel.fromJson({
   'id': 10,
+  'url': 'https://travibeapp.com/p/10',
   'user_id': 2,
   'user': {'id': 2, 'name': 'Sara'},
   'content': content,
@@ -59,11 +60,18 @@ PostModel sharedPost({
   'comments_count': 0,
 });
 
-/// Records `create` + `sendText`; [failures] keyed by participant ID.
-class RecordingChatRepository implements ChatRepository {
+/// Records `create`, `sendPost` and `sendText` in call order.
+/// [failures] (participant ID) fail `create`; [postFailures] and
+/// [noteFailures] (conversation ID) fail the post or the note.
+class RecordingChatRepository
+    implements ChatRepository, ChatOperationsRepository {
   final created = <String>[];
   final sent = <({String conversationId, String text})>[];
+  final posts = <({String conversationId, int postId})>[];
+  final calls = <String>[];
   final failures = <String, Object>{};
+  final postFailures = <String, Object>{};
+  final noteFailures = <String, Object>{};
   Completer<void>? gate;
 
   @override
@@ -84,7 +92,24 @@ class RecordingChatRepository implements ChatRepository {
   }
 
   @override
+  Future<ChatMessage> sendPost(String id, int postId) async {
+    calls.add('post:$id');
+    final failure = postFailures[id];
+    if (failure != null) throw failure;
+    posts.add((conversationId: id, postId: postId));
+    return ChatMessage(
+      id: 'p-$id',
+      senderId: 'self',
+      kind: ChatMessageKind.post,
+      postId: '$postId',
+    );
+  }
+
+  @override
   Future<ChatMessage> sendText(String id, String text) async {
+    calls.add('text:$id');
+    final failure = noteFailures[id];
+    if (failure != null) throw failure;
     sent.add((conversationId: id, text: text));
     return ChatMessage(
       id: 'm-$id',
