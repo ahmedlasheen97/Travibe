@@ -280,7 +280,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'Traveler');
       await tester.pump();
-      await tester.drag(find.byType(ListView), const Offset(0, -240));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -240));
       await tester.pumpAndSettle();
       final before = tester
           .state<ScrollableState>(find.byType(Scrollable).last)

@@ -15,6 +15,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/chats/cubit/chat_cubit.dart';
 import 'package:travibe/features/chats/data/chat_models.dart';
+import 'package:travibe/features/chats/data/chat_reachability.dart';
 import 'package:travibe/features/chats/data/chat_device_media.dart';
 import 'package:travibe/features/chats/data/chat_image_saver.dart';
 import 'package:travibe/features/chats/screens/chats_screen.dart';
@@ -141,6 +142,7 @@ void main() {
   setUp(() async {
     SharedPreferences.setMockInitialValues({'_token': 'fixture-session'});
     await prefs.init();
+    ChatReachability.instance.reset();
   });
   tearDown(() async {
     await prefs.clear();
@@ -219,7 +221,8 @@ void main() {
     expect(find.text('No messages yet'), findsNothing);
     repo.loading!.completeError(ApiError(message: 'Offline request failed'));
     await tester.pumpAndSettle();
-    expect(find.text('Offline request failed'), findsOneWidget);
+    expect(find.textContaining('Offline request failed'), findsOneWidget);
+    expect(find.textContaining("Couldn't load chats"), findsOneWidget);
     expect(find.text('No messages yet'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
@@ -508,6 +511,73 @@ void main() {
       expect(checks, last);
     },
   );
+  testWidgets(
+    'API reachability clears a stale offline report and reconnects once',
+    (tester) async {
+      final reachability = ChatReachability();
+      int reconnects = 0;
+      await tester.pumpWidget(
+        harness(
+          Scaffold(
+            body: ChatNetworkBanner(
+              reachability: reachability,
+              status: () async => false,
+              onReconnect: () async {
+                reconnects++;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('No internet connection'), findsOneWidget);
+      reachability.markReachable();
+      await tester.pumpAndSettle();
+      expect(find.text('No internet connection'), findsNothing);
+      expect(reconnects, 1);
+      // The interface keeps reporting false, but the recent response wins.
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pumpAndSettle();
+      expect(find.text('No internet connection'), findsNothing);
+      expect(reconnects, 1);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'offline banner probes reconnect every third check without overlap',
+    (tester) async {
+      int probes = 0;
+      final gate = Completer<void>();
+      await tester.pumpWidget(
+        harness(
+          Scaffold(
+            body: ChatNetworkBanner(
+              reachability: ChatReachability(),
+              status: () async => false,
+              onReconnect: () {
+                probes++;
+                return gate.future;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(probes, 0);
+      await tester.pump(const Duration(seconds: 10));
+      expect(probes, 1);
+      // The first probe is still pending: later ticks must not start another.
+      await tester.pump(const Duration(seconds: 15));
+      expect(probes, 1);
+      gate.complete();
+      await tester.pump(const Duration(seconds: 15));
+      expect(probes, 2);
+      expect(find.text('No internet connection'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets(
     'unknown connectivity and disposed pending checks never report offline',
     (tester) async {

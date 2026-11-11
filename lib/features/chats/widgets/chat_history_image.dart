@@ -1,13 +1,22 @@
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import '../data/chat_history_cache.dart';
+import '../data/chat_reachability.dart';
 
 /// Uses Flutter's shared decoded-image cache; no extra URL resolution request.
 /// Dimensions survive route changes for the same signed URL and session.
+/// A failed load retries on tap and when [ChatReachability] reports the chat
+/// API reachable again (the same signal that clears the offline banner).
 class ChatHistoryImage extends StatefulWidget {
-  const ChatHistoryImage({super.key, required this.url, this.aspectRatio});
+  const ChatHistoryImage({
+    super.key,
+    required this.url,
+    this.aspectRatio,
+    this.reachability,
+  });
   final Uri url;
   final double? aspectRatio;
+  final ChatReachability? reachability;
   @override
   State<ChatHistoryImage> createState() => _ChatHistoryImageState();
 }
@@ -17,8 +26,30 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
   ImageStream? _stream;
   ImageStreamListener? _listener;
   ImageInfo? _image;
-  bool _failed = false;
+  bool _failed = false, _retrying = false;
+  DateTime? _lastAutoRetry;
   double _ratio = 1;
+  late final ChatReachability _reachability =
+      widget.reachability ?? ChatReachability.instance;
+  @override
+  void initState() {
+    super.initState();
+    _reachability.addListener(_reachable);
+  }
+
+  void _reachable() {
+    // Every API response notifies; throttle so a permanently broken URL is not
+    // re-requested on each one.
+    final now = DateTime.now();
+    if (!_failed ||
+        _lastAutoRetry != null &&
+            now.difference(_lastAutoRetry!) < const Duration(seconds: 10)) {
+      return;
+    }
+    _lastAutoRetry = now;
+    _retry();
+  }
+
   double? get _metadataRatio =>
       widget.aspectRatio != null &&
           widget.aspectRatio!.isFinite &&
@@ -77,11 +108,17 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
   }
 
   Future<void> _retry() async {
-    await NetworkImage(widget.url.toString()).evict();
-    if (!mounted || _session != PreferencesManager().sessionRevision) return;
-    _detach();
-    _stream = null;
-    setState(_resolve);
+    if (_retrying) return;
+    _retrying = true;
+    try {
+      await NetworkImage(widget.url.toString()).evict();
+      if (!mounted || _session != PreferencesManager().sessionRevision) return;
+      _detach();
+      _stream = null;
+      setState(_resolve);
+    } finally {
+      _retrying = false;
+    }
   }
 
   void _detach() {
@@ -92,6 +129,7 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
 
   @override
   void dispose() {
+    _reachability.removeListener(_reachable);
     _detach();
     _image?.dispose();
     super.dispose();
@@ -106,12 +144,7 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
       width: width,
       height: height,
       child: _failed
-          ? Center(
-              child: TextButton(
-                onPressed: _retry,
-                child: const Text('Image unavailable. Retry'),
-              ),
-            )
+          ? _FailedImage(onRetry: _retry)
           : _image == null
           ? Semantics(
               label: 'Loading image',
@@ -123,4 +156,53 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
           : RawImage(image: _image!.image, fit: BoxFit.contain),
     );
   }
+}
+
+/// Keeps the bubble geometry; tapping anywhere (or the icon) retries loading.
+class _FailedImage extends StatelessWidget {
+  const _FailedImage({required this.onRetry});
+  final VoidCallback onRetry;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    label: 'Image failed to load',
+    child: GestureDetector(
+      key: const ValueKey('chat-image-failed-placeholder'),
+      behavior: HitTestBehavior.opaque,
+      onTap: onRetry,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xFF202020),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Stack(
+          children: [
+            const Center(
+              child: Icon(
+                Icons.image_outlined,
+                color: Colors.white24,
+                size: 40,
+              ),
+            ),
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: IconButton(
+                tooltip: 'Retry image',
+                onPressed: onRetry,
+                iconSize: 18,
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.black54,
+                  foregroundColor: Colors.white70,
+                  minimumSize: const Size.square(32),
+                  maximumSize: const Size.square(32),
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(Icons.refresh),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

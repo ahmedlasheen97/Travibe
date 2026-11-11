@@ -137,19 +137,21 @@ import Network
 
 private enum TravibeChatMedia {
   private static let pathMonitor = NWPathMonitor()
-  private static var networkStatus: Bool?
+  private static var hasPath = false
   private static var monitoring = false
   private static func currentNetworkStatus() -> Bool? {
     if !monitoring {
       monitoring = true
-      pathMonitor.pathUpdateHandler = { path in
-        DispatchQueue.main.async {
-          networkStatus = path.status == .satisfied ? true : path.status == .unsatisfied ? false : nil
-        }
+      pathMonitor.pathUpdateHandler = { _ in
+        DispatchQueue.main.async { hasPath = true }
       }
       pathMonitor.start(queue: DispatchQueue(label: "travibe.chat.network"))
     }
-    return networkStatus
+    // Read the live path: a cached handler value can stay unsatisfied after
+    // connectivity returns (notably on the iOS Simulator).
+    guard hasPath else { return nil }
+    let status = pathMonitor.currentPath.status
+    return status == .satisfied ? true : status == .unsatisfied ? false : nil
   }
 
   static func microphoneStatus() -> String {

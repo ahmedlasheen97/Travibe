@@ -265,7 +265,8 @@ void main() {
       cubit = composer();
       expect(cubit.state.localMessages.single.delivery, ChatDelivery.failed);
       expect(cubit.retryNeedsConfirmation(id), true);
-      expect(cubit.state.draft, 'Unsent fixture');
+      expect(cubit.state.localMessages.single.text, 'Unsent fixture');
+      expect(cubit.state.draft, isEmpty);
       await cubit.close();
       await prefs.clearSession();
       await prefs.saveToken('new-session');

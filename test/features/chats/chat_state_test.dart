@@ -195,20 +195,64 @@ void main() {
     expect(repo.sends, 0);
     await cubit.close();
   });
-  test('failed send preserves draft without automatic retry', () async {
-    final repo = FakeChatRepository()..failure = Exception('offline');
+  test(
+    'failed send keeps text in the failed bubble, not the draft, without automatic retry',
+    () async {
+      final repo = FakeChatRepository()..failure = Exception('offline');
+      final cubit = ChatComposerCubit(
+        repository: repo,
+        conversation: conversation,
+        onSent: (_) {},
+      );
+      cubit.edit('Draft 😀\nمرحبا');
+      await cubit.send();
+      expect(cubit.state.draft, isEmpty);
+      expect(cubit.state.localMessages.single.text, 'Draft 😀\nمرحبا');
+      expect(cubit.state.localMessages.single.delivery, ChatDelivery.failed);
+      expect(cubit.state.error, isNotNull);
+      expect(repo.sends, 1);
+      await cubit.close();
+    },
+  );
+  test(
+    'text typed during an in-flight send is kept as the new draft',
+    () async {
+      final repo = FakeChatRepository()..sending = Completer<ChatMessage>();
+      final cubit = ChatComposerCubit(
+        repository: repo,
+        conversation: conversation,
+        onSent: (_) {},
+      );
+      cubit.edit('first');
+      final sent = cubit.send();
+      expect(cubit.state.draft, isEmpty);
+      expect(cubit.state.sending, true);
+      cubit.edit('second');
+      expect(cubit.state.sending, true);
+      repo.sending!.complete(message);
+      await sent;
+      expect(cubit.state.draft, 'second');
+      expect(cubit.state.localMessages, isEmpty);
+      await cubit.close();
+    },
+  );
+
+  test('send rejected before a bubble exists keeps the draft', () async {
+    final repo = FakeChatRepository()
+      ..capabilities = const ChatCapabilities(list: true, messages: true);
     final cubit = ChatComposerCubit(
       repository: repo,
       conversation: conversation,
       onSent: (_) {},
     );
-    cubit.edit('Draft 😀\nمرحبا');
+    cubit.edit('kept');
     await cubit.send();
-    expect(cubit.state.draft, 'Draft 😀\nمرحبا');
-    expect(cubit.state.error, isNotNull);
-    expect(repo.sends, 1);
+    expect(cubit.state.draft, 'kept');
+    expect(cubit.state.localMessages, isEmpty);
+    expect(repo.sends, 0);
     await cubit.close();
   });
+
   test('draft survives leaving and reopening route', () async {
     final repo = FakeChatRepository();
     final first = ChatComposerCubit(

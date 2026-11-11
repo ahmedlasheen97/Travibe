@@ -140,6 +140,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
             TextField(
               controller: _text,
               style: const TextStyle(color: Colors.white, fontSize: 14),
+              cursorColor: Colors.white,
               enabled: _valid && !_creating,
               onChanged: (value) {
                 setState(() => _error = null);

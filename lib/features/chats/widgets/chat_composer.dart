@@ -166,9 +166,7 @@ class _ChatComposerState extends State<ChatComposer>
           if (state.session != _session && _emojiVisible) {
             setState(() => _emojiVisible = false);
           }
-          if (state.draft.isEmpty &&
-              !state.sending &&
-              widget.text.text.isNotEmpty) {
+          if (state.draft.isEmpty && widget.text.text.isNotEmpty) {
             widget.text.clear();
           }
         },
@@ -301,6 +299,7 @@ class _ChatComposerState extends State<ChatComposer>
                           Expanded(
                             child: TextField(
                               controller: widget.text,
+                              cursorColor: Colors.white,
                               focusNode: _focus,
                               keyboardType: _emojiVisible
                                   ? TextInputType.none

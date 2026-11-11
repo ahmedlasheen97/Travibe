@@ -10,6 +10,7 @@ import 'package:travibe/features/chats/cubit/chat_cubit.dart';
 import 'package:travibe/features/chats/cubit/chat_unread_cubit.dart';
 import 'package:travibe/features/chats/data/chat_history_cache.dart';
 import 'package:travibe/features/chats/data/chat_models.dart';
+import 'package:travibe/features/chats/data/chat_reachability.dart';
 import 'package:travibe/features/chats/data/chat_broadcast_event.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
 import 'package:travibe/features/chats/screens/chats_screen.dart';
@@ -266,6 +267,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Test Person'), findsOneWidget);
       expect(find.text('No messages yet'), findsNothing);
+      // Cached rows: connectivity is the banner's job, no inline error block.
+      expect(find.byKey(const ValueKey('chats-load-error')), findsNothing);
+      expect(find.text('Retry'), findsNothing);
       await tester.pageBack();
       await tester.pumpAndSettle();
       repo.inboxGate = null;
@@ -298,6 +302,8 @@ void main() {
       repo.inboxGate!.completeError(const SocketException('offline'));
       await tester.pumpAndSettle();
       expect(find.text('No messages yet'), findsNothing);
+      expect(find.textContaining("Couldn't load chats"), findsOneWidget);
+      expect(find.textContaining('failed message'), findsNothing);
       expect(find.text('Retry'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
@@ -420,9 +426,10 @@ void main() {
         );
         expect(find.byType(CupertinoActivityIndicator), findsNothing);
         expect(
-          find.text('Image unavailable. Retry'),
+          find.byKey(const ValueKey('chat-image-failed-placeholder')),
           succeeds ? findsNothing : findsOneWidget,
         );
+        expect(find.textContaining('Image unavailable'), findsNothing);
         expect(client.requests, 1);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
@@ -430,6 +437,66 @@ void main() {
         PaintingBinding.instance.imageCache.clear();
         PaintingBinding.instance.imageCache.clearLiveImages();
       }
+    },
+  );
+
+  testWidgets(
+    'failed image keeps bubble size and retries on tap and when chat is reachable again',
+    (tester) async {
+      final client = ImageClient([])..gate.complete();
+      debugNetworkImageHttpClientProvider = () => client;
+      final reachability = ChatReachability();
+      final url = Uri.parse('https://fixtures.invalid/failed-retry.png');
+      final placeholder = find.byKey(
+        const ValueKey('chat-image-failed-placeholder'),
+      );
+      Future<void> settle() async {
+        for (var i = 0; i < 5; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+          await tester.pump();
+        }
+      }
+
+      await tester.pumpWidget(
+        harness(
+          Scaffold(
+            body: Center(
+              child: ChatHistoryImage(
+                url: url,
+                aspectRatio: .5,
+                reachability: reachability,
+              ),
+            ),
+          ),
+        ),
+      );
+      final size = tester.getSize(find.byType(ChatHistoryImage));
+      await settle();
+      expect(placeholder, findsOneWidget);
+      expect(tester.getSize(placeholder), size);
+      expect(find.byIcon(Icons.image_outlined), findsOneWidget);
+      var requests = client.requests;
+      expect(requests, greaterThan(0));
+      await tester.tap(find.byTooltip('Retry image'));
+      await settle();
+      expect(client.requests, greaterThan(requests));
+      expect(placeholder, findsOneWidget);
+      requests = client.requests;
+      reachability.markReachable();
+      await settle();
+      expect(client.requests, greaterThan(requests));
+      // Throttled: a burst of API responses does not re-request each time.
+      requests = client.requests;
+      reachability.markReachable();
+      await settle();
+      expect(client.requests, requests);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      debugNetworkImageHttpClientProvider = null;
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
     },
   );
 

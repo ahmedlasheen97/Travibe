@@ -124,6 +124,14 @@ class ChatReverbService extends ChangeNotifier {
     }
   }
 
+  /// Connectivity returned: skip pending backoff (and exhausted attempts) and
+  /// reconnect now. A healthy subscribed socket is left untouched.
+  void reconnectNow() {
+    if (!_eligible || _subscribed.contains('private-users.$_user')) return;
+    _stop();
+    _ensure();
+  }
+
   void blockedUsers(Set<String> ids) {
     if (setEquals(ids, _blocked)) return;
     _blocked = Set.of(ids);

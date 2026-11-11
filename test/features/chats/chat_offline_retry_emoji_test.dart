@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/cupertino.dart';
@@ -12,6 +13,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/chats/cubit/chat_audio_controller.dart';
 import 'package:travibe/features/chats/cubit/chat_cubit.dart';
 import 'package:travibe/features/chats/data/chat_models.dart';
+import 'package:travibe/features/chats/data/chat_reachability.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
 import 'package:travibe/features/chats/screens/conversation_screen.dart';
 import 'package:travibe/features/chats/widgets/chat_composer.dart';
@@ -50,6 +52,7 @@ class RetryRepo extends FakeChatRepository {
 
 class SendAdapter implements HttpClientAdapter {
   DioExceptionType? failure;
+  Object? cause;
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -57,7 +60,7 @@ class SendAdapter implements HttpClientAdapter {
     Future<void>? cancel,
   ) async {
     if (failure != null) {
-      throw DioException(requestOptions: options, type: failure!);
+      throw DioException(requestOptions: options, type: failure!, error: cause);
     }
     return ResponseBody.fromString(
       jsonEncode({
@@ -81,6 +84,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await prefs.init();
     await prefs.saveToken('fixture');
+    ChatReachability.instance.reset();
     connected = true;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
@@ -175,6 +179,62 @@ void main() {
           ),
         ),
       );
+      dio.close();
+    },
+  );
+
+  test(
+    'connect-time socket failure is pre-send; closed-after-send stays ambiguous',
+    () async {
+      final adapter = SendAdapter()
+        ..failure = DioExceptionType.connectionError
+        ..cause = const SocketException('Network is unreachable');
+      final dio = Dio()..httpClientAdapter = adapter;
+      final repository = LaravelChatRepository(dio: dio);
+      await expectLater(
+        repository.sendText('42', 'fixture'),
+        throwsA(isA<ChatPreSendFailure>()),
+      );
+      adapter.cause = const HttpException(
+        'Connection closed before full header was received',
+      );
+      await expectLater(
+        repository.sendText('42', 'fixture'),
+        throwsA(
+          isA<ApiError>().having(
+            (e) => e is ChatPreSendFailure,
+            'not pre-send',
+            false,
+          ),
+        ),
+      );
+      dio.close();
+    },
+  );
+
+  test(
+    'any HTTP response marks chat reachability; transport failure does not',
+    () async {
+      final reachability = ChatReachability();
+      final adapter = SendAdapter()
+        ..failure = DioExceptionType.connectionError
+        ..cause = const SocketException('offline');
+      final dio = Dio()..httpClientAdapter = adapter;
+      final repository = LaravelChatRepository(
+        dio: dio,
+        reachability: reachability,
+      );
+      await expectLater(
+        repository.sendText('42', 'fixture'),
+        throwsA(anything),
+      );
+      expect(reachability.lastSuccess, isNull);
+      adapter.failure = null;
+      await expectLater(
+        repository.sendText('42', 'fixture'),
+        throwsA(anything),
+      );
+      expect(reachability.lastSuccess, isNotNull);
       dio.close();
     },
   );
@@ -322,6 +382,79 @@ void main() {
       expect(composer.state.localMessages, isEmpty);
       expect(find.byType(ChatMessageBubble), findsOneWidget);
       expect(find.text('Failed to send. Tap to retry.'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'pre-send failure retries immediately without the Delivery unknown dialog',
+    (tester) async {
+      final repo = RetryRepo()
+        ..messageItems = []
+        ..rejection = ChatPreSendFailure();
+      await tester.pumpWidget(
+        harness(
+          ConversationScreen(
+            conversation: conversation,
+            repository: repo,
+            currentUserId: 'self',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'fixture');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send message'));
+      await tester.pumpAndSettle();
+      expect(find.text('Failed to send. Tap to retry.'), findsOneWidget);
+      expect(ChatPreSendFailure().message, isNot(contains('failed message')));
+      repo.rejection = null;
+      await tester.tap(find.text('Failed to send. Tap to retry.'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delivery unknown'), findsNothing);
+      expect(repo.sends, 2);
+      expect(find.text('Failed to send. Tap to retry.'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
+    'offline send clears the input immediately; one failed bubble; retry keeps one message',
+    (tester) async {
+      final repo = RetryRepo()
+        ..messageItems = []
+        ..rejection = ChatPreSendFailure();
+      await tester.pumpWidget(
+        harness(
+          ConversationScreen(
+            conversation: conversation,
+            repository: repo,
+            currentUserId: 'self',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Kkkkk');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send message'));
+      await tester.pumpAndSettle();
+      final input = tester.widget<TextField>(find.byType(TextField));
+      expect(input.controller!.text, isEmpty);
+      expect(find.text('Kkkkk'), findsOneWidget); // the failed bubble only
+      expect(find.text('Failed to send. Tap to retry.'), findsOneWidget);
+      // Nothing left to resend from the composer: no second bubble possible.
+      expect(find.byTooltip('Send message'), findsNothing);
+      expect(repo.sends, 1);
+      repo.rejection = null;
+      await tester.tap(find.text('Failed to send. Tap to retry.'));
+      await tester.pumpAndSettle();
+      expect(repo.sends, 2);
+      expect(find.text('Kkkkk'), findsOneWidget);
+      expect(find.text('Failed to send. Tap to retry.'), findsNothing);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
       await tester.pumpWidget(const SizedBox());
     },
   );

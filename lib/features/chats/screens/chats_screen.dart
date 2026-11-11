@@ -1,6 +1,7 @@
 import '../data/chat_history_cache.dart';
 import '../widgets/chat_reverb_host.dart';
 import '../widgets/chat_network_banner.dart';
+import '../widgets/chat_pull_to_refresh.dart';
 import '../widgets/chat_empty_illustration.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -82,7 +83,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   StreamSubscription<dynamic>? _activity;
   int? _requestCount;
   bool _opening = false;
-  bool _offline = false;
   bool _refreshing = false;
   @override
   void initState() {
@@ -132,6 +132,12 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed && _valid) unawaited(_refresh());
+  }
+
+  Future<void> _onlineAgain() async {
+    if (!mounted) return;
+    ChatReverbScope.maybeOf(context)?.reconnectNow();
+    await _refresh();
   }
 
   Future<void> _refresh() async {
@@ -403,6 +409,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                 enabled: _valid,
                 onChanged: (_) => _searchChanged(),
                 style: const TextStyle(color: Colors.white, fontSize: 14),
+                cursorColor: Colors.white,
                 decoration: InputDecoration(
                   hintText: 'Search',
                   hintFadeDuration: Duration.zero,
@@ -442,15 +449,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
               const SizedBox(height: 20),
             ] else
               const SizedBox(height: 8),
-            if (_valid)
-              ChatNetworkBanner(
-                onReconnect: _refresh,
-                onStatus: (value) {
-                  if (mounted && _offline != (value == false)) {
-                    setState(() => _offline = value == false);
-                  }
-                },
-              ),
+            if (_valid) ChatNetworkBanner(onReconnect: _onlineAgain),
             _heading(),
             Expanded(
               child:
@@ -482,72 +481,71 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                           }
                           return false;
                         },
-                        child: RefreshIndicator.adaptive(
-                          color: DarkColors.primaryColor,
-                          onRefresh: _refresh,
-                          child: ListView(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            children: [
-                              if (state.loading &&
-                                  !state.hasLoaded &&
-                                  state.items.isEmpty)
-                                const ChatsLoadingSkeleton()
-                              else if (state.error != null &&
-                                  state.items.isEmpty)
-                                ErrorRetryView(
-                                  message: state.error!,
-                                  onRetry: _refresh,
-                                )
-                              else if (items.isEmpty && _offline)
-                                ErrorRetryView(
-                                  message:
-                                      'Reconnect to load your conversations.',
-                                  onRetry: _refresh,
-                                )
-                              else if (items.isEmpty &&
-                                  query.isEmpty &&
-                                  !widget.requests &&
-                                  state.error == null &&
-                                  state.hasLoaded &&
-                                  !state.loading)
-                                const _EmptyChats()
-                              else if (items.isEmpty &&
-                                  state.hasLoaded &&
-                                  !state.loading)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 64),
-                                  child: Text(
-                                    query.isNotEmpty
-                                        ? 'No Results Found'
-                                        : 'No message requests',
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
+                        child: CustomScrollView(
+                          physics: const BouncingScrollPhysics(
+                            parent: AlwaysScrollableScrollPhysics(),
+                          ),
+                          slivers: [
+                            CupertinoSliverRefreshControl(
+                              onRefresh: _refresh,
+                              builder: chatRefreshIndicatorBuilder,
+                            ),
+                            SliverList.list(
+                              children: [
+                                if (state.loading &&
+                                    !state.hasLoaded &&
+                                    state.items.isEmpty)
+                                  const ChatsLoadingSkeleton()
+                                else if (state.error != null &&
+                                    state.items.isEmpty)
+                                  // The banner explains connectivity; this
+                                  // only appears when nothing is loaded.
+                                  ErrorRetryView(
+                                    key: const ValueKey('chats-load-error'),
+                                    message:
+                                        '${widget.requests ? "Couldn't load requests" : "Couldn't load chats"}\n${state.error}',
+                                    onRetry: _refresh,
+                                  )
+                                else if (items.isEmpty &&
+                                    query.isEmpty &&
+                                    !widget.requests &&
+                                    state.error == null &&
+                                    state.hasLoaded &&
+                                    !state.loading)
+                                  const _EmptyChats()
+                                else if (items.isEmpty &&
+                                    state.hasLoaded &&
+                                    !state.loading)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 64),
+                                    child: Text(
+                                      query.isNotEmpty
+                                          ? 'No Results Found'
+                                          : 'No message requests',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(
+                                        color: Colors.white60,
+                                      ),
+                                    ),
+                                  )
+                                else
+                                  ...items.map(
+                                    (item) => ChatListTile(
+                                      key: ValueKey(item.id),
+                                      conversation: item,
+                                      onTap: () => _open(item),
                                     ),
                                   ),
-                                )
-                              else
-                                ...items.map(
-                                  (item) => ChatListTile(
-                                    key: ValueKey(item.id),
-                                    conversation: item,
-                                    onTap: () => _open(item),
+                                if (state.loadingMore && state.items.isNotEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Center(
+                                      child: CupertinoActivityIndicator(),
+                                    ),
                                   ),
-                                ),
-                              if (state.error != null && state.items.isNotEmpty)
-                                ErrorRetryView(
-                                  message: state.error!,
-                                  onRetry: _refresh,
-                                ),
-                              if (state.loadingMore && state.items.isNotEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Center(
-                                    child: CupertinoActivityIndicator(),
-                                  ),
-                                ),
-                            ],
-                          ),
+                              ],
+                            ),
+                          ],
                         ),
                       );
                     },

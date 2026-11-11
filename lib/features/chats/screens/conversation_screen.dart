@@ -13,6 +13,7 @@ import '../widgets/chat_pending_media_bubble.dart';
 import '../data/chat_media_selection.dart';
 import '../widgets/chat_selected_media_tray.dart';
 import '../data/chat_presence_presentation.dart';
+import '../widgets/chat_pull_to_refresh.dart';
 import '../widgets/chat_reverb_host.dart';
 import '../data/chat_reverb_service.dart';
 import '../data/chat_broadcast_event.dart';
@@ -294,6 +295,12 @@ class _ConversationScreenState extends State<ConversationScreen>
       unawaited(_sendTyping(false));
       unawaited(_audio.pause());
     }
+  }
+
+  Future<void> _onlineAgain() async {
+    if (!mounted) return;
+    ChatReverbScope.maybeOf(context)?.reconnectNow();
+    await _refresh();
   }
 
   Future<void> _refresh() async {
@@ -653,176 +660,183 @@ class _ConversationScreenState extends State<ConversationScreen>
                                     }
                                     return false;
                                   },
-                                  child: Align(
-                                    alignment: Alignment.topCenter,
-                                    child: ListView.builder(
-                                      shrinkWrap: true,
-                                      controller: _scroll,
-                                      reverse: true,
-                                      physics:
-                                          const AlwaysScrollableScrollPhysics(),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 12,
-                                      ),
-                                      itemCount:
-                                          messages.length +
-                                          1 +
-                                          (_pendingMedia != null ? 1 : 0),
-                                      itemBuilder: (context, listIndex) {
-                                        final pending = _pendingMedia;
-                                        if (pending != null && listIndex == 0) {
-                                          return ChatPendingMediaBubble(
-                                            media: pending,
-                                            sending:
-                                                _uploading ||
-                                                _sendingSelections,
-                                            progress: _uploadProgress,
-                                            onRetry: () => unawaited(
-                                              _selections.isNotEmpty
-                                                  ? _sendSelections()
-                                                  : _sendPendingMedia(),
-                                            ),
-                                          );
-                                        }
-                                        final index =
-                                            listIndex -
-                                            (pending != null ? 1 : 0);
-                                        if (index == messages.length) {
-                                          if ((_loadingDetails ||
-                                                  state.loading) &&
-                                              messages.isEmpty &&
-                                              !state.hasLoaded) {
-                                            return const ChatHistorySkeleton();
-                                          }
-                                          if (_syncError != null) {
-                                            return ErrorRetryView(
-                                              message: _syncError!,
-                                              onRetry: _refresh,
-                                            );
-                                          }
-                                          if (_detailError != null) {
-                                            return ErrorRetryView(
-                                              message: _detailError!,
-                                              onRetry: _refresh,
-                                            );
-                                          }
-                                          if (state.loadingMore) {
-                                            return const Padding(
-                                              padding: EdgeInsets.all(20),
-                                              child: Center(
-                                                child:
-                                                    CupertinoActivityIndicator(),
+                                  child: ChatPullToRefresh(
+                                    onRefresh: _refresh,
+                                    child: Align(
+                                      alignment: Alignment.topCenter,
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        controller: _scroll,
+                                        reverse: true,
+                                        physics: const BouncingScrollPhysics(
+                                          parent:
+                                              AlwaysScrollableScrollPhysics(),
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 12,
+                                        ),
+                                        itemCount:
+                                            messages.length +
+                                            1 +
+                                            (_pendingMedia != null ? 1 : 0),
+                                        itemBuilder: (context, listIndex) {
+                                          final pending = _pendingMedia;
+                                          if (pending != null &&
+                                              listIndex == 0) {
+                                            return ChatPendingMediaBubble(
+                                              media: pending,
+                                              sending:
+                                                  _uploading ||
+                                                  _sendingSelections,
+                                              progress: _uploadProgress,
+                                              onRetry: () => unawaited(
+                                                _selections.isNotEmpty
+                                                    ? _sendSelections()
+                                                    : _sendPendingMedia(),
                                               ),
                                             );
                                           }
-                                          if (state.error != null) {
-                                            return ErrorRetryView(
-                                              message: state.error!,
-                                              onRetry: _refresh,
-                                            );
+                                          final index =
+                                              listIndex -
+                                              (pending != null ? 1 : 0);
+                                          if (index == messages.length) {
+                                            if ((_loadingDetails ||
+                                                    state.loading) &&
+                                                messages.isEmpty &&
+                                                !state.hasLoaded) {
+                                              return const ChatHistorySkeleton();
+                                            }
+                                            if (_syncError != null) {
+                                              return ErrorRetryView(
+                                                message: _syncError!,
+                                                onRetry: _refresh,
+                                              );
+                                            }
+                                            if (_detailError != null) {
+                                              return ErrorRetryView(
+                                                message: _detailError!,
+                                                onRetry: _refresh,
+                                              );
+                                            }
+                                            if (state.loadingMore) {
+                                              return const Padding(
+                                                padding: EdgeInsets.all(20),
+                                                child: Center(
+                                                  child:
+                                                      CupertinoActivityIndicator(),
+                                                ),
+                                              );
+                                            }
+                                            if (state.error != null) {
+                                              return ErrorRetryView(
+                                                message: state.error!,
+                                                onRetry: _refresh,
+                                              );
+                                            }
+                                            return messages.isEmpty &&
+                                                    _pendingMedia == null
+                                                ? const Center(
+                                                    child: Text(
+                                                      'No messages yet',
+                                                      style: TextStyle(
+                                                        color: Colors.white60,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink();
                                           }
-                                          return messages.isEmpty &&
-                                                  _pendingMedia == null
-                                              ? const Center(
+                                          final message = messages[index];
+                                          final previous =
+                                              index + 1 < messages.length
+                                              ? messages[index + 1].createdAt
+                                              : null;
+                                          final date = message.createdAt
+                                              ?.toLocal();
+                                          final showDate =
+                                              date != null &&
+                                              (previous == null ||
+                                                  !DateUtils.isSameDay(
+                                                    date,
+                                                    previous.toLocal(),
+                                                  ));
+                                          return Column(
+                                            key: ValueKey(message.id),
+                                            children: [
+                                              if (showDate)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.symmetric(
+                                                        vertical: 18,
+                                                      ),
                                                   child: Text(
-                                                    'No messages yet',
-                                                    style: TextStyle(
-                                                      color: Colors.white60,
-                                                    ),
-                                                  ),
-                                                )
-                                              : const SizedBox.shrink();
-                                        }
-                                        final message = messages[index];
-                                        final previous =
-                                            index + 1 < messages.length
-                                            ? messages[index + 1].createdAt
-                                            : null;
-                                        final date = message.createdAt
-                                            ?.toLocal();
-                                        final showDate =
-                                            date != null &&
-                                            (previous == null ||
-                                                !DateUtils.isSameDay(
-                                                  date,
-                                                  previous.toLocal(),
-                                                ));
-                                        return Column(
-                                          key: ValueKey(message.id),
-                                          children: [
-                                            if (showDate)
-                                              Padding(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      vertical: 18,
-                                                    ),
-                                                child: Text(
-                                                  DateUtils.isSameDay(
-                                                        date,
-                                                        DateTime.now(),
-                                                      )
-                                                      ? 'Today'
-                                                      : DateUtils.isSameDay(
+                                                    DateUtils.isSameDay(
                                                           date,
-                                                          DateTime.now()
-                                                              .subtract(
-                                                                const Duration(
-                                                                  days: 1,
-                                                                ),
-                                                              ),
+                                                          DateTime.now(),
                                                         )
-                                                      ? 'Yesterday'
-                                                      : MaterialLocalizations.of(
-                                                          context,
-                                                        ).formatMediumDate(
-                                                          date,
-                                                        ),
-                                                  style: const TextStyle(
-                                                    color: Colors.white54,
-                                                    fontSize: 12,
+                                                        ? 'Today'
+                                                        : DateUtils.isSameDay(
+                                                            date,
+                                                            DateTime.now()
+                                                                .subtract(
+                                                                  const Duration(
+                                                                    days: 1,
+                                                                  ),
+                                                                ),
+                                                          )
+                                                        ? 'Yesterday'
+                                                        : MaterialLocalizations.of(
+                                                            context,
+                                                          ).formatMediumDate(
+                                                            date,
+                                                          ),
+                                                    style: const TextStyle(
+                                                      color: Colors.white54,
+                                                      fontSize: 12,
+                                                    ),
                                                   ),
                                                 ),
-                                              ),
-                                            GestureDetector(
-                                              onLongPress: () =>
-                                                  _messageOptions(
-                                                    message,
-                                                    user,
-                                                  ),
-                                              child: ChatMessageBubble(
-                                                message: message,
-                                                detailsExpanded:
-                                                    _expandedMessageId ==
-                                                    message.id,
-                                                onDetailsTap: () => setState(
-                                                  () => _expandedMessageId =
+                                              GestureDetector(
+                                                onLongPress: () =>
+                                                    _messageOptions(
+                                                      message,
+                                                      user,
+                                                    ),
+                                                child: ChatMessageBubble(
+                                                  message: message,
+                                                  detailsExpanded:
                                                       _expandedMessageId ==
-                                                          message.id
-                                                      ? null
-                                                      : message.id,
+                                                      message.id,
+                                                  onDetailsTap: () => setState(
+                                                    () => _expandedMessageId =
+                                                        _expandedMessageId ==
+                                                            message.id
+                                                        ? null
+                                                        : message.id,
+                                                  ),
+                                                  onRetry:
+                                                      message.delivery ==
+                                                          ChatDelivery.failed
+                                                      ? () => _retryMessage(
+                                                          message,
+                                                        )
+                                                      : null,
+                                                  audio: _audio,
+                                                  deletedMessageIds: deletedIds,
+                                                  outgoing:
+                                                      message.id.startsWith(
+                                                        'local-',
+                                                      ) ||
+                                                      (user != null &&
+                                                          user.isNotEmpty &&
+                                                          message.senderId ==
+                                                              user),
                                                 ),
-                                                onRetry:
-                                                    message.delivery ==
-                                                        ChatDelivery.failed
-                                                    ? () =>
-                                                          _retryMessage(message)
-                                                    : null,
-                                                audio: _audio,
-                                                deletedMessageIds: deletedIds,
-                                                outgoing:
-                                                    message.id.startsWith(
-                                                      'local-',
-                                                    ) ||
-                                                    (user != null &&
-                                                        user.isNotEmpty &&
-                                                        message.senderId ==
-                                                            user),
                                               ),
-                                            ),
-                                          ],
-                                        );
-                                      },
+                                            ],
+                                          );
+                                        },
+                                      ),
                                     ),
                                   ),
                                 );
@@ -840,7 +854,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                           ? Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                ChatNetworkBanner(onReconnect: _refresh),
+                                ChatNetworkBanner(onReconnect: _onlineAgain),
                                 ChatPendingRequestControls(
                                   key: const ValueKey(
                                     'pending-request-controls',
@@ -863,7 +877,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                           : ChatComposer(
                               key: const ValueKey('accepted-chat-composer'),
                               topAccessory: ChatNetworkBanner(
-                                onReconnect: _refresh,
+                                onReconnect: _onlineAgain,
                                 margin: const EdgeInsets.only(bottom: 8),
                               ),
                               composer: _composer,
@@ -1509,11 +1523,6 @@ class _ConversationScreenState extends State<ConversationScreen>
     _uploader?.close();
     _uploader = null;
     if (media.kind == ChatMessageKind.audio) _audio.discardDraft();
-    if (media.kind == ChatMessageKind.image &&
-        _composer.state.draft == media.caption) {
-      _composer.edit('');
-    }
-    _composer.setReply(null);
   }
 
   Future<void> _sendPendingMedia() async {
@@ -1539,6 +1548,9 @@ class _ConversationScreenState extends State<ConversationScreen>
     if (media.caption == null) {
       media.caption = _composer.state.draft;
       media.replyTo = _composer.state.replyTo?.id;
+      // The pending bubble owns the caption/reply now; never restore them.
+      if (media.kind == ChatMessageKind.image) _composer.edit('');
+      _composer.setReply(null);
     }
     final caption = media.caption!;
     final reply = media.replyTo;

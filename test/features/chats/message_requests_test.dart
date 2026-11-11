@@ -539,8 +539,10 @@ void main() {
     await tester.pumpAndSettle();
     final gate = repo.nextCountGate = Completer();
     final refresh = tester
-        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
-        .onRefresh();
+        .widget<CupertinoSliverRefreshControl>(
+          find.byType(CupertinoSliverRefreshControl, skipOffstage: false),
+        )
+        .onRefresh!();
     await tester.pump();
     await tester.pump();
     await tester.tap(find.text('Requests (1)'));

@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/dio_client.dart';
 import 'chat_models.dart';
+import 'chat_reachability.dart';
 import 'laravel_conversation_contract.dart';
 
 class ChatUnavailable extends ApiError {
@@ -13,7 +16,7 @@ class ChatUnavailable extends ApiError {
 /// A transport rejection before request transmission is safe to retry directly.
 class ChatPreSendFailure extends ApiError {
   ChatPreSendFailure()
-    : super(message: 'Unable to connect. Tap the failed message to retry.');
+    : super(message: 'Unable to connect. Check your connection and try again.');
 }
 
 /// A successful create acknowledgement with an incomplete resource may still
@@ -107,9 +110,12 @@ class LaravelChatRepository
     Dio? dio,
     this.contract = const LaravelConversationContract(),
     PreferencesManager? preferences,
+    ChatReachability? reachability,
   }) : _dio = dio ?? DioClient().dio,
-       _preferences = preferences ?? PreferencesManager();
+       _preferences = preferences ?? PreferencesManager(),
+       _reachability = reachability ?? ChatReachability.instance;
   final Dio _dio;
+  final ChatReachability _reachability;
   final PreferencesManager _preferences;
   final ChatWireContract? contract;
   CancelToken _cancel = CancelToken();
@@ -160,6 +166,7 @@ class LaravelChatRepository
               throw ApiError(message: 'Messaging timed out. Please retry.');
             },
           );
+      _reachability.markReachable();
       if (revision != _preferences.sessionRevision) {
         throw ApiError(message: 'The account session changed.');
       }
@@ -178,10 +185,15 @@ class LaravelChatRepository
       }
       return response.data;
     } on DioException catch (error) {
+      // Dio raises connectionError with a SocketException only while opening
+      // the connection, before any request bytes are sent.
       if (error.type == DioExceptionType.connectionTimeout ||
-          error.type == DioExceptionType.badCertificate) {
+          error.type == DioExceptionType.badCertificate ||
+          error.type == DioExceptionType.connectionError &&
+              error.error is SocketException) {
         throw ChatPreSendFailure();
       }
+      if (error.response != null) _reachability.markReachable();
       // Fixed user-facing messages. Validation bodies may contain private text.
       final status = error.response?.statusCode;
       throw ApiError(
