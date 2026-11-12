@@ -18,8 +18,12 @@ class NotificationRow extends StatelessWidget {
     this.followAction,
     this.thumbnail,
     this.onAvatarTap,
+    this.showUnreadDot,
   });
   final InboxNotification item;
+
+  /// Defaults to `!item.isRead`; the inbox keeps it for rows new this visit.
+  final bool? showUnreadDot;
   final VoidCallback? onRead;
 
   /// Opens the actor's profile; null when there is no actor (e.g. nearby).
@@ -29,6 +33,7 @@ class NotificationRow extends StatelessWidget {
   final NotificationThumbnail? thumbnail;
   @override
   Widget build(BuildContext context) {
+    final unread = showUnreadDot ?? !item.isRead;
     final icon = NotificationPresentationResolver.icon(resolver.kind(item));
     final preview = thumbnail ?? resolver.thumbnail(item);
     final actor = item.actor?.name ?? item.actor?.username;
@@ -48,7 +53,7 @@ class NotificationRow extends StatelessWidget {
       height: 1.5,
     );
     return Semantics(
-      label: item.isRead ? 'Read notification' : 'Unread notification',
+      label: unread ? 'Unread notification' : 'Read notification',
       child: InkWell(
         key: ValueKey('notification-${item.id}'),
         onTap: onRead,
@@ -66,7 +71,7 @@ class NotificationRow extends StatelessWidget {
                 width: 12,
                 child: Padding(
                   padding: EdgeInsets.only(top: avatarSize / 2 - 4),
-                  child: item.isRead
+                  child: !unread
                       ? const SizedBox(height: 8)
                       : Container(
                           key: ValueKey('notification-unread-${item.id}'),

@@ -7,12 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/cubit/cursor_list_cubit.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
-import 'package:travibe/core/notifications/firebase_messaging_client.dart';
 import 'package:travibe/core/notifications/push_notification_service.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/features/notifications/cubit/notifications_cubit.dart';
 import 'package:travibe/features/notifications/cubit/notification_activity.dart';
@@ -61,7 +59,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   late final _targets = widget.targets ?? NotificationTargetsRepository();
   final _diagnostics = NotificationDiagnostics();
   final Set<String> _autoAttempted = {};
+
+  /// Unread when seen during this visit; keeps the orange dot after the
+  /// automatic read-all until the screen is opened again.
+  final Set<String> _newThisVisit = {};
   bool _autoReading = false, _entryAttempted = false, _opening = false;
+
+  /// The first loaded page always triggers read-all, whatever the count.
+  bool _openRead = false;
   late int _revision;
   Animation<double>? _covered;
   void _returned(AnimationStatus status) {
@@ -107,10 +112,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         .where((item) => item['read_at'] == null)
         .map((item) => item['id'].toString())
         .toSet();
-    if (unread.difference(_autoAttempted).isEmpty &&
+    if (_openRead &&
+        unread.difference(_autoAttempted).isEmpty &&
         (_entryAttempted || _notifications.count == 0)) {
       return;
     }
+    _openRead = true;
     _autoAttempted.addAll(unread);
     _entryAttempted = true;
     _autoReading = true;
@@ -135,7 +142,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     _notifications = widget.activity ?? NotificationActivity(repo: widget.repo);
     WidgetsBinding.instance.addObserver(this);
     _session.addListener(_sessionChanged);
-    _loaded = _list.stream.listen((_) => _queueAutoRead());
+    _loaded = _list.stream.listen((state) {
+      _rememberNew(state.items);
+      // Nothing was read: give the badge cleared on open back.
+      if (state.error != null && !_openRead) {
+        unawaited(_notifications.refresh(invalidate: true));
+      }
+      _queueAutoRead();
+    });
     _invalidated = _notifications.invalidations.listen((revision) {
       if (revision != _session.sessionRevision) return;
       _autoAttempted.clear();
@@ -143,9 +157,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     });
     _notifications.addListener(_queueAutoRead);
     if (_session.hasSession) {
+      // Opening the inbox reads everything: clear the Home bell now. The
+      // read-all result (or a failed load) refreshes the real count.
       unawaited(_list.load());
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) unawaited(_notifications.refresh());
+        if (mounted && !_openRead) _notifications.clearBadge();
       });
     }
     _activity = widget.push?.activities.listen((event) {
@@ -163,7 +179,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     if (_revision == _session.sessionRevision) return;
     _revision = _session.sessionRevision;
     _autoAttempted.clear();
+    _newThisVisit.clear();
     _entryAttempted = false;
+    _openRead = false;
     _autoReading = false;
     _opening = false;
     if (_ownsFollow) {
@@ -227,31 +245,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          actions: [
-            PopupMenuButton<String>(
-              tooltip: 'Notification options',
-              icon: const Icon(Icons.more_horiz, color: Colors.white70),
-              onSelected: (value) {
-                if (value == 'read') {
-                  unawaited(_markAll());
-                } else {
-                  _showPermissionSettings();
-                }
-              },
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                  value: 'read',
-                  enabled: _session.hasSession && !_notifications.markingAll,
-                  child: const Text('Mark all as read'),
-                ),
-                if (widget.push != null)
-                  const PopupMenuItem(
-                    value: 'settings',
-                    child: Text('Notification settings'),
-                  ),
-              ],
-            ),
-          ],
         ),
         body: SafeArea(
           top: false,
@@ -359,6 +352,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                                   '${_session.sessionRevision}:${item.id}',
                                 ),
                                 item: item,
+                                showUnreadDot:
+                                    !item.isRead ||
+                                    _newThisVisit.contains(item.id),
                                 resolver: widget.presentation,
                                 onRead: () => _openNotification(item),
                                 onAvatarTap: () =>
@@ -409,21 +405,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       ),
     ),
   );
-
-  void _showPermissionSettings() {
-    final push = widget.push;
-    if (push == null) return;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF0B0B0B),
-      builder: (_) => SafeArea(
-        child: SingleChildScrollView(
-          child: NotificationPermissionCard(push: push),
-        ),
-      ),
-    );
-  }
 
   Future<void> _openNotification(
     InboxNotification item, {
@@ -500,6 +481,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
+  void _rememberNew(Iterable<Map<String, dynamic>> items) =>
+      _newThisVisit.addAll(
+        items.where((n) => n['read_at'] == null).map((n) => '${n['id']}'),
+      );
+
   Future<void> _markAll() async {
     final revision = _session.sessionRevision;
     _autoAttempted.addAll(
@@ -526,79 +512,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       content: Text(
         _notifications.error?.message ??
             'Unable to mark notifications as read. Please retry.',
-      ),
-    ),
-  );
-}
-
-class NotificationPermissionCard extends StatelessWidget {
-  const NotificationPermissionCard({super.key, required this.push});
-  final PushNotificationService push;
-  @override
-  Widget build(BuildContext context) => ListenableBuilder(
-    listenable: push,
-    builder: (context, _) => Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Push notifications',
-            style: TextStyle(color: Colors.white, fontSize: 18),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            !push.supported
-                ? 'Push notifications are not configured on this device.'
-                : switch (push.permission) {
-                    PushPermission.unknown =>
-                      'Checking notification permission…',
-                    PushPermission.notDetermined =>
-                      'Choose whether Travibe can send notifications.',
-                    PushPermission.denied =>
-                      'Notifications are disabled. Enable them in device Settings, then return.',
-                    PushPermission.authorized =>
-                      'Notification permission is enabled.',
-                    PushPermission.provisional =>
-                      'Quiet notifications are enabled.',
-                  },
-            style: const TextStyle(color: Colors.white70),
-          ),
-          if (push.tokenStatus == PushTokenStatus.waitingForApns)
-            const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                'Waiting for Apple notification registration. You can try again shortly.',
-                style: TextStyle(color: Colors.white70),
-              ),
-            ),
-          if (push.error case final error?)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(error, style: const TextStyle(color: Colors.white70)),
-            ),
-          if (push.supported) ...[
-            const SizedBox(height: 12),
-            CustomButton(
-              title: push.requestingPermission
-                  ? 'Checking…'
-                  : push.permission == PushPermission.notDetermined ||
-                        push.permission == PushPermission.unknown
-                  ? 'Enable notifications'
-                  : 'Check notification status',
-              onPressed: push.requestingPermission
-                  ? null
-                  : () {
-                      if (push.permission == PushPermission.notDetermined ||
-                          push.permission == PushPermission.unknown) {
-                        unawaited(push.requestPermission());
-                      } else {
-                        unawaited(push.retry());
-                      }
-                    },
-            ),
-          ],
-        ],
       ),
     ),
   );

@@ -122,6 +122,15 @@ class NotificationActivity extends ChangeNotifier {
     } while (_current(revision) && _dirty);
   }
 
+  /// Optimistically hides the badge while the inbox is open; a failed
+  /// read-all (or [refresh]) restores the server count.
+  void clearBadge() {
+    if (_closed || !_session.hasSession || _count == 0) return;
+    ++_generation;
+    _count = 0;
+    _publish();
+  }
+
   Future<bool> markRead(String id) => _mutate(id, {id});
   Future<bool> markAllRead({Iterable<String> ids = const []}) =>
       _mutate('*', Set.of(ids));
@@ -183,6 +192,8 @@ class NotificationActivity extends ChangeNotifier {
                 message: 'Unable to mark notifications as read. Please retry.',
               );
         _publish();
+        // Undo clearBadge(): the server still has unread notifications.
+        if (key == '*') unawaited(refresh(invalidate: true));
       }
       return false;
     }

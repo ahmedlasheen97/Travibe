@@ -7,6 +7,9 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
+import 'package:travibe/core/notifications/push_notification_service.dart';
+import 'package:travibe/core/notifications/push_notifications_host.dart';
+import 'package:travibe/features/notifications/widgets/push_permission_hint.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/profile/screens/blocked_account_screen.dart';
 import 'package:travibe/features/profile/screens/change_password_screen.dart';
@@ -28,8 +31,12 @@ class SettingsScreen extends StatefulWidget {
     this.currentUser,
     this.accountRepo,
     this.authRepo,
+    this.push,
   });
   final CurrentUserCubit? currentUser;
+
+  /// Device push transport for the permission hint; defaults to the app's.
+  final PushNotificationService? push;
   final AccountRepo? accountRepo;
   final AuthRepo? authRepo;
 
@@ -245,6 +252,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Receive notifications on your phone',
                     value: profile?.pushNotificationsEnabled,
                     saving: state.saving == 'push_notifications_enabled',
+                    hint: switch (widget.push ??
+                        PushNotificationsScope.maybeOf(context)?.service) {
+                      final push? => PushPermissionHint(push: push),
+                      null => null,
+                    },
                     onChanged: !ready || _saving
                         ? null
                         : (v) => _user.update(
@@ -465,6 +477,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool? value,
     required ValueChanged<bool>? onChanged,
     bool saving = false,
+    Widget? hint,
   }) {
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -496,6 +509,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ],
+                ?hint,
               ],
             ),
           ),

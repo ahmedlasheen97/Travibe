@@ -5,6 +5,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/more_options_button.dart';
 import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
@@ -262,6 +263,20 @@ class _PostScreenState extends State<PostScreen> {
       leading: const BackButtonWidget(),
       title: const Text('Post'),
       centerTitle: true,
+      actions: [
+        // Mirrors the leading slot so ⋮ sits opposite the back button.
+        if (_active)
+          SizedBox(
+            width: kToolbarHeight,
+            child: Center(
+              child: AppBarMoreButton(
+                key: const ValueKey('post-screen-more'),
+                tooltip: 'Post options',
+                onTap: _options,
+              ),
+            ),
+          ),
+      ],
     ),
     body: !_active
         ? const Center(child: Text('Sign in again to view this post.'))
@@ -353,7 +368,7 @@ class _PostScreenState extends State<PostScreen> {
       isFollowing: following,
       isFollowPending: pending,
       onFollowTap: onFollow,
-      onMoreTap: _options,
+      showMoreButton: false,
     );
   }
 }

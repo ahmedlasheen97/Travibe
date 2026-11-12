@@ -365,14 +365,32 @@ void main() {
       await tester.pumpAndSettle();
       expect(repo.allWrites, 1);
       expect(activity.count, 0);
+      // Read on the server, but still marked new for this visit.
+      expect(repo.items.single['read_at'], isNotNull);
       expect(
         find.byKey(const ValueKey('notification-unread-n1')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(find.byType(NotificationRow), findsOneWidget);
       activity.invalidateFromRealtime();
       await tester.pumpAndSettle();
       expect(repo.allWrites, 1);
+      expect(
+        find.byKey(const ValueKey('notification-unread-n1')),
+        findsOneWidget,
+      );
+      // The next visit shows it as read.
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        app(
+          NotificationsScreen(repo: repo, activity: activity, targets: targets),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('notification-unread-n1')),
+        findsNothing,
+      );
       await tester.pumpWidget(const SizedBox());
       activity.dispose();
     },
@@ -404,7 +422,7 @@ void main() {
       expect(activity.count, 0);
       expect(
         find.byKey(const ValueKey('notification-unread-n1')),
-        findsNothing,
+        findsOneWidget,
       );
       await tester.pumpWidget(const SizedBox());
       activity.dispose();
@@ -462,7 +480,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(repo.allWrites, 2);
         expect(activity.count, 0);
-        expect(find.byKey(ValueKey('notification-unread-$id')), findsNothing);
+        // Arrived unread during the visit: stays marked new until reopened.
+        expect(find.byKey(ValueKey('notification-unread-$id')), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
         activity.dispose();
       },
@@ -529,8 +548,9 @@ void main() {
                   : comment
                   ? 9
                   : 10,
+              // Direct messages are filtered out; requests stay in the inbox.
               data: message
-                  ? {'conversation_id': 42}
+                  ? {'conversation_id': 42, 'is_request': true}
                   : comment
                   ? {'post_id': 10}
                   : {},
@@ -596,7 +616,11 @@ void main() {
     targets = NotificationTargetsRepository(chats: chats);
     final repo = ReadingRepo()
       ..items = [
-        notice('message_received', data: {'conversation_id': 42}),
+        // A request accepted since the notification was sent.
+        notice(
+          'message_received',
+          data: {'conversation_id': 42, 'is_request': true},
+        ),
       ];
     final activity = NotificationActivity(repo: repo);
     await tester.pumpWidget(

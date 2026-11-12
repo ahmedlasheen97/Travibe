@@ -1,5 +1,7 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/glass_surface.dart';
 
 /// Circular-bordered ⋮ button used on post cards and profiles.
 class MoreOptionsButton extends StatelessWidget {
@@ -40,4 +42,43 @@ class MoreOptionsButton extends StatelessWidget {
     );
     return tooltip == null ? button : Tooltip(message: tooltip, child: button);
   }
+}
+
+/// App-bar ⋮ button matching [BackButtonWidget]: 44×44 glass circle.
+class AppBarMoreButton extends StatelessWidget {
+  const AppBarMoreButton({
+    super.key,
+    required this.onTap,
+    this.tooltip = 'More options',
+    this.size = 44,
+    this.iconSize = 24,
+  });
+  final VoidCallback? onTap;
+  final String tooltip;
+  final double size, iconSize;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    iconSize: size,
+    tooltip: tooltip,
+    onPressed: onTap,
+    style: IconButton.styleFrom(
+      padding: EdgeInsets.zero,
+      minimumSize: Size.square(math.max(44, size)),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      shape: const CircleBorder(),
+    ),
+    icon: GlassSurface(
+      radius: 999,
+      opacity: .65,
+      child: SizedBox.square(
+        dimension: size,
+        child: Icon(
+          Icons.more_vert,
+          size: iconSize,
+          color: DarkColors.whiteColor,
+        ),
+      ),
+    ),
+  );
 }
