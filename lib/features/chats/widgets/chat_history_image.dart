@@ -13,9 +13,15 @@ class ChatHistoryImage extends StatefulWidget {
     required this.url,
     this.aspectRatio,
     this.reachability,
+    this.width,
+    this.maxHeight,
   });
   final Uri url;
   final double? aspectRatio;
+
+  /// Fixed width; the image then keeps its ratio up to [maxHeight] and is
+  /// cropped (cover) beyond it. Null keeps the default 220px chat sizing.
+  final double? width, maxHeight;
   final ChatReachability? reachability;
   @override
   State<ChatHistoryImage> createState() => _ChatHistoryImageState();
@@ -138,8 +144,11 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
   @override
   Widget build(BuildContext context) {
     final ratio = _ratio;
-    final width = (360 * ratio).clamp(1.0, 220.0);
-    final height = width / ratio;
+    final fixedWidth = widget.width;
+    final width = fixedWidth ?? (360 * ratio).clamp(1.0, 220.0);
+    final height = fixedWidth == null
+        ? width / ratio
+        : (width / ratio).clamp(1.0, widget.maxHeight ?? double.infinity);
     return SizedBox(
       width: width,
       height: height,
@@ -153,7 +162,10 @@ class _ChatHistoryImageState extends State<ChatHistoryImage> {
                 color: Color(0xFF202020),
               ),
             )
-          : RawImage(image: _image!.image, fit: BoxFit.contain),
+          : RawImage(
+              image: _image!.image,
+              fit: fixedWidth == null ? BoxFit.contain : BoxFit.cover,
+            ),
     );
   }
 }
