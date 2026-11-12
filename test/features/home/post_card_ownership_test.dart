@@ -132,10 +132,11 @@ void main() {
           expect(find.text('Same Name'), findsOneWidget);
           expect(find.text('now'), findsOneWidget);
           expect(find.byType(CircleAvatar), findsOneWidget);
+          // The name slot (not just the text link) reaches ⋮: no Follow gap.
           final nameBox = find
               .ancestor(
                 of: find.text('Same Name'),
-                matching: find.byType(Column),
+                matching: find.byType(Align),
               )
               .first;
           final more = find

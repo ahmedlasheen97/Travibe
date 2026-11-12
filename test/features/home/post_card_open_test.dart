@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
+import 'package:travibe/core/widgets/action_icon_button.dart';
 import 'package:travibe/core/widgets/post_card.dart';
 
 void main() {
@@ -14,6 +15,8 @@ void main() {
     WidgetTester tester, {
     bool responsive = false,
     bool detail = false,
+    String comments = '1.2K',
+    Object? authorId,
     List<String>? images,
   }) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -38,7 +41,8 @@ void main() {
                 image: images == null ? 'assets/missing.png' : null,
                 images: images,
                 likes: '123',
-                comments: '1.2K',
+                comments: comments,
+                authorId: authorId,
                 showFollowButton: true,
                 onFollowTap: count('follow'),
                 onLikeTap: count('like'),
@@ -102,15 +106,57 @@ void main() {
     expect(taps, {'likers': 1});
   });
 
-  testWidgets('heart and count are each at least 44px tap targets', (
-    tester,
-  ) async {
+  for (final responsive in [false, true]) {
+    testWidgets('like pill matches the comment and share pills '
+        '(responsive: $responsive)', (tester) async {
+      // Same count text, so the like and comment pills must be identical.
+      await show(tester, responsive: responsive, comments: '123');
+      final like = tester.getSize(find.byKey(const ValueKey('post-like-pill')));
+      final comment = tester.getSize(
+        find.byWidgetPredicate(
+          (w) => w is ActionIconButton && w.iconPath.endsWith('message.svg'),
+        ),
+      );
+      final share = tester.getSize(find.byKey(const ValueKey('post-share')));
+      expect(like, comment);
+      expect(like.height, share.height);
+      expect(find.text('123 Likes'), findsNothing);
+      // Two tap areas inside the pill, together exactly its size.
+      final heart = tester.getSize(find.byKey(const ValueKey('post-like')));
+      final count = tester.getSize(
+        find.byKey(const ValueKey('post-likes-count')),
+      );
+      expect(heart.width + count.width + 2, like.width);
+    });
+  }
+
+  testWidgets('share uses icons/send.svg; save has no border', (tester) async {
     await show(tester, responsive: true);
-    for (final key in ['post-like', 'post-likes-count']) {
-      final size = tester.getSize(find.byKey(ValueKey(key)));
-      expect(size.width, greaterThanOrEqualTo(44), reason: key);
-      expect(size.height, greaterThanOrEqualTo(44), reason: key);
-    }
+    final share = tester.widget<ActionIconButton>(
+      find.byKey(const ValueKey('post-share')),
+    );
+    expect(share.iconPath, 'assets/images/icons/send.svg');
+    final save = tester.widget<ActionIconButton>(
+      find.byKey(const ValueKey('post-save')),
+    );
+    expect(save.bordered, isFalse);
+    expect(save.iconPath, 'assets/images/interactions/archive.svg');
+  });
+
+  testWidgets('only the author text is a profile link; the rest of the '
+      'header opens the post', (tester) async {
+    await show(tester, responsive: true, authorId: 5);
+    final link = find.ancestor(
+      of: find.byKey(const ValueKey('post-author-text')),
+      matching: find.byType(InkWell),
+    );
+    final text = tester.getRect(find.byKey(const ValueKey('post-author-text')));
+    expect(tester.getRect(link.first), text);
+    // Empty space right of the name, left of ⋮.
+    final follow = tester.getRect(find.byIcon(Icons.more_vert));
+    await tester.tapAt(Offset((text.right + follow.left) / 2, text.center.dy));
+    await tester.pump();
+    expect(taps, {'open': 1});
   });
 
   testWidgets('swiping the carousel does not open the post', (tester) async {

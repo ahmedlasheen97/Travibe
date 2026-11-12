@@ -15,6 +15,9 @@ class ActionIconButton extends StatelessWidget {
   /// Pill outline; the Post screen (Figma) shows bare icons.
   final bool bordered;
 
+  /// Count line height that keeps the text box at the 18px icon size.
+  static const double countLineHeight = 18 / 13;
+
   const ActionIconButton({
     super.key,
     required this.iconPath,
@@ -64,6 +67,9 @@ class ActionIconButton extends StatelessWidget {
                 style: TextStyle(
                   color: DarkColors.whiteColor,
                   fontSize: responsive ? AppSizes.adaptiveFont(13) : 13,
+                  // Line box = icon size, so pills with and without a count
+                  // share one height.
+                  height: countLineHeight,
                 ),
               ),
             ],
