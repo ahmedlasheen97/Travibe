@@ -1,4 +1,5 @@
 import '../../helpers/cursor_fixtures.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 import 'dart:async';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
@@ -77,6 +78,7 @@ class EmptyPostsRepo extends PostsRepo {
   final requests = <({FeedType feed, String? cursor})>[];
   ApiError? error;
   Completer<PostsPageModel>? followingGate;
+  List<PostModel> explorePosts = [];
   @override
   Future<PostsPageModel> getPosts({
     FeedType feed = FeedType.explore,
@@ -90,7 +92,7 @@ class EmptyPostsRepo extends PostsRepo {
     if (error != null) throw error!;
     return PostsPageModel(
       pagination: fixtureMeta(current: 1, last: 1),
-      posts: [],
+      posts: feed == FeedType.explore ? explorePosts : [],
       currentPage: 1,
       lastPage: 1,
       total: 0,

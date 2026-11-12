@@ -1,5 +1,6 @@
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import '../widgets/buddies_loading_overlay.dart';
+import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -82,8 +83,7 @@ class _ListingView extends StatelessWidget {
           body: SafeArea(
             top: false,
             child: BuddiesLoadingOverlay(
-              loading:
-                  state.loading && (state.page == null || state.refreshing),
+              loading: state.loading && state.refreshing && items.isNotEmpty,
               child: RefreshIndicator.noSpinner(
                 onRefresh: cubit.refresh,
                 child: ListView(
@@ -154,6 +154,10 @@ class _ListingView extends StatelessWidget {
                       ),
                     // Rows grow with their content, preserving chips and large text
                     // without a fixed grid aspect ratio clipping the cards.
+                    if (state.loading &&
+                        items.isEmpty &&
+                        (state.page == null || state.refreshing))
+                      const BuddiesGridSkeleton(),
                     for (var i = 0; i < items.length; i += 2)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -196,6 +200,11 @@ class _ListingView extends StatelessWidget {
                           ],
                         ),
                       ),
+                    if (state.loading &&
+                        state.page != null &&
+                        !state.refreshing &&
+                        items.isNotEmpty)
+                      const BuddiesGridSkeleton(rows: 1),
                     if (state.error != null) ...[
                       Text(state.error!.message),
                       TextButton(

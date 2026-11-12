@@ -7,7 +7,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/widgets/more_options_button.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
+import 'package:travibe/features/block/data/block_repo.dart';
+import 'package:travibe/features/home/data/report_reason.dart';
 import 'package:travibe/features/chats/data/chat_models.dart';
 import 'package:travibe/features/chats/screens/conversation_screen.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
@@ -40,6 +47,31 @@ class Follows extends FollowRepo {
   }
 }
 
+class Blocks extends BlockRepo {
+  final blocked = <String, bool>{};
+  final calls = <bool>[];
+  @override
+  Future<BlockStatus> status(String userId) async =>
+      BlockStatus(userId: userId, isBlocked: blocked[userId] ?? false);
+  @override
+  Future<PublicUserModel> setBlocked(String userId, bool value) async {
+    calls.add(value);
+    blocked[userId] = value;
+    return PublicUserModel.fromJson({
+      'id': int.parse(userId),
+      'name': 'Traveler',
+      'is_blocked': value,
+    });
+  }
+}
+
+class ReportingProfiles extends MemoryProfileRepo {
+  final reports = <(String, String)>[];
+  @override
+  Future<void> reportUser(String userId, String reason) async =>
+      reports.add((userId, reason));
+}
+
 class Chats extends FakeChatRepository {
   int creates = 0;
   Completer<ChatConversation>? _result;
@@ -53,7 +85,8 @@ class Chats extends FakeChatRepository {
 }
 
 void main() {
-  late MemoryProfileRepo profiles;
+  late ReportingProfiles profiles;
+  late Blocks blocks;
   late Follows repo;
   late FollowCubit follow;
   late BlockCubit block;
@@ -62,7 +95,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await PreferencesManager().init();
     await PreferencesManager().saveToken('profile-test');
-    profiles = MemoryProfileRepo()
+    profiles = ReportingProfiles()
       ..result = ProfileModel.fromJson({
         ...profileJson(id: 23),
         'is_me': false,
@@ -74,7 +107,8 @@ void main() {
       });
     repo = Follows();
     follow = FollowCubit(repo: repo);
-    block = BlockCubit(follow: follow);
+    blocks = Blocks();
+    block = BlockCubit(follow: follow, repo: blocks);
     chats = Chats();
   });
   tearDown(() async {
@@ -158,8 +192,8 @@ void main() {
       await show(tester);
       await tester.tap(find.byTooltip('Profile options'));
       await tester.pumpAndSettle();
-      expect(find.text('Remove Follower'), findsOneWidget);
-      await tester.tap(find.text('Remove Follower'));
+      expect(find.text('Remove follower'), findsOneWidget);
+      await tester.tap(find.text('Remove follower'));
       await tester.pumpAndSettle();
       repo.removing = Completer<void>();
       await tester.tap(find.text('Remove'));
@@ -172,10 +206,10 @@ void main() {
       expect(find.text('Follows You'), findsNothing);
       await tester.tap(find.byTooltip('Profile options'));
       await tester.pumpAndSettle();
-      expect(find.text('Remove Follower'), findsNothing);
-      expect(find.text('Share Profile'), findsOneWidget);
-      expect(find.text('Report'), findsOneWidget);
-      expect(find.text('Block User'), findsOneWidget);
+      expect(find.text('Remove follower'), findsNothing);
+      expect(find.text('Share profile'), findsOneWidget);
+      expect(find.text('Report user'), findsOneWidget);
+      expect(find.text('Block user'), findsOneWidget);
     },
   );
   testWidgets('is_following alone never reveals Remove Follower', (
@@ -192,7 +226,7 @@ void main() {
     expect(find.text('Follows You'), findsNothing);
     await tester.tap(find.byTooltip('Profile options'));
     await tester.pumpAndSettle();
-    expect(find.text('Remove Follower'), findsNothing);
+    expect(find.text('Remove follower'), findsNothing);
   });
   testWidgets(
     'message opens returned existing conversation once with shared follow owner',
@@ -338,4 +372,166 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  group('profile ⋮ menu', () {
+    Future<void> openMenu(WidgetTester tester) async {
+      await tester.tap(find.byTooltip('Profile options'));
+      await tester.pumpAndSettle();
+    }
+
+    Color? labelColor(WidgetTester tester, String label) =>
+        tester.widget<Text>(find.text(label)).style?.color;
+
+    testWidgets('⋮ opens the post-menu style sheet with profile rows', (
+      tester,
+    ) async {
+      await show(tester);
+      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      // Same circular-bordered ⋮ widget as the post card.
+      final more = find.byType(MoreOptionsButton);
+      expect(more, findsOneWidget);
+      expect(
+        find.descendant(of: more, matching: find.byIcon(Icons.more_vert)),
+        findsOneWidget,
+      );
+      final box = tester.widget<Container>(
+        find.descendant(of: more, matching: find.byType(Container)),
+      );
+      final decoration = box.decoration! as BoxDecoration;
+      expect(
+        (decoration.border! as Border).top.color,
+        MoreOptionsButton.borderColor,
+      );
+      expect(decoration.color, isNull);
+      expect(tester.getSize(more), const Size(38, 38));
+      await openMenu(tester);
+      final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      expect(sheet.backgroundColor, optionsSheetColor);
+      final radius =
+          ((sheet.shape! as RoundedRectangleBorder).borderRadius
+                  as BorderRadius)
+              .topLeft
+              .x;
+      expect(radius, closeTo(24, 24 * .15));
+      expect(find.byType(OptionSheetTile), findsNWidgets(4));
+      final labels = [
+        'Share profile',
+        'Remove follower',
+        'Report user',
+        'Block user',
+      ];
+      final tops = [
+        for (final label in labels) tester.getTopLeft(find.text(label)).dy,
+      ];
+      expect(tops, [...tops]..sort());
+      expect(labelColor(tester, 'Remove follower'), DarkColors.whiteColor);
+      final removeIcon = tester.widget<SvgPicture>(
+        find.descendant(
+          of: find.byKey(const ValueKey('profile-option-removeFollower')),
+          matching: find.byType(SvgPicture),
+        ),
+      );
+      expect(
+        (removeIcon.bytesLoader as SvgAssetLoader).assetName,
+        'assets/images/icons/user-remove.svg',
+      );
+      expect(
+        removeIcon.colorFilter,
+        const ColorFilter.mode(DarkColors.whiteColor, BlendMode.srcIn),
+      );
+      expect(labelColor(tester, 'Block user'), DarkColors.dangerColor);
+      expect(labelColor(tester, 'Share profile'), DarkColors.whiteColor);
+      expect(labelColor(tester, 'Report user'), DarkColors.whiteColor);
+      expect(find.text('Copy profile link'), findsNothing);
+      expect(find.text('Unblock user'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Block user confirms with the glass dialog before blocking', (
+      tester,
+    ) async {
+      await show(tester);
+      await openMenu(tester);
+      await tester.tap(find.text('Block user'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GlassConfirmDialog), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(blocks.calls, isEmpty);
+
+      await openMenu(tester);
+      await tester.tap(find.text('Block user'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GlassConfirmDialog),
+          matching: find.text('Block'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(blocks.calls, [true]);
+      expect(block.state.isBlocked('23'), isTrue);
+      expect(find.text('This profile is unavailable.'), findsOneWidget);
+    });
+
+    testWidgets('a blocked profile keeps ⋮ with only Unblock user', (
+      tester,
+    ) async {
+      blocks.blocked['23'] = true;
+      await block.setBlocked('23', true);
+      blocks.calls.clear();
+      await show(tester);
+      expect(find.text('This profile is unavailable.'), findsOneWidget);
+      await openMenu(tester);
+      expect(find.byType(OptionSheetTile), findsOneWidget);
+      expect(find.text('Unblock user'), findsOneWidget);
+      expect(labelColor(tester, 'Unblock user'), DarkColors.whiteColor);
+      expect(find.text('Block user'), findsNothing);
+      expect(find.text('Report user'), findsNothing);
+      await tester.tap(find.text('Unblock user'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GlassConfirmDialog), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.byType(GlassConfirmDialog),
+          matching: find.text('Unblock'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(blocks.calls, [false]);
+      expect(block.state.isBlocked('23'), isFalse);
+      expect(find.text('This profile is unavailable.'), findsNothing);
+      await openMenu(tester);
+      expect(find.text('Block user'), findsOneWidget);
+    });
+
+    testWidgets('Remove follower uses the glass confirm dialog', (
+      tester,
+    ) async {
+      await show(tester);
+      await openMenu(tester);
+      await tester.tap(find.text('Remove follower'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GlassConfirmDialog), findsOneWidget);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(repo.removed, isEmpty);
+    });
+
+    testWidgets('Report user opens the post report reasons sheet', (
+      tester,
+    ) async {
+      await show(tester);
+      await openMenu(tester);
+      await tester.tap(find.text('Report user'));
+      await tester.pumpAndSettle();
+      expect(find.text(ReportReason.harassment.label), findsOneWidget);
+      await tester.tap(find.text(ReportReason.harassment.label));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Submit Report'));
+      await tester.pumpAndSettle();
+      expect(profiles.reports, [('23', 'harassment')]);
+      expect(find.text('Report submitted.'), findsOneWidget);
+    });
+  });
 }

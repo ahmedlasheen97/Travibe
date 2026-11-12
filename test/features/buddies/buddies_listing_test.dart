@@ -18,6 +18,8 @@ import 'package:travibe/features/buddies/screens/buddies_screen.dart';
 import 'package:travibe/features/buddies/screens/buddies_listing_screen.dart';
 import 'package:travibe/features/buddies/screens/buddies_filters_screen.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_card.dart';
+import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'buddies_home_test.dart' as fixtures;
@@ -431,6 +433,91 @@ void main() {
       await cubit.loadMore();
       expect(api.path, path);
       expect(cubit.state.items.map((item) => item.id), [1, 2]);
+    },
+  );
+
+  testWidgets(
+    'listing uses card skeletons for first load, pagination and refresh-from-empty',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      var gate = Completer<dynamic>();
+      final api = fixtures.FakeApi(gate);
+      await tester.pumpWidget(
+        ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (_, _) => MaterialApp(
+            theme: darkTheme,
+            home: BuddiesListingScreen(
+              listing: BuddiesListing.city,
+              repo: BuddiesRepo(apiService: api),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      // First load: a two-row card grid skeleton, no spinner, no empty copy.
+      expect(find.byType(BuddiesGridSkeleton), findsOneWidget);
+      expect(find.byType(BuddiesTravelerCardSkeleton), findsNWidgets(4));
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
+      expect(find.text('No travelers found.'), findsNothing);
+
+      gate.complete(page(ids: [1, 2], next: '?page=2'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BuddiesGridSkeleton), findsNothing);
+      expect(find.byType(BuddiesTravelerCard), findsNWidgets(2));
+
+      // Pagination appends one skeleton row below the loaded cards.
+      api.result = gate = Completer<dynamic>();
+      await tester.tap(find.text('Load more'));
+      await tester.pump();
+      expect(find.byType(BuddiesTravelerCard), findsNWidgets(2));
+      final more = find.byType(BuddiesGridSkeleton);
+      expect(more, findsOneWidget);
+      expect(tester.widget<BuddiesGridSkeleton>(more).rows, 1);
+      expect(
+        tester.getTopLeft(more).dy,
+        greaterThan(
+          tester.getBottomLeft(find.byType(BuddiesTravelerCard).first).dy,
+        ),
+      );
+      gate.complete(page(number: 2, ids: [3]));
+      await tester.pumpAndSettle();
+      expect(find.byType(BuddiesGridSkeleton), findsNothing);
+      expect(find.byType(BuddiesTravelerCard), findsNWidgets(3));
+
+      // Refresh over existing cards keeps them (small floating loader only).
+      api.result = gate = Completer<dynamic>();
+      final refresh = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.byType(BuddiesTravelerCard), findsNWidgets(3));
+      expect(find.byType(BuddiesGridSkeleton), findsNothing);
+      gate.complete(page());
+      await refresh;
+      await tester.pumpAndSettle();
+      expect(find.text('No travelers found.'), findsOneWidget);
+
+      // Refresh from an empty list shows the skeleton again.
+      api.result = gate = Completer<dynamic>();
+      final again = tester
+          .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+          .onRefresh();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(BuddiesGridSkeleton), findsOneWidget);
+      expect(find.text('No travelers found.'), findsNothing);
+      gate.complete(page(ids: [4]));
+      await again;
+      await tester.pumpAndSettle();
+      expect(find.byType(BuddiesGridSkeleton), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
     },
   );
 

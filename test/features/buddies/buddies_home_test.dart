@@ -11,6 +11,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
+import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/features/buddies/data/buddies_home_response.dart';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
 import 'package:travibe/features/buddies/cubit/buddies_cubit.dart';
@@ -272,9 +273,11 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
     pending.completeError(ApiError(message: 'Network unavailable'));
     await tester.pumpAndSettle();
+    expect(find.byType(BuddiesSectionSkeleton), findsNothing);
     expect(find.text('Network unavailable'), findsOneWidget);
     api.result = home();
     await tester.tap(find.text('Retry'));

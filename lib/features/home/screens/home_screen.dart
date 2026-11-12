@@ -52,7 +52,6 @@ import 'package:travibe/features/home/widgets/home_tabs.dart';
 import 'package:travibe/features/home/widgets/home_top_bar.dart';
 import 'package:travibe/features/home/widgets/pinned_tabs_delegate.dart';
 import 'package:travibe/features/home/widgets/suggested_users_section.dart';
-import 'package:travibe/features/home/widgets/trending_destinations_section.dart';
 import 'package:travibe/features/search/screens/search_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -234,24 +233,6 @@ class _HomeViewState extends State<_HomeView> {
       }
     });
   }
-
-  final List<TrendingDestination> _trendingDestinations = const [
-    TrendingDestination(
-      name: 'Bali, Indonesia',
-      postsCount: '1.3K Posts',
-      image: 'assets/images/posts/Rectangle 37.png',
-    ),
-    TrendingDestination(
-      name: 'Bali, Indonesia',
-      postsCount: '1.3K Posts',
-      image: 'assets/images/posts/Rectangle 37.png',
-    ),
-    TrendingDestination(
-      name: 'Bali, Indonesia',
-      postsCount: '1.3K Posts',
-      image: 'assets/images/posts/Rectangle 37.png',
-    ),
-  ];
 
   @override
   void initState() {
@@ -845,10 +826,9 @@ class _HomeViewState extends State<_HomeView> {
     bool showFollowingIntro = false,
   }) {
     final posts = state.posts;
-    // Suggested users after the 2nd post, trending after the 4th
-    // (or after the last post if the feed is shorter than that).
+    // Suggested users after the 2nd post (or after the last post if the
+    // feed is shorter than that).
     final suggestedAt = posts.length > 1 ? 1 : posts.length - 1;
-    final trendingAt = posts.length > 3 ? 3 : posts.length - 1;
 
     final items = <Widget>[
       SizedBox(height: AppSizes.adaptiveHeight(16)),
@@ -869,15 +849,6 @@ class _HomeViewState extends State<_HomeView> {
 
       if (i == suggestedAt) {
         items.add(_homeSuggestions(inFeed: true));
-        items.add(SizedBox(height: AppSizes.adaptiveHeight(20)));
-      }
-      if (i == trendingAt) {
-        items.add(
-          TrendingDestinationsSection(
-            destinations: _trendingDestinations,
-            onSeeAllTap: () {},
-          ),
-        );
         items.add(SizedBox(height: AppSizes.adaptiveHeight(20)));
       }
     }

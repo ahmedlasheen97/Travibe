@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
+import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/features/buddies/data/buddies_landing_data.dart';
 import 'package:travibe/features/buddies/screens/buddies_screen.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_card.dart';
@@ -172,8 +173,14 @@ void main() {
         screen: const BuddiesLandingView(isLoading: true),
         settle: false,
       );
-      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
+      expect(find.byType(BuddiesTravelerCardSkeleton), findsNWidgets(6));
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
       expect(find.byType(BuddiesTravelerCard), findsNothing);
+      expect(
+        find.text('Traveler discovery is not available yet.'),
+        findsNothing,
+      );
       await show(
         tester,
         screen: const BuddiesLandingView(
@@ -187,6 +194,7 @@ void main() {
         ),
       );
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
+      expect(find.byType(BuddiesSectionSkeleton), findsNothing);
       expect(find.text('Local sample'), findsOneWidget);
       expect(find.text('Hazem Ali'), findsNothing);
       expect(tester.takeException(), isNull);
