@@ -137,7 +137,7 @@ void main() {
         const LikeValue(isLiked: true, count: 1),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('View 1 replies'));
+      await tester.tap(find.text('View 1 reply'));
       await tester.pumpAndSettle();
       final reply = find.byKey(const ValueKey('comment-like-2'));
       await tester.ensureVisible(reply);

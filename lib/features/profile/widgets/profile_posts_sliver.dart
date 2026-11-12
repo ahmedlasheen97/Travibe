@@ -17,6 +17,7 @@ import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/post_report_flow.dart';
 import 'package:travibe/features/home/widgets/own_post_actions.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
@@ -233,7 +234,9 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
       actions: own
           ? ownPostActions
           : {
+              PostOptionAction.notInterested,
               PostOptionAction.hidePost,
+              PostOptionAction.report,
               if (block != null) PostOptionAction.blockUser,
             },
       commentsDisabled: post.commentsDisabled,
@@ -243,7 +246,11 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
       await runOwnPostAction(context, action: action, post: post, feed: feed);
       return;
     }
-    if (action == PostOptionAction.blockUser) {
+    if (action == PostOptionAction.notInterested) {
+      await notInterestedFlow(context, postId: post.id, hidden: hidden);
+    } else if (action == PostOptionAction.report) {
+      await reportPostFlow(context, postId: post.id, repo: hidden.repo);
+    } else if (action == PostOptionAction.blockUser) {
       await confirmBlockChange(
         context,
         post.user.id,

@@ -138,7 +138,7 @@ class CommentRow extends StatelessWidget {
                       ? 'Hide replies'
                       : comment.repliesCount == null
                       ? 'View replies'
-                      : 'View ${comment.repliesCount} replies',
+                      : 'View ${countLabel(comment.repliesCount!, 'reply', 'replies')}',
                   icon: expanded
                       ? Icons.keyboard_arrow_up
                       : Icons.keyboard_arrow_down,
@@ -156,7 +156,7 @@ class CommentRow extends StatelessWidget {
               enabled: !busy && !likePending && onLike != null,
               onTap: busy || likePending ? null : onLike,
               label:
-                  '${comment.isLiked == true ? 'Unlike' : 'Like'} comment, ${comment.likesCount ?? 0} likes',
+                  '${comment.isLiked == true ? 'Unlike' : 'Like'} comment, ${countLabel(comment.likesCount ?? 0, 'like')}',
               child: ExcludeSemantics(
                 child: InkWell(
                   key: ValueKey('comment-like-${comment.id}'),

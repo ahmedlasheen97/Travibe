@@ -16,7 +16,9 @@ enum PostOptionAction {
 
 /// Actions on someone else's post.
 const otherPostActions = {
+  PostOptionAction.notInterested,
   PostOptionAction.hidePost,
+  PostOptionAction.report,
   PostOptionAction.blockUser,
 };
 
@@ -124,10 +126,10 @@ class PostOptionsSheet extends StatelessWidget {
             ),
           if (actions.contains(PostOptionAction.notInterested))
             _OptionTile(
-              icon: const Icon(
-                Icons.block_rounded,
-                color: DarkColors.greyColor,
-                size: 24,
+              key: const ValueKey('post-option-not-interested'),
+              icon: _svg(
+                'assets/images/icons/slash.svg',
+                tint: DarkColors.greyColor,
               ),
               label: 'Not interested',
               onTap: () => pick(PostOptionAction.notInterested),
@@ -135,20 +137,19 @@ class PostOptionsSheet extends StatelessWidget {
           if (actions.contains(PostOptionAction.hidePost))
             _OptionTile(
               key: const ValueKey('post-option-hide'),
-              icon: const Icon(
-                Icons.visibility_off_outlined,
-                color: DarkColors.greyColor,
-                size: 24,
+              icon: _svg(
+                'assets/images/onboarding/eye-slash.svg',
+                tint: DarkColors.greyColor,
               ),
               label: 'Hide post',
               onTap: () => pick(PostOptionAction.hidePost),
             ),
           if (actions.contains(PostOptionAction.report))
             _OptionTile(
-              icon: const Icon(
-                Icons.flag_outlined,
-                color: DarkColors.greyColor,
-                size: 24,
+              key: const ValueKey('post-option-report'),
+              icon: _svg(
+                'assets/images/icons/flag.svg',
+                tint: DarkColors.greyColor,
               ),
               label: 'Report',
               onTap: () => pick(PostOptionAction.report),
@@ -156,10 +157,9 @@ class PostOptionsSheet extends StatelessWidget {
           if (actions.contains(PostOptionAction.blockUser))
             _OptionTile(
               key: const ValueKey('post-option-block'),
-              icon: const Icon(
-                Icons.person_off_outlined,
-                color: DarkColors.dangerColor,
-                size: 24,
+              icon: _svg(
+                'assets/images/icons/user-remove.svg',
+                tint: DarkColors.dangerColor,
               ),
               label: 'Block user',
               color: DarkColors.dangerColor,

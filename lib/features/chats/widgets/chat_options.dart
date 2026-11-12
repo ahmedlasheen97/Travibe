@@ -41,7 +41,7 @@ class ChatOptionsSheet extends StatelessWidget {
                       ChatOption.profile => 'profilepersonicon.svg',
                       ChatOption.delete => 'trash.svg',
                       ChatOption.report => 'flag.svg',
-                      ChatOption.block => 'user-remove 2.svg',
+                      ChatOption.block => 'user_remove_2.svg',
                     }}',
                     width: 24,
                     height: 24,
@@ -97,16 +97,11 @@ Future<void> chatUserAction(
       case ChatOption.profile:
         await ProfileScreen.open(context, userId: id, profileRepo: profiles);
       case ChatOption.report:
-        final reason = await ReportReasonSheet.show(context);
-        if (!context.mounted || !active() || reason == null) return;
+        final report = await ReportReasonSheet.show(context);
+        if (!context.mounted || !active() || report == null) return;
         await (profiles ?? ProfileRepo()).reportUser(
           participant.id,
-          switch (reason) {
-            ReportReason.spamOrScam => 'spam_or_scam',
-            ReportReason.harassment => 'harassment',
-            ReportReason.inappropriateContent => 'inappropriate_content',
-            ReportReason.somethingElse => 'something_else',
-          },
+          report.reason.apiValue,
         );
         if (context.mounted && active()) {
           ScaffoldMessenger.of(

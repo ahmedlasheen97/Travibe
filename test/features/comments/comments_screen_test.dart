@@ -74,7 +74,7 @@ void main() {
       await tester.tap(find.text('Hide replies').first);
       await tester.pumpAndSettle();
       expect(find.text('A reply'), findsNothing);
-      await tester.tap(find.text('View 1 replies'));
+      await tester.tap(find.text('View 1 reply'));
       await tester.pumpAndSettle();
       expect(find.text('A reply'), findsOneWidget);
       expect(tester.takeException(), isNull);

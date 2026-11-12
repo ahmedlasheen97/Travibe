@@ -20,6 +20,7 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/post_report_flow.dart';
 import 'package:travibe/features/home/widgets/own_post_actions.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'dart:async';
@@ -455,6 +456,10 @@ class _HomeViewState extends State<_HomeView> {
     }
     if (action == PostOptionAction.hidePost) {
       await _setPostHidden(post.id, true);
+    } else if (action == PostOptionAction.notInterested) {
+      await notInterestedFlow(context, postId: post.id, hidden: _hiddenPosts);
+    } else if (action == PostOptionAction.report) {
+      await reportPostFlow(context, postId: post.id, repo: _hiddenPosts.repo);
     } else if (action == PostOptionAction.blockUser) {
       await confirmBlockChange(
         context,

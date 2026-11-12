@@ -19,6 +19,7 @@ import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/widgets/own_post_actions.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/post_report_flow.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
 import 'package:travibe/features/likes/data/likes_repo.dart';
@@ -209,7 +210,11 @@ class _PostScreenState extends State<PostScreen> {
       actions: own
           ? ownPostActions
           : {
-              if (hidden != null) PostOptionAction.hidePost,
+              if (hidden != null) ...[
+                PostOptionAction.notInterested,
+                PostOptionAction.hidePost,
+                PostOptionAction.report,
+              ],
               if (blocks != null) PostOptionAction.blockUser,
             },
       commentsDisabled: _commentsDisabled,
@@ -230,6 +235,13 @@ class _PostScreenState extends State<PostScreen> {
       if (error != null) return _snack(error.message);
       _snack('Post hidden');
       _close();
+    } else if (action == PostOptionAction.notInterested && hidden != null) {
+      if (await notInterestedFlow(context, postId: _post.id, hidden: hidden) &&
+          mounted) {
+        _close();
+      }
+    } else if (action == PostOptionAction.report && hidden != null) {
+      await reportPostFlow(context, postId: _post.id, repo: hidden.repo);
     } else if (action == PostOptionAction.blockUser && blocks != null) {
       if (!mounted) return;
       await confirmBlockChange(
