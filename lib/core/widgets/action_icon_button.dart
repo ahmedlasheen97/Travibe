@@ -12,6 +12,9 @@ class ActionIconButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool preserveAssetColors;
 
+  /// Pill outline; the Post screen (Figma) shows bare icons.
+  final bool bordered;
+
   const ActionIconButton({
     super.key,
     required this.iconPath,
@@ -19,6 +22,7 @@ class ActionIconButton extends StatelessWidget {
     this.onTap,
     this.preserveAssetColors = false,
     this.responsive = false,
+    this.bordered = true,
   });
 
   @override
@@ -34,7 +38,7 @@ class ActionIconButton extends StatelessWidget {
           vertical: responsive ? AppSizes.adaptiveHeight(6) : AppSizes.ph6,
         ),
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF2E2E2E)),
+          border: bordered ? Border.all(color: const Color(0xFF2E2E2E)) : null,
           borderRadius: BorderRadius.circular(
             (responsive ? AppSizes.adaptiveRadius(24) : AppSizes.r24),
           ),

@@ -92,15 +92,49 @@ class CommentsScreen extends StatelessWidget {
   );
 }
 
+/// The comment thread and composer without the sheet chrome, for the Post
+/// screen. [header] scrolls above "Comments"; the composer stays pinned.
+/// Needs a [CommentsCubit] above it.
+class CommentsThreadView extends StatelessWidget {
+  const CommentsThreadView({
+    super.key,
+    this.header,
+    this.commentsDisabled = false,
+    this.highlightCommentId,
+    this.composerFocus,
+  });
+  final Widget? header;
+  final bool commentsDisabled;
+  final int? highlightCommentId;
+
+  /// Lets the host focus "Add a comment" (e.g. from the post's comment icon).
+  final FocusNode? composerFocus;
+
+  @override
+  Widget build(BuildContext context) => _CommentsView(
+    commentsDisabled: commentsDisabled,
+    highlightCommentId: highlightCommentId,
+    embedded: true,
+    header: header,
+    focus: composerFocus,
+  );
+}
+
 class _CommentsView extends StatefulWidget {
   const _CommentsView({
     this.parentId,
     required this.commentsDisabled,
     this.highlightCommentId,
+    this.embedded = false,
+    this.header,
+    this.focus,
   });
   final int? parentId;
   final bool commentsDisabled;
   final int? highlightCommentId;
+  final bool embedded;
+  final Widget? header;
+  final FocusNode? focus;
   @override
   State<_CommentsView> createState() => _CommentsViewState();
 }
@@ -110,7 +144,8 @@ class _CommentsViewState extends State<_CommentsView> {
   CommentModel? _editing;
   CommentModel? _replying;
   String? _mutationError;
-  final _focus = FocusNode();
+  late final _ownFocus = widget.focus == null ? FocusNode() : null;
+  FocusNode get _focus => widget.focus ?? _ownFocus!;
   final Set<int> _expanded = {};
   final _scroll = ScrollController();
   final _highlightKey = GlobalKey();
@@ -151,7 +186,7 @@ class _CommentsViewState extends State<_CommentsView> {
   @override
   void dispose() {
     _text.dispose();
-    _focus.dispose();
+    _ownFocus?.dispose();
     _scroll.dispose();
     super.dispose();
   }
@@ -268,10 +303,77 @@ class _CommentsViewState extends State<_CommentsView> {
     ],
   );
 
+  Widget _title(CommentsState state) => Row(
+    children: [
+      Text(
+        widget.parentId == null ? 'Comments' : 'Replies',
+        style: commentTextStyle.copyWith(
+          fontSize: 18,
+          height: 24 / 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      const SizedBox(width: 8),
+      Text(
+        formatCount(state.count),
+        key: const ValueKey('comment-count'),
+        style: commentTextStyle.copyWith(
+          color: DarkColors.greyColor,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
+
+  Widget _embedded(CommentsState state) {
+    final cubit = context.read<CommentsCubit>();
+    return DefaultTextStyle(
+      style: commentTextStyle,
+      child: Column(
+        children: [
+          if (state.syncing) const LinearProgressIndicator(minHeight: 2),
+          Expanded(child: _thread(state)),
+          if (state.syncError != null)
+            _message(
+              'Count refresh failed: ${state.syncError!.message}',
+              onRetry: state.busy || state.syncing ? null : cubit.synchronize,
+            ),
+          if (_mutationError != null)
+            _message(
+              _mutationError!,
+              onDismiss: () => setState(() => _mutationError = null),
+            ),
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Color(0xFF0A0A0A),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              border: Border(top: BorderSide(color: Color(0x66595959))),
+            ),
+            child: SafeArea(top: false, child: _composer(state)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Post header and "Comments" title, scrolled with the embedded thread.
+  List<Widget> _embeddedHeader(CommentsState state) => [
+    if (widget.header != null)
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+        sliver: SliverToBoxAdapter(child: widget.header),
+      ),
+    SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+      sliver: SliverToBoxAdapter(child: _title(state)),
+    ),
+  ];
+
   @override
   Widget build(BuildContext context) =>
       BlocBuilder<CommentsCubit, CommentsState>(
         builder: (context, state) {
+          if (widget.embedded) return _embedded(state);
           final cubit = context.read<CommentsCubit>();
           return Material(
             color: const Color(0xFF0A0A0A),
@@ -299,27 +401,7 @@ class _CommentsViewState extends State<_CommentsView> {
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        children: [
-                          Text(
-                            widget.parentId == null ? 'Comments' : 'Replies',
-                            style: commentTextStyle.copyWith(
-                              fontSize: 18,
-                              height: 24 / 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            formatCount(state.count),
-                            key: const ValueKey('comment-count'),
-                            style: commentTextStyle.copyWith(
-                              color: DarkColors.greyColor,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
+                      child: _title(state),
                     ),
                     const SizedBox(height: 24),
                     if (state.syncError != null)
@@ -512,14 +594,26 @@ class _CommentsViewState extends State<_CommentsView> {
   Widget _thread(CommentsState state) {
     final cubit = context.read<CommentsCubit>();
     final thread = state.thread(widget.parentId);
-    if (thread.status == CommentsStatus.initial ||
-        thread.status == CommentsStatus.loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (thread.status == CommentsStatus.failure) {
-      return ErrorRetryView(
-        message: thread.error!.message,
-        onRetry: () => cubit.load(parentId: widget.parentId),
+    final loading =
+        thread.status == CommentsStatus.initial ||
+        thread.status == CommentsStatus.loading;
+    if (loading || thread.status == CommentsStatus.failure) {
+      final status = loading
+          ? const Center(child: CircularProgressIndicator())
+          : ErrorRetryView(
+              message: thread.error!.message,
+              onRetry: () => cubit.load(parentId: widget.parentId),
+            );
+      if (!widget.embedded) return status;
+      // The post stays visible while its comments load or fail.
+      return CustomScrollView(
+        slivers: [
+          ..._embeddedHeader(state),
+          SliverPadding(
+            padding: const EdgeInsets.all(24),
+            sliver: SliverToBoxAdapter(child: status),
+          ),
+        ],
       );
     }
     if (widget.highlightCommentId != null && !_highlightScheduled) {
@@ -547,6 +641,7 @@ class _CommentsViewState extends State<_CommentsView> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            if (widget.embedded) ..._embeddedHeader(state),
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               sliver: SliverList.list(

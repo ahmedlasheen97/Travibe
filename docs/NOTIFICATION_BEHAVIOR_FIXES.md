@@ -54,7 +54,7 @@ Known blocked targets and missing, expired, forbidden or deleted content remain
 in the inbox and show a safe unavailable message. Rows remain tappable after
 automatic read-all; reading is independent of successful destination access.
 
-The project had no standalone Post Detail route. `NotificationPostScreen` is a
+The project had no standalone Post Detail route. `PostScreen` is a
 small destination using the existing shared PostCard, Likes/Saves owners,
 comments/replies sheet, author-profile link and sharing sheet. Other existing
 screens were reused. Borrowed Root Cubits remain owned by Root. Account changes
@@ -120,7 +120,7 @@ the existing Story Viewer also renders its overlay document when opened.
 - `lib/features/notifications/widgets/notification_row.dart`
 - `lib/features/notifications/screens/notifications_screen.dart`
 - `lib/features/notifications/screens/notification_navigation.dart` (new)
-- `lib/features/notifications/screens/notification_post_screen.dart` (new)
+- `lib/features/home/screens/post_screen.dart` (new)
 - `lib/core/notifications/push_notifications_host.dart` (borrow existing route state)
 - `lib/features/chats/data/chat_reverb_service.dart` (notification-ID hint only)
 - `lib/features/chats/widgets/chat_reverb_host.dart` (coalesce ID hints)

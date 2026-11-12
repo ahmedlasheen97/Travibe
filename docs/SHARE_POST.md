@@ -33,7 +33,7 @@ Code: `features/shares/data/share_post_messenger.dart` (send seam),
   (`ChatSharedPost`, from `SharedPostResource`), same on `ChatLastMessage`.
 - Bubble: `widgets/chat_post_card.dart` — author, first image, 3-line excerpt; tap opens
   the post via `shares/screens/open_shared_post.dart` (reuses
-  `NotificationTargetsRepository` + `NotificationPostScreen`). `post == null` with a
+  `NotificationTargetsRepository` + `PostScreen`). `post == null` with a
   `post_id` → "Post unavailable", not tappable.
 - Inbox preview: "Shared a post".
 - `updated_since` re-delivers a post message when its card changes;

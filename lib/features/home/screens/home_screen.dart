@@ -1,3 +1,5 @@
+import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
 import 'package:travibe/features/chats/screens/chat_navigation.dart';
 import 'package:travibe/features/chats/screens/chats_screen.dart';
@@ -985,6 +987,14 @@ class _HomeViewState extends State<_HomeView> {
                                 : null,
                             images: mediaUrls.length > 1 ? mediaUrls : null,
                             likes: formatCount(value?.count ?? post.likesCount),
+                            onOpen: () => PostScreen.open(context, post: post),
+                            onLikesCountTap: postId == null
+                                ? null
+                                : () => LikedBySheet.show(
+                                    context,
+                                    postId: postId,
+                                    count: value?.count ?? post.likesCount,
+                                  ),
                             isLiked: value?.isLiked ?? post.isLiked,
                             isLikePending: value?.pending == true,
                             onLikeTap: target == null
