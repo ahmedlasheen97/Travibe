@@ -27,6 +27,7 @@ import 'dart:async';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/home/cubit/home_account_cubit.dart';
@@ -681,6 +682,11 @@ class _HomeViewState extends State<_HomeView> {
                             child: HomeFeedSkeleton(),
                           );
                         },
+                      ),
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: BottomNavScope.bottomInsetOf(context),
+                        ),
                       ),
                     ],
                   ),
