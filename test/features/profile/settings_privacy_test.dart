@@ -1,3 +1,6 @@
+import 'package:travibe/core/notifications/firebase_messaging_client.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
@@ -863,5 +866,113 @@ void main() {
       expect(sheet.backgroundColor, const Color(0xFF0A0A0A));
       expect(find.byType(SheetHandle), findsOneWidget);
     });
+  });
+
+  group('push permission hint under Push Notifications', () {
+    Future<(PushNotificationService, FakeMessagingClient)> pumpSettings(
+      WidgetTester tester, {
+      required PushPermission status,
+      bool available = true,
+    }) async {
+      final client = FakeMessagingClient()
+        ..status = status
+        ..available = available;
+      final push = PushNotificationService(client: client);
+      addTearDown(() async {
+        push.dispose();
+        await client.close();
+      });
+      await push.start();
+      tester.view.physicalSize = const Size(390, 2000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final user = settingsCubit(SettingsApi());
+      addTearDown(user.close);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: SettingsScreen(currentUser: user, push: push),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return (push, client);
+    }
+
+    testWidgets('blocked permission shows a muted hint with an orange Check', (
+      tester,
+    ) async {
+      final (_, client) = await pumpSettings(
+        tester,
+        status: PushPermission.denied,
+      );
+      final hint = find.byKey(const ValueKey('push-permission-hint'));
+      expect(hint, findsOneWidget);
+      // Sits inside the Push Notifications row, under its subtitle.
+      expect(
+        tester.getTopLeft(hint).dy,
+        greaterThanOrEqualTo(
+          tester
+              .getBottomLeft(find.text('Receive notifications on your phone'))
+              .dy,
+        ),
+      );
+      final message = tester.widget<Text>(
+        find.textContaining('blocked on this device'),
+      );
+      expect(message.style!.fontSize, AppSizes.sp12);
+      expect(message.style!.color, Colors.white54);
+      final action = find.byKey(const ValueKey('push-permission-action'));
+      expect(
+        find.descendant(of: action, matching: find.text('Check')),
+        findsOneWidget,
+      );
+      expect(
+        tester.widget<TextButton>(action).style!.foregroundColor!.resolve({}),
+        DarkColors.primaryColor,
+      );
+      // Still blocked: Check re-reads permission without prompting.
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(client.prompts, 0);
+      expect(hint, findsOneWidget);
+      // Allowed in device Settings, then Check: the hint goes away.
+      client.status = PushPermission.authorized;
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(hint, findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('undecided permission offers Enable, which prompts', (
+      tester,
+    ) async {
+      final (_, client) = await pumpSettings(
+        tester,
+        status: PushPermission.notDetermined,
+      );
+      expect(find.textContaining('aren’t allowed'), findsOneWidget);
+      client.status = PushPermission.authorized;
+      await tester.tap(find.text('Enable'));
+      await tester.pumpAndSettle();
+      expect(client.prompts, 1);
+      expect(find.byKey(const ValueKey('push-permission-hint')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    for (final (label, status, available) in [
+      ('allowed', PushPermission.authorized, true),
+      ('unsupported device', PushPermission.denied, false),
+    ]) {
+      testWidgets('no hint when $label', (tester) async {
+        await pumpSettings(tester, status: status, available: available);
+        expect(
+          find.byKey(const ValueKey('push-permission-hint')),
+          findsNothing,
+        );
+        expect(find.text('Push Notifications'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
   });
 }

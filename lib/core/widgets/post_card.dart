@@ -29,6 +29,9 @@ class PostCard extends StatefulWidget {
   final VoidCallback? onSaveTap;
   final String name;
   final VoidCallback? onMoreTap;
+
+  /// False when the host shows the ⋮ menu elsewhere (Post screen app bar).
+  final bool showMoreButton;
   final VoidCallback? onCommentsTap;
   final VoidCallback? onLikeTap;
 
@@ -82,6 +85,7 @@ class PostCard extends StatefulWidget {
     this.isFollowPending = false,
     this.onFollowTap,
     this.onMoreTap,
+    this.showMoreButton = true,
     this.onCommentsTap,
     this.onLikeTap,
     this.onLikesCountTap,
@@ -210,12 +214,13 @@ class _PostCardState extends State<PostCard> {
           ),
         ),
         if (widget.showFollowButton) _authorFollowAction(),
-        MoreOptionsButton(
-          onTap: widget.onMoreTap,
-          size: widget.responsive ? _r(38) : AppSizes.w38,
-          height: widget.responsive ? _r(38) : AppSizes.h38,
-          radius: _r(20),
-        ),
+        if (widget.showMoreButton)
+          MoreOptionsButton(
+            onTap: widget.onMoreTap,
+            size: widget.responsive ? _r(38) : AppSizes.w38,
+            height: widget.responsive ? _r(38) : AppSizes.h38,
+            radius: _r(20),
+          ),
       ],
     );
   }

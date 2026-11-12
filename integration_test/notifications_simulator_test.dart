@@ -198,33 +198,16 @@ void main() {
         find.textContaining('Fixture traveler', findRichText: true),
         findsOneWidget,
       );
-      await tester.tap(find.byTooltip('Notification options'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Notification settings'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Push notifications are not configured on this device.'),
-        findsOneWidget,
-      );
-      Navigator.of(
-        tester.element(find.byType(NotificationPermissionCard)),
-      ).pop();
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('notification-sim-one')));
-      await tester.pumpAndSettle();
-      expect(coordinator.notifications.count, 1);
-      await tester.tap(find.byTooltip('Notification options'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Mark all as read'));
-      await tester.pumpAndSettle();
+      // Opening the inbox reads everything; the dots stay for this visit.
+      expect(find.byTooltip('Notification options'), findsNothing);
       expect(coordinator.notifications.count, 0);
       expect(
         find.byKey(const ValueKey('notification-unread-sim-one')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         find.byKey(const ValueKey('notification-unread-sim-two')),
-        findsNothing,
+        findsOneWidget,
       );
       await prefs.clearSession();
       await tester.pumpAndSettle();

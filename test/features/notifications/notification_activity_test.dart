@@ -300,14 +300,30 @@ void main() {
     navigator.pop();
     await tester.pumpAndSettle();
     expect(find.text('3'), findsOneWidget);
+    // Opening the inbox clears the bell before read-all even returns.
+    repo.writeGate = Completer<void>();
+    final writes = repo.writes;
     await tester.tap(find.byKey(const ValueKey('home-notification-bell')));
+    await tester.pump();
+    await tester.pump();
+    expect(coordinator.notifications.count, 0);
+    expect(find.byTooltip('Notification options'), findsNothing);
+    expect(find.byIcon(Icons.more_horiz), findsNothing);
+    expect(find.byIcon(Icons.more_vert), findsNothing);
+    repo.writeGate!.complete();
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
-    await tester.tap(find.byTooltip('Notification options'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Mark all as read'));
-    await tester.pumpAndSettle();
+    expect(repo.writes, writes + 1);
     expect(coordinator.notifications.count, 0);
+    // Rows unread on entry keep their dot for this visit.
+    expect(
+      find.byKey(const ValueKey('notification-unread-one')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('notification-unread-two')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
     await prefs.clearSession();
     await tester.pumpAndSettle();

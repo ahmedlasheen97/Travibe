@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:travibe/core/cubit/cursor_list_cubit.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
+import 'package:travibe/core/models/cursor_pagination.dart';
 import 'package:travibe/features/notifications/data/notifications_repo.dart';
 import 'notification_activity.dart';
 
@@ -9,7 +10,7 @@ class NotificationsCubit extends CursorListCubit<Map<String, dynamic>> {
     : this._(repo ?? activity?.repository ?? NotificationsRepo(), activity);
   NotificationsCubit._(NotificationsRepo repo, NotificationActivity? activity)
     : super(
-        loadPage: (cursor) => repo.list(cursor: cursor),
+        loadPage: (cursor) => _withoutChatMessages(repo, cursor),
         idOf: (n) => n['id'] as Object,
       ) {
     _invalidations = activity?.invalidations.listen((session) {
@@ -30,6 +31,40 @@ class NotificationsCubit extends CursorListCubit<Map<String, dynamic>> {
       _applyRead();
     });
   }
+
+  /// Direct messages live in Chats; only message requests stay in the inbox
+  /// (they are otherwise easy to miss in the Requests tab).
+  static bool isChatMessage(Map<String, dynamic> item) =>
+      item['type'] == 'message_received' &&
+      !(item['data'] is Map && item['data']['is_request'] == true);
+
+  /// Bounded so a long run of chat-only pages cannot spin; the cursor still
+  /// lets `more()` continue from where this stopped.
+  static const _maxSkippedPages = 5;
+  static Future<CursorPage<Map<String, dynamic>>> _withoutChatMessages(
+    NotificationsRepo repo,
+    String? cursor,
+  ) async {
+    var page = await repo.list(cursor: cursor);
+    var kept = page.items.where((n) => !isChatMessage(n)).toList();
+    final seen = {cursor};
+    // Only pages emptied by the filter are skipped; a server-empty page (or a
+    // repeated cursor) goes back unchanged for CursorListCubit to handle.
+    for (
+      var skipped = 0;
+      kept.isEmpty &&
+          page.items.isNotEmpty &&
+          page.hasMore &&
+          seen.add(page.pagination.nextCursor) &&
+          skipped < _maxSkippedPages;
+      skipped++
+    ) {
+      page = await repo.list(cursor: page.pagination.nextCursor);
+      kept = page.items.where((n) => !isChatMessage(n)).toList();
+    }
+    return CursorPage(items: kept, pagination: page.pagination);
+  }
+
   StreamSubscription<NotificationReadEvent>? _readEvents;
   StreamSubscription<int>? _invalidations;
   bool _reconciling = false, _dirty = false;

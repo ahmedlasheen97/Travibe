@@ -5,7 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
+import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/more_options_button.dart';
+import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/comments/screens/comments_screen.dart';
+import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
+import 'package:travibe/features/home/data/posts_repo.dart';
+import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
@@ -133,5 +139,63 @@ void main() {
     // Let the highlight tint finish.
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('⋮ sits in the app bar opposite back, not in the author row', (
+    tester,
+  ) async {
+    await show(tester, PostScreen(post: post(), comments: comments));
+    final more = find.byKey(const ValueKey('post-screen-more'));
+    expect(more, findsOneWidget);
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: more),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(PostCard),
+        matching: find.byType(MoreOptionsButton),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(PostCard),
+        matching: find.byIcon(Icons.more_vert),
+      ),
+      findsNothing,
+    );
+    final back = find.byType(BackButtonWidget);
+    final moreSize = tester.getSize(
+      find.descendant(of: more, matching: find.byType(SizedBox)).first,
+    );
+    expect(moreSize, const Size(44, 44));
+    expect(
+      tester.getCenter(back).dy,
+      moreOrLessEquals(tester.getCenter(more).dy),
+    );
+    expect(
+      tester.getCenter(back).dx,
+      moreOrLessEquals(390 - tester.getCenter(more).dx),
+    );
+  });
+
+  testWidgets('app bar ⋮ opens the other-user post menu', (tester) async {
+    final hidden = HiddenPostsCubit(repo: PostsRepo(), feeds: []);
+    addTearDown(hidden.close);
+    await show(
+      tester,
+      BlocProvider.value(
+        value: hidden,
+        child: PostScreen(post: post(), comments: comments),
+      ),
+    );
+    await tester.tap(find.byKey(const ValueKey('post-screen-more')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostOptionsSheet), findsOneWidget);
+    expect(find.text('Not interested'), findsOneWidget);
+    expect(find.text('Hide post'), findsOneWidget);
+    expect(find.text('Report'), findsOneWidget);
+    expect(find.text('Delete post'), findsNothing);
   });
 }
