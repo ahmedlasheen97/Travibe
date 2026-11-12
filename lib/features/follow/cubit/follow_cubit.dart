@@ -82,6 +82,22 @@ class FollowCubit extends Cubit<FollowState> {
     );
   }
 
+  /// Records server-read relationship flags (e.g. a loaded profile) so every
+  /// card for this user agrees. Fills only unknown values: confirmed
+  /// mutations and status checks are never overridden, and no revision bump.
+  void seed(String id, {bool? following, bool? followsYou}) {
+    if (isClosed || state.pending.contains(id)) return;
+    final addFollowing = following != null && state.following[id] == null;
+    final addFollowsYou = followsYou != null && state.followsYou[id] == null;
+    if (!addFollowing && !addFollowsYou) return;
+    _update(
+      userId: id,
+      following: addFollowing ? following : null,
+      followsYou: addFollowsYou ? followsYou : null,
+      pending: {...state.pending},
+    );
+  }
+
   void _update({
     String? userId,
     bool? following,

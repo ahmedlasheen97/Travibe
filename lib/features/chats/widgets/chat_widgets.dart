@@ -228,7 +228,6 @@ class ChatVoiceMessage extends StatelessWidget {
         Expanded(
           child: LinearProgressIndicator(
             value: progress.clamp(0, 1),
-            color: Colors.white,
             backgroundColor: Colors.white24,
           ),
         ),

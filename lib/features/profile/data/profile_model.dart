@@ -1,4 +1,5 @@
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/utils/json_parsers.dart';
 
 /// Profile responses are not fully described by the checked-in OpenAPI file.
 /// Keep field-name/shape assumptions here, separate from API and UI behavior.
@@ -44,6 +45,7 @@ class ProfileModel {
     this.isFollowing,
     this.followsYou,
     this.isBlocked,
+    this.url,
   });
 
   final String id;
@@ -85,6 +87,9 @@ class ProfileModel {
   final bool? isFollowing;
   final bool? followsYou;
   final bool? isBlocked;
+
+  /// Backend share link (`url`), used as-is; never built in the app.
+  final Uri? url;
 
   // Use only supplied public identity; never turn an email into a display name.
   String get displayName =>
@@ -142,6 +147,7 @@ class ProfileModel {
       isFollowing: isFollowing,
       followsYou: followsYou,
       isBlocked: isBlocked,
+      url: url,
     );
   }
 
@@ -181,6 +187,7 @@ class ProfileModel {
       isFollowing: isFollowing,
       followsYou: followsYou,
       isBlocked: isBlocked,
+      url: url,
     );
   }
 
@@ -241,6 +248,7 @@ class ProfileModel {
       isFollowing: _flag(data['is_following']),
       followsYou: _flag(data['follows_you']),
       isBlocked: _flag(data['is_blocked']),
+      url: parseHttpsUri(data['url']),
     );
   }
 

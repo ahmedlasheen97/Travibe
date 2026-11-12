@@ -86,4 +86,20 @@ void main() {
       expect(find.text('Cannot follow this user'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'cards with a stale is_following read the shared seeded/confirmed state',
+    (tester) async {
+      // Home and Post screen cards use FollowActionBuilder with the post
+      // author's own flag; the profile's confirmed state must win.
+      final cubit = FollowCubit(repo: ButtonRepo());
+      addTearDown(cubit.close);
+      await tester.pumpWidget(buttons(cubit));
+      expect(find.text('Follow'), findsNWidgets(2));
+      cubit.seed('7', following: true);
+      await tester.pump();
+      expect(find.text('Following'), findsNWidgets(2));
+      expect(find.text('Follow'), findsNothing);
+    },
+  );
 }

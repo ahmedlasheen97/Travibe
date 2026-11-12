@@ -284,7 +284,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'signout has one compact primary Cupertino loader and prevents duplicates',
+    'signout has one compact white Cupertino loader and prevents duplicates',
     (tester) async {
       final repo = LogoutRepo()..pending = Completer<bool>();
       await tester.pumpWidget(
@@ -314,7 +314,7 @@ void main() {
               find.byType(CupertinoActivityIndicator),
             )
             .color,
-        DarkColors.primaryColor,
+        DarkColors.whiteColor,
       );
       expect(
         tester

@@ -136,4 +136,36 @@ void main() {
     await request;
     expect(cubit.state.revision, 0);
   });
+
+  group('seed', () {
+    test('fills unknown flags without a revision bump', () {
+      cubit.seed('7', following: true, followsYou: true);
+      expect(cubit.state.following['7'], isTrue);
+      expect(cubit.state.followsYou['7'], isTrue);
+      expect(cubit.state.revision, 0);
+    });
+
+    test('never overrides a confirmed mutation', () async {
+      final request = cubit.toggle('7', currentlyFollowing: false);
+      repo.calls.single.result.complete(user('7', true));
+      await request;
+      cubit.seed('7', following: false);
+      expect(cubit.state.following['7'], isTrue);
+      expect(cubit.state.revision, 1);
+    });
+
+    test(
+      'is ignored while a mutation is pending and for null values',
+      () async {
+        final request = cubit.toggle('7', currentlyFollowing: false);
+        cubit.seed('7', following: false, followsYou: true);
+        expect(cubit.state.following['7'], isNull);
+        expect(cubit.state.followsYou['7'], isNull);
+        repo.calls.single.result.complete(user('7', true));
+        await request;
+        cubit.seed('8');
+        expect(cubit.state.following.containsKey('8'), isFalse);
+      },
+    );
+  });
 }

@@ -1,5 +1,5 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
@@ -105,9 +105,7 @@ class _ChatRequestButtonState extends State<ChatRequestButton> {
                                   label: '${widget.label} in progress',
                                   child: const SizedBox.square(
                                     dimension: 20,
-                                    child: CupertinoActivityIndicator(
-                                      color: Colors.white,
-                                    ),
+                                    child: AppActivityIndicator(),
                                   ),
                                 )
                               : Text(

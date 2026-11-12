@@ -1,5 +1,5 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
@@ -27,8 +27,7 @@ class ChatSendButton extends StatelessWidget {
       icon: loading
           ? SizedBox.square(
               dimension: 18,
-              child: CupertinoActivityIndicator(
-                color: Colors.white,
+              child: AppActivityIndicator(
                 animating: !MediaQuery.disableAnimationsOf(context),
               ),
             )

@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -46,7 +47,7 @@ class BlockedAccountsScreen extends StatelessWidget {
                 final users = state.users
                     .where((u) => block.isBlocked(u.id, fallback: true))
                     .toList();
-                return RefreshIndicator(
+                return AppRefreshIndicator(
                   onRefresh: list.load,
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (event) {

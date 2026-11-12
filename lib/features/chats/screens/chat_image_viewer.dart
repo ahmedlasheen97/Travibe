@@ -1,5 +1,5 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import '../data/chat_models.dart';
 import '../widgets/chat_video_message.dart';
 import 'package:flutter/services.dart';
@@ -201,9 +201,7 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
                             loadingBuilder: (_, child, progress) =>
                                 progress == null
                                 ? child
-                                : const CupertinoActivityIndicator(
-                                    color: Colors.white54,
-                                  ),
+                                : const AppActivityIndicator(),
                             errorBuilder: (_, _, _) =>
                                 const Text('Image unavailable'),
                           ),
@@ -303,7 +301,7 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
               icon: _saving
                   ? const SizedBox.square(
                       dimension: 18,
-                      child: CupertinoActivityIndicator(color: Colors.white),
+                      child: AppActivityIndicator(),
                     )
                   : const Icon(Icons.download_rounded, color: Colors.white),
             ),

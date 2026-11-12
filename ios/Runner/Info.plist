@@ -45,7 +45,7 @@
 				<string>com.googleusercontent.apps.260901900671-fg8qsqc60vaesd1p6m62pm0jemmddfih</string>
 			</array>
 		</dict>
-		<!-- Shared post links: travibe://posts/{id} (handled by app_links). -->
+		<!-- Shared links: travibe://posts/{id}, travibe://users/{id} (handled by app_links). -->
 		<dict>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>

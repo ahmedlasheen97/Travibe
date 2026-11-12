@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'notification_navigation.dart';
 import '../data/notification_targets.dart';
 import '../data/notification_diagnostics.dart';
@@ -8,7 +9,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/cubit/cursor_list_cubit.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/notifications/push_notification_service.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
@@ -248,8 +248,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ),
         body: SafeArea(
           top: false,
-          child: RefreshIndicator(
-            color: DarkColors.primaryColor,
+          child: AppRefreshIndicator(
             onRefresh: () async {
               // Laravel stays usable even when optional APNs/FCM is unavailable.
               if (widget.push != null) unawaited(widget.push!.retry());

@@ -344,10 +344,7 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
             ? SizedBox(
                 width: AppSizes.w22,
                 height: AppSizes.h22,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2.5),
               )
             : const Text('Submit Report', style: ActionButtonStyle.label),
       ),

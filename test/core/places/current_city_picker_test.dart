@@ -173,7 +173,7 @@ void main() {
     },
   );
   testWidgets(
-    'orange loading, debounce, muted country and selection still work',
+    'white loading, debounce, muted country and selection still work',
     (tester) async {
       CitySelection? selected;
       final pending = Completer<List<CitySuggestion>>();
@@ -189,7 +189,7 @@ void main() {
               find.byType(CupertinoActivityIndicator),
             )
             .color,
-        DarkColors.primaryColor,
+        DarkColors.whiteColor,
       );
       await tester.pump(const Duration(milliseconds: 1));
       expect(provider.calls, 1);

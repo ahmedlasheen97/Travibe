@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
+import 'package:travibe/features/auth/data/auth_repo.dart';
+import 'package:travibe/features/auth/data/user_model.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'fixtures.dart';
@@ -110,6 +112,75 @@ void main() {
       expect(() => result.languageSelections.clear(), throwsUnsupportedError);
     },
   );
+  group('share url', () {
+    const link = 'https://example.invalid/u/7';
+    test('is parsed as-is from users/{id}, profile and user', () async {
+      final api = ProfileApi()
+        ..response = {
+          'data': {...profileJson(), 'url': link},
+        };
+      final repo = ProfileRepo(apiService: api);
+      expect((await repo.getPublicProfile(7))!.url, Uri.parse(link));
+      expect((await repo.getMyProfile()).url, Uri.parse(link));
+      api.response = {
+        'data': {
+          ...profileJson(),
+          'url': link,
+          'email_verified_at': null,
+          'profile_completed': true,
+        },
+      };
+      expect(
+        (await AuthRepo(apiService: api).currentUser()).url.toString(),
+        link,
+      );
+      expect(api.calls, ['users/7', 'profile', 'user']);
+    });
+
+    test('survives settings and location copies', () {
+      final model = ProfileModel.fromJson({...profileJson(), 'url': link});
+      expect(model.withLocation('Cairo, EG').url, Uri.parse(link));
+      expect(
+        model
+            .withSettings(
+              ProfileModel.fromJson({
+                ...profileJson(),
+                'locale': 'en',
+                'currency_code': 'EGP',
+                'show_active_status': true,
+                'show_in_travel_buddy': true,
+                'push_notifications_enabled': true,
+              }),
+            )
+            .url,
+        Uri.parse(link),
+      );
+    });
+
+    test('missing or non-https values are null, never built or fatal', () {
+      for (final value in [
+        null,
+        '',
+        42,
+        'not a link',
+        'http://example.invalid/u/7',
+        'travibe://users/7',
+        'https://user:pass@example.invalid/u/7',
+      ]) {
+        final json = {...profileJson(), 'url': value};
+        expect(ProfileModel.fromJson(json).url, isNull, reason: '$value');
+        expect(UserModel.fromJson(json).url, isNull, reason: '$value');
+      }
+      expect(ProfileModel.fromJson(profileJson()).url, isNull);
+    });
+
+    test('login/register user carries the url', () {
+      final user = UserModel.fromJson({...profileJson(), 'url': link});
+      expect(user.url, Uri.parse(link));
+      expect(user.toJson()['url'], link);
+    });
+  });
+
   test('only explicit public data:null means unavailable', () async {
     final api = ProfileApi()..response = {'data': null};
     final repo = ProfileRepo(apiService: api);

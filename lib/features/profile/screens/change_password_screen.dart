@@ -235,10 +235,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ? SizedBox(
                 width: AppSizes.w22,
                 height: AppSizes.h22,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2.5),
               )
             : const Text('Update Password', style: ActionButtonStyle.label),
       ),

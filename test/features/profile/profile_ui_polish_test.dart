@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/features/shares/data/post_share_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -170,7 +171,7 @@ void main() {
         find.byType(CupertinoActivityIndicator),
       );
       expect(indicator.radius, 15);
-      expect(indicator.color, DarkColors.primaryColor);
+      expect(indicator.color, DarkColors.whiteColor);
       final rect = tester.getRect(find.byType(CupertinoActivityIndicator));
       expect(rect.center.dx, 195);
       expect(rect.top, greaterThanOrEqualTo(32));
@@ -408,7 +409,11 @@ void main() {
     (tester) async {
       final bio =
           'A long bio 🌍\nwith several lines\nand more text that remains stored';
-      profiles.result = ProfileModel.fromJson({...profileJson(), 'bio': bio});
+      profiles.result = ProfileModel.fromJson({
+        ...profileJson(),
+        'bio': bio,
+        'url': 'https://example.invalid/u/7',
+      });
       await show(tester);
       final text = tester.widget<Text>(find.text(bio));
       expect(text.style!.color, DarkColors.whiteColor);
@@ -425,7 +430,7 @@ void main() {
       expect(tester.getSize(share), tester.getSize(edit));
       expect(tester.getSize(edit).height, 44);
       expect(tester.getTopLeft(edit).dx - tester.getTopRight(share).dx, 12);
-      expect(tester.widget<FilledButton>(share).onPressed, isNull);
+      expect(tester.widget<FilledButton>(share).onPressed, isNotNull);
       expect(tester.widget<FilledButton>(edit).onPressed, isNotNull);
       for (final finder in [share, edit]) {
         expect(
@@ -439,6 +444,47 @@ void main() {
       }
     },
   );
+
+  testWidgets('Share Profile shares the backend url via the native sheet', (
+    tester,
+  ) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <MethodCall>[];
+    messenger.setMockMethodCallHandler(PostShareActions.channel, (call) async {
+      calls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(PostShareActions.channel, null),
+    );
+    profiles.result = ProfileModel.fromJson({
+      ...profileJson(),
+      'url': 'https://example.invalid/u/7',
+    });
+    await show(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Share Profile'));
+    await tester.pump();
+    expect(calls.single.method, 'share');
+    final args = calls.single.arguments as Map;
+    expect(args['url'], 'https://example.invalid/u/7');
+    expect(args.containsKey('text'), isFalse);
+    expect(args['width'], greaterThan(0));
+  });
+
+  testWidgets('without a backend url Share Profile is hidden', (tester) async {
+    for (final url in [
+      null,
+      '',
+      'http://example.invalid/u/7',
+      'travibe://users/7',
+    ]) {
+      profiles.result = ProfileModel.fromJson({...profileJson(), 'url': url});
+      await show(tester);
+      expect(find.text('Share Profile'), findsNothing, reason: '$url');
+      expect(find.widgetWithText(FilledButton, 'Edit Profile'), findsOneWidget);
+    }
+  });
 
   for (final width in [390.0, 320.0]) {
     testWidgets('bio width is constrained and centered at $width', (

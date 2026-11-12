@@ -102,13 +102,17 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
         var edits = 0;
+        final shares = <Rect>[];
         await tester.pumpWidget(
           MaterialApp(
             theme: darkTheme,
             home: MediaQuery(
               data: MediaQueryData(textScaler: TextScaler.linear(scale)),
               child: Scaffold(
-                body: ProfileActionButtons(onEdit: () => edits++),
+                body: ProfileActionButtons(
+                  onEdit: () => edits++,
+                  onShare: shares.add,
+                ),
               ),
             ),
           ),
@@ -136,14 +140,8 @@ void main() {
             DarkColors.darkgreyColor,
           );
         }
-        expect(
-          tester
-              .widget<FilledButton>(
-                find.widgetWithText(FilledButton, 'Share Profile'),
-              )
-              .onPressed,
-          isNull,
-        );
+        await tester.tap(find.widgetWithText(FilledButton, 'Share Profile'));
+        expect(shares.single.width, greaterThan(0));
         await tester.tap(find.widgetWithText(FilledButton, 'Edit Profile'));
         expect(edits, 1);
         expect(tester.takeException(), isNull);

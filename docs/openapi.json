@@ -3,7 +3,7 @@
     "info": {
         "title": "Travibe API",
         "version": "1.0.0",
-        "description": "# Travibe API\n\nWelcome to the Travibe API \u2014 a simple REST API for authentication, user management, and account access.\n\n## Quick Start\n\nAll API requests go to: **`\/api\/v1`**\n\nFor example: `https:\/\/travibe.com\/api\/v1\/users`\n\n## How to Authenticate\n\nWe use **token-based authentication**. Here's the flow:\n\n1. **Sign up or log in** using the auth endpoints\n2. **You'll get a token** in the response\n3. **Add the token to your requests** in the `Authorization` header\n\n```http\nGET \/api\/v1\/profile\nAuthorization: Bearer your_token_here\n```\n\n### Tokens\n\n- Each device or app gets its own token\n- Send a stable `device_name` with every auth request to label the session\n- If you request a new token with the same `device_name`, you'll replace the old one\n- Some endpoints (like changing your email) require a verified email address\n- Tokens stay valid until you log out\n\n## What You'll Get Back\n\n### When it works\n\nSuccessful responses contain your data wrapped in a `data` field:\n\n```json\n{\n  \"data\": {\n    \"id\": \"12345\",\n    \"email\": \"user@example.com\",\n    \"name\": \"John Doe\"\n  }\n}\n```\n\nSome operations that do not return data (like deleting a conversation or a\nmessage) return `200` with a `message` confirmation.\n\n### When something's wrong\n\n**Validation errors** (status `422`):\n\n```json\n{\n  \"message\": \"Validation failed\",\n  \"errors\": {\n    \"email\": [\"Email is required\", \"Email must be valid\"]\n  }\n}\n```\n\n**Other errors** (like bad credentials, status `401`):\n\n```json\n{\n  \"message\": \"Unauthorized\"\n}\n```\n\n## Buddies\n\nBuddies endpoints help a signed-in user find people to meet. Discovery is opt-in:\n\n- A user appears only when `show_in_travel_buddy` is on and the profile is complete.\n- The viewer never sees themselves.\n- A block in either direction hides both users.\n- `city` and `country_code` are the user's current location, not a precise position.\n\nThe list endpoints accept these filters:\n\n- `gender[]`: `male` and\/or `female`.\n- `nationality[]`: ISO 3166-1 alpha-2 nationality codes.\n- `languages[]`: language slugs.\n- `interests[]`: interest slugs.\n- `travel_styles[]`: travel-style slugs.\n\nValues within one filter are OR-ed. Different filters are AND-ed. Each filter\naccepts at most 20 values.\n\n`GET \/buddies\/search` matches the current city exactly, after trimming and case\nfolding. Text after the first comma is ignored, so `Bali, Indonesia` searches\nfor `Bali`. An optional `country_code` narrows the current country. Results\nnever include trip data. Trips and Travel Matches are not part of this API.\n\n## Stories\n\nStories are 24-hour photo posts shown in the stories bar at the top of the feed.\n\n- Upload the photo through the media endpoints first (`POST \/media\/presign`, a\n  direct `PUT` to storage, then `POST \/media\/{media}\/finalize`), then send its\n  id in the `media_ids` array to `POST \/stories` together with the overlay\n  document.\n- A story holds exactly one photo. The `media_ids` array must contain that one\n  photo id. The overlay is an app-owned JSON document (positioned text,\n  stickers and drawing) that the server stores and returns verbatim, so the\n  client re-renders the finished layout. `elements` must be a JSON array (up to\n  50 items); each item's shape belongs to the client. String values under\n  `text` and `content` inside `type: text` elements are also read for\n  `@username` mentions; no other element type is inspected.\n- A user can have at most 10 active stories at a time. Expired stories do not\n  count. Creating an eleventh active story returns `422` with a `stories`\n  validation error; the top-level `message` repeats the reason.\n- The stories bar returns one entry per author, each story carrying its single\n  photo's `thumbnail_url`. The full photo and overlay come from\n  `GET \/stories\/{story}`. Each author group carries up to 10 active stories.\n  The bar is paginated by author group: `page` and `per_page` (1-100, default\n  15).\n- `visibility` is `public` or `followers`. `location_name` is an optional label\n  the app supplies; there is no server-side place lookup.\n- Stories expire 24 hours after posting and are then deleted. An expired or\n  unknown story is `404`; a story you may not see (a block in either direction,\n  or a followers-only story you do not follow) is `403`.\n- Watching a story records a single view per viewer\n  (`POST \/stories\/{story}\/view`). Repeat views refresh the timestamp but do not\n  increment the count, and only the author can list who watched\n  (`GET \/stories\/{story}\/viewers`). The viewers list omits users blocked in\n  either direction.\n- Liking a story follows the same shape as post likes: `POST \/stories\/{story}\/like` and\n  `DELETE \/stories\/{story}\/like`. The count rides on the story payload\n  (`likes_count`, plus the caller's `is_liked`); only the author can list who\n  liked it (`GET \/stories\/{story}\/likes`), and the viewers list marks each viewer\n  with `has_liked`.\n- Deleting a story is immediate and returns `200` with a `message`; stories have\n  no restore.\n\n## Mentions\n\nMentions are written as `@username` in post text, comment text, or a story's\n`text` elements. The server stores up to 10 distinct mentions per item and\nreturns them in the `mentions` array of the post, comment or story detail\nresponse. Each entry carries the lowercased `handle` exactly as written and the\n`user` it resolves to.\n\n- The client finds each `@handle` in the text case-insensitively, matches it to\n  a `mentions` entry, and renders it as a link. Everything else stays plain\n  text; there are no character offsets in the response.\n- A mention grants no access. It never changes who can see a post, comment or\n  story.\n- A notification is sent only to a mentioned user who could already view the\n  content under the normal visibility rules: any user for public content, a\n  follower for followers-only content, and nobody for private content.\n  Self-mentions are stored but never notified.\n- A comment mention notification targets the comment itself: `target_type` is\n  the comment and `target_id` is its id. Its `data` carries `post_id` and\n  `comment_id`; open the post with `data.post_id`.\n- A blocked or unknown handle is silently left as plain text. Publishing still\n  succeeds, and no mention row or notification is created for that handle.\n- Re-saving unchanged content does not re-notify mentioned users. Widening a\n  post's visibility can notify users who could not view it before.\n\n## Realtime Notifications\n\nThe REST notification endpoints are the source of truth. Polling stays the\nfallback. The WebSocket channel only delivers updates faster while the app is in\nthe foreground; it is not a background push mechanism.\n\n- **Transport:** Reverb, using the Pusher protocol. Use a Pusher-protocol client\n  (for example `pusher-websocket` or a native Pusher SDK). Laravel Echo is not\n  used.\n- **Channels:** `private-users.{id}` carries notifications. `presence-conversations.{id}`\n  carries the open chat. A user can subscribe only to their own user channel and\n  to conversations they participate in. One WebSocket connection can hold both\n  subscriptions.\n- **Authorization:** `POST \/api\/v1\/broadcasting\/auth` with the bearer token,\n  form fields `socket_id` and `channel_name`. `channel_name` is\n  `private-users.{id}` or `presence-conversations.{id}`. The response is the\n  Pusher authorization object; a presence channel also returns `channel_data`.\n  Another user's channel, or a conversation you do not participate in, is `403`.\n- **Events:**\n  - `notification.created` \u2014 the `NotificationResource` fields plus\n    `unread_count`. Sent for a new notification, and when an existing\n    notification becomes unread again. A `type: message_received` event is a\n    new chat message; its `data` carries `conversation_id`, `message_id`,\n    `message_type`, `preview` and `is_request`.\n  - The notification `preview` block is derived from the target at read time.\n    It carries `thumbnail_url` (the first image of the post or story, `null`\n    when there is none) and `excerpt` (the first 100 characters of the post or\n    comment text, `null` when there is none). A comment notification previews\n    the comment text with the parent post's image. Follow and chat\n    notifications have `preview: null`. A post, comment, or story preview is\n    also `null` when the recipient can no longer view the target, such as\n    followers-only content after unfollowing, an expired story, or a block in\n    either direction.\n    Never treat the block as stored data: it follows edits and disappears\n    with the target.\n  - Like notifications (`post_liked`, `story_liked`, `comment_liked`) target\n    the liked item. Their `data` is empty except for a comment like, whose\n    `data` carries `post_id` so the client can open the thread. Removing the\n    like deletes the notification again.\n  - `notification.read` \u2014 `notification_id` and `unread_count`.\n  - `notifications.read_all` \u2014 `marked_count` and `unread_count` (always `0`).\n  - `notifications.read_conversation` \u2014 `conversation_id`, `marked_count` and\n    `unread_count`. Sent when reading a conversation clears its\n    `message_received` notifications, so other devices can correct the badge.\n  - `message.sent` \u2014 the full `MessageResource`. Sent on the conversation\n    presence channel and on the sender's `private-users.{id}` channel so other\n    sender devices stay in sync. The client appends a message only when its id\n    is new.\n  - `typing.updated` \u2014 `conversation_id`, `user_id` and `is_typing`, on the\n    conversation presence channel. It is ephemeral and is not stored.\n  - `messages.read` \u2014 `conversation_id`, `reader_id`, `last_read_message_id`\n    and `read_at`, on the conversation presence channel. Sent when a read marks\n    at least one incoming message. It is ephemeral and is not stored.\n  - The conversation presence channel also emits the standard\n    `pusher_internal:subscription_succeeded` member list and\n    `pusher:member_added` \/ `pusher:member_removed` events. Use the members for\n    the live online indicator.\n- **Reconnect:** the socket does not replay missed events. After a reconnect,\n  call `GET \/api\/v1\/notifications` and read pages newest first until you reach\n  the last notification id you already have. Then call\n  `GET \/api\/v1\/notifications\/unread-count` to correct the badge. For the open\n  chat, call `GET \/api\/v1\/conversations\/{conversation}\/messages?updated_since=`\n  with the highest `updated_at` you already have.\n\n## Push Notifications\n\nPush is a wake-up signal, not the source of truth. The notification row and the\nREST endpoints stay authoritative; every push carries the notification id,\ntype, target and current unread count so the app can open the right screen and\nrefresh. When the target has a preview, the push also carries it, so the\nnotification shade needs no request: `preview_excerpt` and `thumbnail_url`. For\npost, comment, story and mention targets they match the in-app `preview` (up to\n100 characters, first image). A chat push has no in-app preview block, so\n`preview_excerpt` comes from the notification's `data.preview` instead (up to\n103 characters) and there is no thumbnail. For a non-text message that excerpt\nis a localized category label (`Photo`, `Voice message`, `Video`, `Shared a\npost`), not the\nmessage text. FCM `image` is set from\n`thumbnail_url` when present. Both data keys are absent when the type has no\npreview, such as a follow notification, and when a preview is withheld because\nthe recipient can no longer view the target. Each key can appear on its own: a\ntext-only post sends only `preview_excerpt`, while an image-only post or a story\nsends only `thumbnail_url`. A block between the recipient and the actor, or a\nmuted chat thread, means no push at all. Register a device with\n`POST \/api\/v1\/device-tokens` and remove it with\n`DELETE \/api\/v1\/device-tokens\/{deviceToken}`. A device that signs in to another\naccount is reassigned to that account, and each account keeps at most ten device\ntokens. The raw FCM token is never returned or logged.\n\nPush permission is the device setting. `push_notifications_enabled` is the\naccount setting; when it is off the notification row is still written and no\npush is sent.\n\nEmail delivery is outside this API. Chat uses the conversation presence channel;\nnotifications use the user channel.\n\n## Chat\n\nChat is 1:1 only. There are no group threads. The app keeps one WebSocket\nconnection. The open chat subscribes to `presence-conversations.{id}`; the user\nchannel carries notifications. REST remains the source of truth for history,\nsending, read state, and reconnect.\n\n- **Inbox.** `GET \/conversations` returns accepted conversations and pending\n  requests the caller started, newest activity first. `GET\n  \/conversations\/requests` returns only pending requests received from someone\n  else. Both accept `search`, a prefix match on the other participant's name or\n  username. Message bodies are never searched.\n- **Starting a thread.** `POST \/conversations` takes the other user's `user_id`.\n  A new thread returns `201`; an existing pair returns `200`. The thread is\n  accepted immediately when the recipient already follows the caller, and\n  otherwise waits for `POST \/conversations\/{conversation}\/accept`. A request the\n  recipient declines is deleted permanently. The recipient does not see a thread\n  in their lists until its first message arrives. If they start the same thread\n  first, it becomes theirs and they can send straight away.\n- **History and reconnect.** Fetch\n  `GET \/conversations\/{conversation}\/messages` once when the chat opens. After a\n  reconnect or foreground, pass the highest `updated_at` you have as\n  `updated_since`. That returns new messages and changes to older ones, including\n  deleted placeholders, read ticks, replies whose quoted message was deleted,\n  and shared posts whose post changed. Replace any message whose id you already\n  have. Timestamps have one-second precision and the filter is inclusive,\n  so a message you already have may come back. Previewing a pending request or\n  reading across a block sends the other user no delivery or read receipt; after\n  accepting, call `POST \/conversations\/{conversation}\/read` again to send it. `after_id` returns only newer\n  messages and misses those changes, and the two cannot be combined. To scroll\n  back, request later pages. New messages shift the pages, so an older page can\n  repeat messages you already have; match them by id. While the\n  chat is open, `message.sent` delivers new messages; the client does not poll.\n  Fetching marks the other participant's messages as delivered.\n- **Realtime.** `message.sent` arrives on `presence-conversations.{id}` with the\n  full `MessageResource`. Append it when the message id is new. The same event\n  goes to the sender's `private-users.{id}` channel for other sender devices.\n  The open chat does not need a GET per message. The `message_received`\n  notification still updates the inbox and badge.\n- **Typing.** `POST \/conversations\/{conversation}\/typing` with\n  `is_typing: true|false` broadcasts `typing.updated` on the conversation\n  presence channel. It is ephemeral and not stored. The recipient of a pending\n  request cannot type until they accept; a block in either direction is `403`.\n- **Presence.** `POST \/presence\/heartbeat` every 30-45 seconds marks the caller\n  online and updates `last_seen_at`, at most once a minute; `DELETE \/presence` and logout mark the\n  caller offline. `GET \/conversations` returns `other_user.is_online` and\n  `other_user.last_seen_at` when the other user allows `show_active_status`.\n  The conversation presence channel also reports live member joins and leaves.\n  A presence member list always shows who is in the chat: `show_active_status`\n  hides the REST fields, not the channel membership.\n- **Notifications.** Sending a message creates a `message_received`\n  notification for the recipient and broadcasts `notification.created` on\n  `private-users.{id}` over Reverb. Its `data` carries `conversation_id`,\n  `message_id`, `message_type`, `preview` and `is_request`. A muted thread\n  sends no notification. A thread the recipient hid comes back on a new\n  message from the other user, and that message notifies them. The row also\n  dispatches one FCM wake-up push, subject to the same rules as every other\n  notification: no push for a muted thread, and none when the account's\n  `push_notifications_enabled` is off or no device tokens remain. Email is\n  not used.\n- **Unread and read state.** Sending increments only the recipient's\n  `unread_count`; `POST \/conversations\/{conversation}\/read` marks incoming\n  messages read and delivered, resets the counter and moves\n  `last_read_message_id`. When at\n  least one incoming message becomes read, the endpoint broadcasts\n  `messages.read` on the conversation presence channel. Apply the event only\n  to your own messages at or below `last_read_message_id`. Reading also marks\n  the thread's `message_received` notifications read, so the notification badge\n  stays in step with the conversation. The message\n  payload still carries `delivered_at` and `read_at`, so a closed chat, another\n  device, or a reconnect gets the ticks from an `updated_since` fetch.\n- **Deleting.** Deleting a message keeps a placeholder for both participants,\n  releases its media and, if it was unread, lowers the recipient's\n  `unread_count`. Deleting a conversation hides it only for the caller and marks\n  its `message_received` notifications read;\n  when both participants hide it, the thread and its content are removed. While\n  the thread still exists, a new message restores it for both participants.\n  `POST \/conversations` restores only the caller's own hidden thread.\n- **Blocking and reporting.** A block does not delete the thread. It stays\n  visible with `is_blocked: true` and sending returns `403`. While blocked,\n  neither user sees the other's `is_online` or `last_seen_at`, and subscribing to\n  `presence-conversations.{id}` returns `403`, so do not open that channel when\n  `is_blocked` is true. The recipient of a pending request also gets `403` until\n  they accept it, so previewing a request never shows up as a member join. A subscription that was already open stays open until\n  the client disconnects. Report a user through `POST \/reports` with `type=user`; chat has no separate report endpoint.\n- **Media.** Send text, image, voice, video or a shared post. Upload and\n  finalize an image, voice clip or video first, then pass its id as `media_id`\n  with the matching message `type`. Images and voice clips are limited to\n  20 MB; videos to 100 MB. A video may also carry a poster image in\n  `poster_media_id`. Audio and video can only be sent in chat; posts, comments,\n  stories and avatars accept images only.\n- **Shared posts.** Send a post as a message with `type: post` and `post_id`.\n  The post must be visible to both participants and not blocked from either\n  participant, otherwise the call is `422`. The message carries `post_id` and,\n  while the viewer may still open it, a compact `post` card with the author,\n  text, media and share `url`. The `post` key is always present on a live\n  message: `null` for other types, and for a post the viewer may no longer\n  open. A post that becomes private, unfollowed or blocked after sending keeps\n  its `post_id` but `post` is `null`; show it as unavailable. Editing the post,\n  changing its visibility, deleting it, blocking its author, a follow change,\n  or deleting the author's account touches the message, so an `updated_since`\n  fetch returns it again with the new card. The inbox `last_message` carries\n  the same card. Open the full post with `GET \/posts\/{post}`.\n\n## Share Links\n\nEvery post carries `url`, an HTTPS link on this host. A browser that opens it\nis redirected to `travibe:\/\/posts\/{id}` (the scheme is `POST_LINK_SCHEME`), so\nthe installed app opens the post. The redirect does not check visibility\nbecause a browser has no API token: it only proves the post exists, and the app\napplies the normal visibility and block rules when it fetches the post. A\nsoft-deleted post is `404`.\n\n## Limits & Pagination\n\n- **Rate limiting:** You can make a reasonable number of requests per minute. If you hit the limit, you'll get a `429` status.\n- **Offset pagination:** Most list endpoints accept `page` and `per_page` (1-100, default 15):\n  ```\n  GET \/api\/v1\/users?page=2&per_page=20\n  ```\n- **Cursor pagination:** Feeds, posts, comment lists, liker lists and\n  notifications are keyset-paginated. Send `per_page` and, for later pages,\n  the opaque `cursor` from `meta.next_cursor` (or `meta.prev_cursor`):\n  ```\n  GET \/api\/v1\/feed\/following?per_page=20&cursor=...\n  ```\n  These endpoints reject `page` with `422`. Their `meta` contains\n  `next_cursor`, `prev_cursor`, `per_page` and `path`, and `links.next` \/\n  `links.prev` contain the complete URL. There is no `total` because a keyset\n  page does not count the remaining rows."
+        "description": "# Travibe API\n\nWelcome to the Travibe API \u2014 a simple REST API for authentication, user management, and account access.\n\n## Quick Start\n\nAll API requests go to: **`\/api\/v1`**\n\nFor example: `https:\/\/travibe.com\/api\/v1\/users`\n\n## How to Authenticate\n\nWe use **token-based authentication**. Here's the flow:\n\n1. **Sign up or log in** using the auth endpoints\n2. **You'll get a token** in the response\n3. **Add the token to your requests** in the `Authorization` header\n\n```http\nGET \/api\/v1\/profile\nAuthorization: Bearer your_token_here\n```\n\n### Tokens\n\n- Each device or app gets its own token\n- Send a stable `device_name` with every auth request to label the session\n- If you request a new token with the same `device_name`, you'll replace the old one\n- Some endpoints (like changing your email) require a verified email address\n- Tokens stay valid until you log out\n\n## What You'll Get Back\n\n### When it works\n\nSuccessful responses contain your data wrapped in a `data` field:\n\n```json\n{\n  \"data\": {\n    \"id\": \"12345\",\n    \"email\": \"user@example.com\",\n    \"name\": \"John Doe\"\n  }\n}\n```\n\nSome operations that do not return data (like deleting a conversation or a\nmessage) return `200` with a `message` confirmation.\n\n### When something's wrong\n\n**Validation errors** (status `422`):\n\n```json\n{\n  \"message\": \"Validation failed\",\n  \"errors\": {\n    \"email\": [\"Email is required\", \"Email must be valid\"]\n  }\n}\n```\n\n**Other errors** (like bad credentials, status `401`):\n\n```json\n{\n  \"message\": \"Unauthorized\"\n}\n```\n\n## Private Accounts\n\nA user can make their account private from `PATCH \/settings` with\n`is_private: true`. Switching it back to `false` approves every pending request.\n\n- A follow to a private account becomes a request. `POST \/users\/{user}\/follow`\n  returns `201` with `is_following: false` and `follow_requested: true`, and\n  sends the owner a `follow_requested` notification. A second request is a\n  `409`.\n- `GET \/follow-requests` lists incoming requests, most recent first.\n  `POST \/follow-requests\/{user}\/accept` approves one, and\n  `DELETE \/follow-requests\/{user}` declines it. `POST \/users\/{user}\/unfollow`\n  cancels your own pending request.\n- A pending request is not a follower. It does not count in `followers_count`\n  and grants no access.\n- Until the request is accepted, the account's posts and stories are not\n  visible. `GET \/users\/{user}` still returns the basic profile with\n  `is_private: true`, `follow_requested` for the caller, and\n  `can_view_content: false`. A post or story you may not see is `403`; lists\n  omit it.\n- The followers and following lists of a private account are visible to its\n  owner and accepted followers only. Anyone else gets `403`. Follower and\n  following counts stay visible.\n- Accepted followers see the account's public and followers-only posts and\n  stories. A `private` post stays visible to its author only.\n\n## Buddies\n\nBuddies endpoints help a signed-in user find people to meet. Discovery is opt-in:\n\n- A user appears only when `show_in_travel_buddy` is on and the profile is complete.\n- The viewer never sees themselves.\n- A block in either direction hides both users.\n- `city` and `country_code` are the user's current location, not a precise position.\n\nThe list endpoints accept these filters:\n\n- `gender[]`: `male` and\/or `female`.\n- `nationality[]`: ISO 3166-1 alpha-2 nationality codes.\n- `languages[]`: language slugs.\n- `interests[]`: interest slugs.\n- `travel_styles[]`: travel-style slugs.\n\nValues within one filter are OR-ed. Different filters are AND-ed. Each filter\naccepts at most 20 values.\n\n`GET \/buddies\/search` matches the current city exactly, after trimming and case\nfolding. Text after the first comma is ignored, so `Bali, Indonesia` searches\nfor `Bali`. An optional `country_code` narrows the current country. Results\nnever include trip data. Trips and Travel Matches are not part of this API.\n\n## Stories\n\nStories are 24-hour photo posts shown in the stories bar at the top of the feed.\n\n- Upload the photo through the media endpoints first (`POST \/media\/presign`, a\n  direct `PUT` to storage, then `POST \/media\/{media}\/finalize`), then send its\n  id in the `media_ids` array to `POST \/stories` together with the overlay\n  document.\n- A story holds exactly one photo. The `media_ids` array must contain that one\n  photo id. The overlay is an app-owned JSON document (positioned text,\n  stickers and drawing) that the server stores and returns verbatim, so the\n  client re-renders the finished layout. `elements` must be a JSON array (up to\n  50 items); each item's shape belongs to the client. String values under\n  `text` and `content` inside `type: text` elements are also read for\n  `@username` mentions; no other element type is inspected.\n- A user can have at most 10 active stories at a time. Expired stories do not\n  count. Creating an eleventh active story returns `422` with a `stories`\n  validation error; the top-level `message` repeats the reason.\n- The stories bar returns one entry per author, each story carrying its single\n  photo's `thumbnail_url`. The full photo and overlay come from\n  `GET \/stories\/{story}`. Each author group carries up to 10 active stories.\n  The bar is paginated by author group: `page` and `per_page` (1-100, default\n  15).\n- `visibility` is `public` or `followers`. A private account's stories are\n  visible to accepted followers only. `location_name` is an optional label\n  the app supplies; there is no server-side place lookup.\n- Stories expire 24 hours after posting and are then deleted. An expired or\n  unknown story is `404`; a story you may not see (a block in either direction,\n  or a followers-only story you do not follow) is `403`.\n- Watching a story records a single view per viewer\n  (`POST \/stories\/{story}\/view`). Repeat views refresh the timestamp but do not\n  increment the count, and only the author can list who watched\n  (`GET \/stories\/{story}\/viewers`). The viewers list omits users blocked in\n  either direction.\n- Liking a story follows the same shape as post likes: `POST \/stories\/{story}\/like` and\n  `DELETE \/stories\/{story}\/like`. The count rides on the story payload\n  (`likes_count`, plus the caller's `is_liked`); only the author can list who\n  liked it (`GET \/stories\/{story}\/likes`), and the viewers list marks each viewer\n  with `has_liked`.\n- Deleting a story is immediate and returns `200` with a `message`; stories have\n  no restore.\n\n## Mentions\n\nMentions are written as `@username` in post text, comment text, or a story's\n`text` elements. The server stores up to 10 distinct mentions per item and\nreturns them in the `mentions` array of the post, comment or story detail\nresponse. Each entry carries the lowercased `handle` exactly as written and the\n`user` it resolves to.\n\n- The client finds each `@handle` in the text case-insensitively, matches it to\n  a `mentions` entry, and renders it as a link. Everything else stays plain\n  text; there are no character offsets in the response.\n- A mention grants no access. It never changes who can see a post, comment or\n  story.\n- A notification is sent only to a mentioned user who could already view the\n  content under the normal visibility rules: any user for public content, a\n  follower for followers-only content, and nobody for private content.\n  Self-mentions are stored but never notified.\n- A comment mention notification targets the comment itself: `target_type` is\n  the comment and `target_id` is its id. Its `data` carries `post_id` and\n  `comment_id`; open the post with `data.post_id`.\n- A blocked or unknown handle is silently left as plain text. Publishing still\n  succeeds, and no mention row or notification is created for that handle.\n- Re-saving unchanged content does not re-notify mentioned users. Widening a\n  post's visibility can notify users who could not view it before.\n\n## Realtime Notifications\n\nThe REST notification endpoints are the source of truth. Polling stays the\nfallback. The WebSocket channel only delivers updates faster while the app is in\nthe foreground; it is not a background push mechanism.\n\n- **Transport:** Reverb, using the Pusher protocol. Use a Pusher-protocol client\n  (for example `pusher-websocket` or a native Pusher SDK). Laravel Echo is not\n  used.\n- **Channels:** `private-users.{id}` carries notifications. `presence-conversations.{id}`\n  carries the open chat. A user can subscribe only to their own user channel and\n  to conversations they participate in. One WebSocket connection can hold both\n  subscriptions.\n- **Authorization:** `POST \/api\/v1\/broadcasting\/auth` with the bearer token,\n  form fields `socket_id` and `channel_name`. `channel_name` is\n  `private-users.{id}` or `presence-conversations.{id}`. The response is the\n  Pusher authorization object; a presence channel also returns `channel_data`.\n  Another user's channel, or a conversation you do not participate in, is `403`.\n- **Events:**\n  - `notification.created` \u2014 the `NotificationResource` fields plus\n    `unread_count`. Sent for a new notification, and when an existing\n    notification becomes unread again. A `type: message_received` event is a\n    new chat message; its `data` carries `conversation_id`, `message_id`,\n    `message_type`, `preview` and `is_request`.\n  - The notification `preview` block is derived from the target at read time.\n    It carries `thumbnail_url` (the first image of the post or story, `null`\n    when there is none) and `excerpt` (the first 100 characters of the post or\n    comment text, `null` when there is none). A comment notification previews\n    the comment text with the parent post's image. Follow and chat\n    notifications have `preview: null`. A post, comment, or story preview is\n    also `null` when the recipient can no longer view the target, such as\n    followers-only content after unfollowing, an expired story, or a block in\n    either direction.\n    Never treat the block as stored data: it follows edits and disappears\n    with the target.\n  - Like notifications (`post_liked`, `story_liked`, `comment_liked`) target\n    the liked item. Their `data` is empty except for a comment like, whose\n    `data` carries `post_id` so the client can open the thread. Removing the\n    like deletes the notification again.\n  - Follow notifications (`user_followed`, `follow_requested`,\n    `follow_request_accepted`) target the acting user's public profile, so\n    `target_type` is `user`.\n  - `notification.read` \u2014 `notification_id` and `unread_count`.\n  - `notifications.read_all` \u2014 `marked_count` and `unread_count` (always `0`).\n  - `notifications.read_conversation` \u2014 `conversation_id`, `marked_count` and\n    `unread_count`. Sent when reading a conversation clears its\n    `message_received` notifications, so other devices can correct the badge.\n  - `message.sent` \u2014 the full `MessageResource`. Sent on the conversation\n    presence channel and on the sender's `private-users.{id}` channel so other\n    sender devices stay in sync. The client appends a message only when its id\n    is new.\n  - `typing.updated` \u2014 `conversation_id`, `user_id` and `is_typing`, on the\n    conversation presence channel. It is ephemeral and is not stored.\n  - `messages.read` \u2014 `conversation_id`, `reader_id`, `last_read_message_id`\n    and `read_at`, on the conversation presence channel. Sent when a read marks\n    at least one incoming message. It is ephemeral and is not stored.\n  - The conversation presence channel also emits the standard\n    `pusher_internal:subscription_succeeded` member list and\n    `pusher:member_added` \/ `pusher:member_removed` events. Use the members for\n    the live online indicator.\n- **Reconnect:** the socket does not replay missed events. After a reconnect,\n  call `GET \/api\/v1\/notifications` and read pages newest first until you reach\n  the last notification id you already have. Then call\n  `GET \/api\/v1\/notifications\/unread-count` to correct the badge. For the open\n  chat, call `GET \/api\/v1\/conversations\/{conversation}\/messages?updated_since=`\n  with the highest `updated_at` you already have.\n\n## Push Notifications\n\nPush is a wake-up signal, not the source of truth. The notification row and the\nREST endpoints stay authoritative; every push carries the notification id,\ntype, target and current unread count so the app can open the right screen and\nrefresh. When the target has a preview, the push also carries it, so the\nnotification shade needs no request: `preview_excerpt` and `thumbnail_url`. For\npost, comment, story and mention targets they match the in-app `preview` (up to\n100 characters, first image). A chat push has no in-app preview block, so\n`preview_excerpt` comes from the notification's `data.preview` instead (up to\n103 characters) and there is no thumbnail. For a non-text message that excerpt\nis a localized category label (`Photo`, `Voice message`, `Video`, `Shared a\npost`), not the\nmessage text. FCM `image` is set from\n`thumbnail_url` when present. Both data keys are absent when the type has no\npreview, such as a follow notification, and when a preview is withheld because\nthe recipient can no longer view the target. Each key can appear on its own: a\ntext-only post sends only `preview_excerpt`, while an image-only post or a story\nsends only `thumbnail_url`. A block between the recipient and the actor, or a\nmuted chat thread, means no push at all. Register a device with\n`POST \/api\/v1\/device-tokens` and remove it with\n`DELETE \/api\/v1\/device-tokens\/{deviceToken}`. A device that signs in to another\naccount is reassigned to that account, and each account keeps at most ten device\ntokens. The raw FCM token is never returned or logged.\n\nPush permission is the device setting. `push_notifications_enabled` is the\naccount setting; when it is off the notification row is still written and no\npush is sent.\n\nEmail delivery is outside this API. Chat uses the conversation presence channel;\nnotifications use the user channel.\n\n## Chat\n\nChat is 1:1 only. There are no group threads. The app keeps one WebSocket\nconnection. The open chat subscribes to `presence-conversations.{id}`; the user\nchannel carries notifications. REST remains the source of truth for history,\nsending, read state, and reconnect.\n\n- **Inbox.** `GET \/conversations` returns accepted conversations and pending\n  requests the caller started, newest activity first. `GET\n  \/conversations\/requests` returns only pending requests received from someone\n  else. Both accept `search`, a prefix match on the other participant's name or\n  username. Message bodies are never searched.\n- **Starting a thread.** `POST \/conversations` takes the other user's `user_id`.\n  A new thread returns `201`; an existing pair returns `200`. The thread is\n  accepted immediately when the recipient already follows the caller, and\n  otherwise waits for `POST \/conversations\/{conversation}\/accept`. A request the\n  recipient declines is deleted permanently. The recipient does not see a thread\n  in their lists until its first message arrives. If they start the same thread\n  first, it becomes theirs and they can send straight away.\n- **History and reconnect.** Fetch\n  `GET \/conversations\/{conversation}\/messages` once when the chat opens. After a\n  reconnect or foreground, pass the highest `updated_at` you have as\n  `updated_since`. That returns new messages and changes to older ones, including\n  deleted placeholders, read ticks, replies whose quoted message was deleted,\n  and shared posts whose post changed. Replace any message whose id you already\n  have. Timestamps have one-second precision and the filter is inclusive,\n  so a message you already have may come back. Previewing a pending request or\n  reading across a block sends the other user no delivery or read receipt; after\n  accepting, call `POST \/conversations\/{conversation}\/read` again to send it. `after_id` returns only newer\n  messages and misses those changes, and the two cannot be combined. To scroll\n  back, request later pages. New messages shift the pages, so an older page can\n  repeat messages you already have; match them by id. While the\n  chat is open, `message.sent` delivers new messages; the client does not poll.\n  Fetching marks the other participant's messages as delivered.\n- **Realtime.** `message.sent` arrives on `presence-conversations.{id}` with the\n  full `MessageResource`. Append it when the message id is new. The same event\n  goes to the sender's `private-users.{id}` channel for other sender devices.\n  The open chat does not need a GET per message. The `message_received`\n  notification still updates the inbox and badge.\n- **Typing.** `POST \/conversations\/{conversation}\/typing` with\n  `is_typing: true|false` broadcasts `typing.updated` on the conversation\n  presence channel. It is ephemeral and not stored. The recipient of a pending\n  request cannot type until they accept; a block in either direction is `403`.\n- **Presence.** `POST \/presence\/heartbeat` every 30-45 seconds marks the caller\n  online and updates `last_seen_at`, at most once a minute; `DELETE \/presence` and logout mark the\n  caller offline. `GET \/conversations` returns `other_user.is_online` and\n  `other_user.last_seen_at` when the other user allows `show_active_status`.\n  The conversation presence channel also reports live member joins and leaves.\n  A presence member list always shows who is in the chat: `show_active_status`\n  hides the REST fields, not the channel membership.\n- **Notifications.** Sending a message creates a `message_received`\n  notification for the recipient and broadcasts `notification.created` on\n  `private-users.{id}` over Reverb. Its `data` carries `conversation_id`,\n  `message_id`, `message_type`, `preview` and `is_request`. A muted thread\n  sends no notification. A thread the recipient hid comes back on a new\n  message from the other user, and that message notifies them. The row also\n  dispatches one FCM wake-up push, subject to the same rules as every other\n  notification: no push for a muted thread, and none when the account's\n  `push_notifications_enabled` is off or no device tokens remain. Email is\n  not used.\n- **Unread and read state.** Sending increments only the recipient's\n  `unread_count`; `POST \/conversations\/{conversation}\/read` marks incoming\n  messages read and delivered, resets the counter and moves\n  `last_read_message_id`. When at\n  least one incoming message becomes read, the endpoint broadcasts\n  `messages.read` on the conversation presence channel. Apply the event only\n  to your own messages at or below `last_read_message_id`. Reading also marks\n  the thread's `message_received` notifications read, so the notification badge\n  stays in step with the conversation. The message\n  payload still carries `delivered_at` and `read_at`, so a closed chat, another\n  device, or a reconnect gets the ticks from an `updated_since` fetch.\n- **Deleting.** Deleting a message keeps a placeholder for both participants,\n  releases its media and, if it was unread, lowers the recipient's\n  `unread_count`. Deleting a conversation hides it only for the caller and marks\n  its `message_received` notifications read;\n  when both participants hide it, the thread and its content are removed. While\n  the thread still exists, a new message restores it for both participants.\n  `POST \/conversations` restores only the caller's own hidden thread.\n- **Blocking and reporting.** A block does not delete the thread. It stays\n  visible with `is_blocked: true` and sending returns `403`. While blocked,\n  neither user sees the other's `is_online` or `last_seen_at`, and subscribing to\n  `presence-conversations.{id}` returns `403`, so do not open that channel when\n  `is_blocked` is true. The recipient of a pending request also gets `403` until\n  they accept it, so previewing a request never shows up as a member join. A subscription that was already open stays open until\n  the client disconnects. Report a user through `POST \/reports` with `type=user`; chat has no separate report endpoint.\n- **Media.** Send text, image, voice, video or a shared post. Upload and\n  finalize an image, voice clip or video first, then pass its id as `media_id`\n  with the matching message `type`. Images and voice clips are limited to\n  20 MB; videos to 100 MB. A video may also carry a poster image in\n  `poster_media_id`. Audio and video can only be sent in chat; posts, comments,\n  stories and avatars accept images only.\n- **Shared posts.** Send a post as a message with `type: post` and `post_id`.\n  The post must be visible to both participants and not blocked from either\n  participant, otherwise the call is `422`. The message carries `post_id` and,\n  while the viewer may still open it, a compact `post` card with the author,\n  text, media and share `url`. The `post` key is always present on a live\n  message: `null` for other types, and for a post the viewer may no longer\n  open. A post that becomes private, unfollowed or blocked after sending keeps\n  its `post_id` but `post` is `null`; show it as unavailable. Editing the post,\n  changing its visibility, deleting it, blocking its author, a follow change,\n  or deleting the author's account touches the message, so an `updated_since`\n  fetch returns it again with the new card. The inbox `last_message` carries\n  the same card. Open the full post with `GET \/posts\/{post}`.\n\n## Share Links\n\nEvery post and every profile carries `url`, an HTTPS link on this host. A\nbrowser that opens it is redirected to the homepage with an `open` query, and\nthe homepage opens the target in the app through its scheme\n(`POST_LINK_SCHEME`, `travibe` by default):\n\n| Link | Redirects to | Homepage opens | Open in the app with |\n| --- | --- | --- | --- |\n| `\/p\/{id}` | `\/?open=posts\/{id}` | `travibe:\/\/posts\/{id}` | `GET \/posts\/{post}` |\n| `\/u\/{id}` | `\/?open=users\/{id}` | `travibe:\/\/users\/{id}` | `GET \/users\/{user}` |\n\nWhen the app is not installed, the visitor stays on the homepage, which links\nto the app stores. A link to a soft-deleted post, a deleted account or an\nunknown id redirects to the plain homepage instead.\n\nProfile links use the user id, not the username, so a link keeps working after\nthe user changes their username. Profile `url` is returned by\n`GET \/users\/{user}` and by every payload of the user's own account\n(`GET \/profile`, `GET \/user`, and the login and profile-update responses), so\nthe user can share their own profile.\n\nThe redirect does not check visibility or blocks because a browser has no API\ntoken: it only proves the target exists. The app applies the normal rules when\nit fetches the target, so a blocked profile comes back as `data: null`.\n\n## Limits & Pagination\n\n- **Rate limiting:** You can make a reasonable number of requests per minute. If you hit the limit, you'll get a `429` status.\n- **Offset pagination:** Most list endpoints accept `page` and `per_page` (1-100, default 15):\n  ```\n  GET \/api\/v1\/users?page=2&per_page=20\n  ```\n- **Cursor pagination:** Feeds, posts, comment lists, liker lists and\n  notifications are keyset-paginated. Send `per_page` and, for later pages,\n  the opaque `cursor` from `meta.next_cursor` (or `meta.prev_cursor`):\n  ```\n  GET \/api\/v1\/feed\/following?per_page=20&cursor=...\n  ```\n  These endpoints reject `page` with `422`. Their `meta` contains\n  `next_cursor`, `prev_cursor`, `per_page` and `path`, and `links.next` \/\n  `links.prev` contain the complete URL. There is no `total` because a keyset\n  page does not count the remaining rows."
     },
     "servers": [
         {
@@ -1012,7 +1012,7 @@
         "\/users\/{user}\/block": {
             "post": {
                 "operationId": "block.block",
-                "description": "Returns the blocked user's public profile with refreshed follower and\nfollowing counts and `is_blocked: true`. Blocking yourself is a `422`.\nIdempotent: blocking an already-blocked user returns `200` with the same\nbody and creates no duplicate.\n\nA block is symmetric for interactions: after it, the pair can no longer\nfollow, like, comment on or save each other's content, and both\nsides' posts are excluded from each other's feeds, profiles and saved\nlists. Existing follows are left in place \u2014 unblock, then unfollow, to\nclear both.\n\nRequires a bearer token with full access and a verified email address.",
+                "description": "Returns the blocked user's public profile with refreshed follower and\nfollowing counts and `is_blocked: true`. Blocking yourself is a `422`.\nIdempotent: blocking an already-blocked user returns `200` with the same\nbody and creates no duplicate.\n\nA block is symmetric for interactions: after it, the pair can no longer\nfollow, like, comment on or save each other's content, and both\nsides' posts are excluded from each other's feeds, profiles and saved\nlists. Existing follows are left in place \u2014 unblock, then unfollow, to\nclear both. A pending follow request in either direction is deleted by\nthe block, together with its `follow_requested` notification.\n\nRequires a bearer token with full access and a verified email address.",
                 "summary": "Block a user",
                 "tags": [
                     "Block"
@@ -4459,7 +4459,7 @@
         "\/users\/{user}\/followers": {
             "get": {
                 "operationId": "follow.followers",
-                "description": "Returns public profiles, most recent follow first, each with follower and\nfollowing counts and whether the viewer follows them. Users in a block\nrelationship with the viewer are omitted.\n\nA bearer token is optional; sending an invalid or expired one returns\n`401`.",
+                "description": "Returns public profiles, most recent follow first, each with follower and\nfollowing counts and whether the viewer follows them. Only accepted\nfollows are listed; pending requests are not followers. Users in a block\nrelationship with the viewer are omitted. The followers of a private\naccount are visible to its owner and accepted followers only, so anyone\nelse gets `403`.\n\nA bearer token is optional; sending an invalid or expired one returns\n`401`.",
                 "summary": "List a user's followers",
                 "tags": [
                     "Follow"
@@ -4628,6 +4628,28 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                "This account is private"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "404": {
                         "$ref": "#\/components\/responses\/ModelNotFoundException"
                     },
@@ -4641,7 +4663,7 @@
         "\/users\/{user}\/following-list": {
             "get": {
                 "operationId": "follow.following",
-                "description": "The list of who someone follows lives on this endpoint, at\n`users\/{user}\/following-list`. The sibling `users\/{user}\/following` is a\nsingle check that returns only a boolean.\n\nReturns public profiles, most recent follow first, each with follower and\nfollowing counts and whether the viewer follows them. Users in a block\nrelationship with the viewer are omitted.\n\nA bearer token is optional; sending an invalid or expired one returns\n`401`.",
+                "description": "The list of who someone follows lives on this endpoint, at\n`users\/{user}\/following-list`. The sibling `users\/{user}\/following` is a\nsingle check that returns only a boolean.\n\nReturns public profiles, most recent follow first, each with follower and\nfollowing counts and whether the viewer follows them. Only accepted\nfollows are listed. Users in a block relationship with the viewer are\nomitted. The following list of a private account is visible to its owner\nand accepted followers only, so anyone else gets `403`.\n\nA bearer token is optional; sending an invalid or expired one returns\n`401`.",
                 "summary": "List the users a user follows",
                 "tags": [
                     "Follow"
@@ -4810,6 +4832,28 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "examples": [
+                                                "This account is private"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "404": {
                         "$ref": "#\/components\/responses\/ModelNotFoundException"
                     },
@@ -4823,7 +4867,7 @@
         "\/users\/{user}\/follow": {
             "post": {
                 "operationId": "follow.follow",
-                "description": "Returns the followed user's public profile with refreshed follower and\nfollowing counts and `is_following: true`, so the client can render the\nbutton without a refetch. Following yourself is a `422`, following\nsomeone you already follow is a `409`, and following a user in a block\nrelationship \u2014 in either direction \u2014 is a `422`. A new follow creates an\nin-app notification for the followed user.\n\nRequires a bearer token with full access and a verified email address.",
+                "description": "Returns the followed user's public profile with refreshed follower and\nfollowing counts and `is_following: true`, so the client can render the\nbutton without a refetch. Following a private account creates a pending\nfollow request instead: the response is `201` with\n`follow_requested: true` and `is_following: false`, and the account's\nowner must approve it before the follow grants access.\n\nFollowing yourself is a `422`, an existing follow or pending request is\na `409`, and following a user in a block relationship \u2014 in either\ndirection \u2014 is a `422`. A new follow creates an in-app notification for\nthe followed user; a pending request creates a follow-request\nnotification.\n\nRequires a bearer token with full access and a verified email address.",
                 "summary": "Follow a user",
                 "tags": [
                     "Follow"
@@ -4874,8 +4918,8 @@
         "\/users\/{user}\/unfollow": {
             "post": {
                 "operationId": "follow.unfollow",
-                "description": "Returns the user's public profile with refreshed follower and following\ncounts and `is_following: false`. Unfollowing yourself is a `422`, and\nunfollowing someone you do not follow is a `409`. The follow notification\nis removed.\n\nRequires a bearer token with full access and a verified email address.",
-                "summary": "Unfollow a user",
+                "description": "Returns the user's public profile with refreshed follower and following\ncounts, `is_following: false` and `follow_requested: false`. Unfollowing\nyourself is a `422`, and unfollowing someone you do not follow or have\nnot requested is a `409`. The follow or follow-request notification is\nremoved.\n\nRequires a bearer token with full access and a verified email address.",
+                "summary": "Unfollow a user, or cancel a pending follow request",
                 "tags": [
                     "Follow"
                 ],
@@ -4972,7 +5016,7 @@
         "\/users\/{user}\/following": {
             "get": {
                 "operationId": "follow.isFollowing",
-                "description": "Returns the boolean plus the `user_id` it was computed for, which is\ncheaper than paging through followers when a screen only needs the\nbutton state. Always `false` for your own account.\n\nRequires a bearer token with full access and a verified email address.",
+                "description": "Returns the boolean plus the `user_id` it was computed for, which is\ncheaper than paging through followers when a screen only needs the\nbutton state. `follow_requested` reports a pending request to a private\naccount. Both are always `false` for your own account.\n\nRequires a bearer token with full access and a verified email address.",
                 "summary": "Check whether you follow a user",
                 "tags": [
                     "Follow"
@@ -5002,12 +5046,16 @@
                                                 "is_following": {
                                                     "type": "boolean"
                                                 },
+                                                "follow_requested": {
+                                                    "type": "boolean"
+                                                },
                                                 "user_id": {
                                                     "type": "integer"
                                                 }
                                             },
                                             "required": [
                                                 "is_following",
+                                                "follow_requested",
                                                 "user_id"
                                             ]
                                         }
@@ -5196,6 +5244,276 @@
                     },
                     "422": {
                         "$ref": "#\/components\/responses\/ValidationException"
+                    }
+                }
+            }
+        },
+        "\/follow-requests": {
+            "get": {
+                "operationId": "follow.requests",
+                "description": "Returns the public profiles of the users waiting for approval, most\nrecent first, each with follower and following counts.\n`follow_requested` is `true` when you have your own pending request to\nthat user. Pending requesters are not followers and are\nnot counted until you accept them.\n\nRequires a bearer token with full access and a verified email address.",
+                "summary": "List follow requests addressed to you",
+                "tags": [
+                    "Follow"
+                ],
+                "parameters": [
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Items per page. 1-100, defaults to 15.",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Paginated set of `PublicUserResource`",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#\/components\/schemas\/PublicUserResource"
+                                            }
+                                        },
+                                        "links": {
+                                            "type": "object",
+                                            "properties": {
+                                                "first": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "prev": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "next": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "first",
+                                                "last",
+                                                "prev",
+                                                "next"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "from",
+                                                "last_page",
+                                                "links",
+                                                "path",
+                                                "per_page",
+                                                "to",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "links",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#\/components\/responses\/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#\/components\/responses\/ValidationException"
+                    }
+                }
+            }
+        },
+        "\/follow-requests\/{user}\/accept": {
+            "post": {
+                "operationId": "follow.acceptRequest",
+                "description": "Approves the pending request from `{user}` to the caller. The requester\nbecomes a follower immediately: their follower counts and access to the\ncaller's posts and stories update in the same request. Returns the\nrequester's public profile with `follows_you: true`. Accepting when no\npending request exists is a `409`.\n\nRequires a bearer token with full access and a verified email address.",
+                "summary": "Accept a follow request",
+                "tags": [
+                    "Follow"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "data": {
+                                            "$ref": "#\/components\/schemas\/PublicUserResource"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#\/components\/responses\/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#\/components\/responses\/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "\/follow-requests\/{user}": {
+            "delete": {
+                "operationId": "follow.declineRequest",
+                "description": "Removes the pending request from `{user}` to the caller. Declining when\nno pending request exists is a `409`. The requester is not notified\ndirectly; their request simply disappears.\n\nRequires a bearer token with full access and a verified email address.",
+                "summary": "Decline a follow request",
+                "tags": [
+                    "Follow"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#\/components\/responses\/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#\/components\/responses\/AuthenticationException"
                     }
                 }
             }
@@ -6905,7 +7223,7 @@
         "\/users\/{user}": {
             "get": {
                 "operationId": "profile.showUser",
-                "description": "Viewer-aware: guests are welcome. Includes `is_me`, `is_following`\n(\"Follow\"\/\"Following\" button) and `follows_you` (\"Follows you\" badge).\nWhen a block exists between the viewer and this user, returns `200` with\n`data: null`.",
+                "description": "Viewer-aware: guests are welcome. Includes `is_me`, `is_following`\n(\"Follow\"\/\"Following\" button) and `follows_you` (\"Follows you\" badge).\nA private account also reports `is_private`, `follow_requested` and\n`can_view_content`; the last is false for a non-follower, so the client\nrenders the locked profile instead of the tabs. When a block exists\nbetween the viewer and this user, returns `200` with `data: null`.",
                 "summary": "Another user's public profile",
                 "tags": [
                     "Profile"
@@ -8220,7 +8538,7 @@
         "\/settings": {
             "patch": {
                 "operationId": "settings.update",
-                "description": "Partial update of `locale` (en\/ar), `currency_code`, `show_active_status`,\n`show_in_travel_buddy` and `push_notifications_enabled`. Email, password\nand account deletion have dedicated endpoints.",
+                "description": "Partial update of `locale` (en\/ar), `currency_code`, `show_active_status`,\n`show_in_travel_buddy`, `push_notifications_enabled` and `is_private`.\nSwitching `is_private` off approves every pending follow request, so the\nnew public account has no stuck requests. Email, password and account\ndeletion have dedicated endpoints.",
                 "summary": "Update Settings & Privacy preferences (Figma \"Settings and Privacy\")",
                 "tags": [
                     "Settings"
@@ -9860,7 +10178,7 @@
                     },
                     "type": {
                         "type": "string",
-                        "description": "Notification kind: `post_liked`, `story_liked`, `comment_liked`,\n`post_commented`, `comment_replied`, `user_followed`,\n`message_received`, or `user_mentioned`."
+                        "description": "Notification kind: `post_liked`, `story_liked`, `comment_liked`,\n`post_commented`, `comment_replied`, `user_followed`,\n`follow_requested`, `follow_request_accepted`,\n`message_received`, or `user_mentioned`."
                     },
                     "actor": {
                         "anyOf": [
@@ -10289,6 +10607,10 @@
                     "id": {
                         "type": "integer"
                     },
+                    "url": {
+                        "type": "string",
+                        "description": "Shareable link that opens this profile in the app."
+                    },
                     "name": {
                         "type": "string"
                     },
@@ -10391,6 +10713,18 @@
                     "follows_you": {
                         "type": "boolean"
                     },
+                    "is_private": {
+                        "type": "boolean",
+                        "description": "Whether the account is private. Its posts and stories are\nvisible to accepted followers only."
+                    },
+                    "follow_requested": {
+                        "type": "boolean",
+                        "description": "Whether the viewer has a pending follow request to this account."
+                    },
+                    "can_view_content": {
+                        "type": "boolean",
+                        "description": "Whether the viewer may open this account's posts and stories:\ntrue for a public account, the owner, or an accepted follower."
+                    },
                     "posts_count": {
                         "type": "integer"
                     },
@@ -10415,6 +10749,7 @@
                 },
                 "required": [
                     "id",
+                    "url",
                     "name",
                     "username",
                     "country_code",
@@ -10422,6 +10757,9 @@
                     "gender",
                     "bio",
                     "is_me",
+                    "is_private",
+                    "follow_requested",
+                    "can_view_content",
                     "created_at",
                     "updated_at"
                 ],
@@ -10475,6 +10813,14 @@
                     "is_blocked": {
                         "type": "boolean"
                     },
+                    "is_private": {
+                        "type": "boolean",
+                        "description": "Whether the account is private. Its posts and stories are\nvisible to accepted followers only."
+                    },
+                    "follow_requested": {
+                        "type": "boolean",
+                        "description": "Whether the viewer has a pending follow request to this account.\nPresent only when the caller computed it."
+                    },
                     "is_online": {
                         "type": "string",
                         "description": "Live online state. Present only when the viewer may see the\nother user's active status."
@@ -10499,7 +10845,8 @@
                     "username",
                     "country_code",
                     "created_at",
-                    "updated_at"
+                    "updated_at",
+                    "is_private"
                 ],
                 "title": "PublicUserResource"
             },
@@ -11569,6 +11916,10 @@
                     },
                     "push_notifications_enabled": {
                         "type": "boolean"
+                    },
+                    "is_private": {
+                        "type": "boolean",
+                        "description": "Make the account private. Its posts and stories become visible to\naccepted followers only, and a new follow becomes a request."
                     }
                 },
                 "title": "UpdateSettingsRequest"
@@ -11578,6 +11929,10 @@
                 "properties": {
                     "id": {
                         "type": "integer"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Shareable link that opens this profile in the app."
                     },
                     "name": {
                         "type": "string"
@@ -11672,6 +12027,10 @@
                     },
                     "push_notifications_enabled": {
                         "type": "boolean"
+                    },
+                    "is_private": {
+                        "type": "boolean",
+                        "description": "Whether the account is private: posts and stories are visible to\naccepted followers only, and a follow becomes a request."
                     },
                     "profile_completed_at": {
                         "type": [
@@ -11772,6 +12131,7 @@
                 },
                 "required": [
                     "id",
+                    "url",
                     "name",
                     "email",
                     "email_verified_at",
@@ -11790,6 +12150,7 @@
                     "show_active_status",
                     "show_in_travel_buddy",
                     "push_notifications_enabled",
+                    "is_private",
                     "profile_completed_at",
                     "profile_completed",
                     "created_at",

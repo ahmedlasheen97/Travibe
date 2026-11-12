@@ -47,8 +47,12 @@ refresh supersedes stale in-flight pages. Pagination merges by stable ID.
 
 ## Options and assets
 
-- Share Profile: existing native share channel shares supplied public name and
-  handle as text. No canonical public profile/deep link is documented or invented.
+- Share profile / Copy profile link: share or copy `PublicProfileResource.url`
+  as-is (`ProfileModel.url`, https only) via the native `travibe/post_sharing`
+  channel. Both rows are hidden when `url` is missing; no link is built in the app.
+  Own profile: the "Share Profile" button beside "Edit Profile" shares
+  `UserResource.url` and is hidden without it. Links open via
+  `travibe://users/{id}` (see `docs/SHARE_POST.md` → Deep links).
 - Remove Follower appears only for follows_you=true. Confirmation precedes
   DELETE `/users/{user}/follower`; its 200 message response is validated. The
   shared override changes only on confirmed success; profile/current-user counts

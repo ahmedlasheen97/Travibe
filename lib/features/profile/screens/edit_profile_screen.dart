@@ -1,7 +1,7 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:country_picker/country_picker.dart';
 import 'package:travibe/core/places/current_city_picker.dart';
@@ -982,10 +982,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: _isSaving
             ? Semantics(
                 label: 'Saving profile',
-                child: const CupertinoActivityIndicator(
-                  radius: 11,
-                  color: DarkColors.primaryColor,
-                ),
+                child: const AppActivityIndicator(radius: 11),
               )
             : const Text('Save Changes', style: ActionButtonStyle.label),
       ),

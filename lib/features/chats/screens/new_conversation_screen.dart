@@ -1,7 +1,7 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -169,15 +169,14 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
             if (!_valid) const Text('Sign in again to find people.'),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.white70)),
-            if (_creating)
-              const LinearProgressIndicator(color: DarkColors.primaryColor),
+            if (_creating) const LinearProgressIndicator(),
             Expanded(
               child: BlocBuilder<ChatDiscoveryCubit, ChatDiscoveryState>(
                 bloc: _discovery,
                 builder: (context, state) {
                   if (!_valid) return const SizedBox.shrink();
                   if (state.status == ChatDiscoveryStatus.loading) {
-                    return const Center(child: CupertinoActivityIndicator());
+                    return const Center(child: AppActivityIndicator());
                   }
                   if (state.status == ChatDiscoveryStatus.idle) {
                     return const Center(
@@ -231,7 +230,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                           onTap: () => _select(user),
                         ),
                       if (state.loadingMore)
-                        const Center(child: CupertinoActivityIndicator()),
+                        const Center(child: AppActivityIndicator()),
                       if (state.hasMore && !state.loadingMore)
                         TextButton(
                           onPressed: _discovery.more,

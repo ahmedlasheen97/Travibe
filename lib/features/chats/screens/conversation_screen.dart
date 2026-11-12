@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import '../data/chat_history_cache.dart';
@@ -7,7 +8,6 @@ import '../widgets/chat_network_banner.dart';
 import '../widgets/chat_options.dart';
 import 'conversation_details_screen.dart';
 import 'chat_navigation.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import '../widgets/chat_pending_media_bubble.dart';
@@ -743,8 +743,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                                               return const Padding(
                                                 padding: EdgeInsets.all(20),
                                                 child: Center(
-                                                  child:
-                                                      CupertinoActivityIndicator(),
+                                                  child: AppActivityIndicator(),
                                                 ),
                                               );
                                             }

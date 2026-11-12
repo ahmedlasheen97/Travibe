@@ -12,7 +12,6 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
 import 'package:travibe/features/comments/screens/comments_screen.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
-import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
@@ -135,11 +134,8 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   Widget _card(PostModel post) {
     final posts = context.read<PostsCubit>();
     final media = post.media.map((m) => m.displayUrl).toList();
-    Widget card(
-      bool following,
-      bool pending,
-      VoidCallback? toggle,
-    ) => BlocBuilder<SavesCubit, SavesState>(
+    // Every card here is by the profile's user; Follow lives in the header.
+    return BlocBuilder<SavesCubit, SavesState>(
       builder: (context, saves) => PostCard(
         postId: post.id,
         authorId: post.user.id,
@@ -185,21 +181,9 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
           final error = await context.read<SavesCubit>().toggle(post);
           if (error != null && context.mounted) _error(context, error.message);
         },
-        showFollowButton: !widget.owner && context.read<FollowCubit?>() != null,
-        isFollowing: following,
-        isFollowPending: pending,
-        onFollowTap: toggle,
         onMoreTap: !widget.owner ? () => _options(post) : null,
       ),
     );
-    return context.read<FollowCubit?>() == null || widget.owner
-        ? card(post.user.isFollowing, false, null)
-        : FollowActionBuilder(
-            userId: post.user.id,
-            initialFollowing: post.user.isFollowing,
-            builder: (context, following, pending, toggle) =>
-                card(following, pending, toggle),
-          );
   }
 
   void _error(BuildContext context, String text) =>

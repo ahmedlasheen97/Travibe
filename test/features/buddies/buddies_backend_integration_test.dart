@@ -615,7 +615,7 @@ void main() {
       expect(tester.getTopLeft(spinner).dy, 44);
       expect(
         tester.widget<CupertinoActivityIndicator>(spinner).color,
-        DarkColors.primaryColor,
+        DarkColors.whiteColor,
       );
       expect(tester.widget<CupertinoActivityIndicator>(spinner).radius, 15);
       expect(

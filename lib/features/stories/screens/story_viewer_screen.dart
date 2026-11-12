@@ -7,7 +7,6 @@ import 'package:travibe/features/stories/widgets/story_like_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/stories/widgets/story_glass.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
@@ -298,11 +297,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     onError: () => _viewer.imageFailed(state.request),
                   ),
                   if (!state.imageReady)
-                    const Center(
-                      child: CircularProgressIndicator(
-                        color: DarkColors.primaryColor,
-                      ),
-                    ),
+                    const Center(child: CircularProgressIndicator()),
                 ],
                 Positioned.fill(
                   child: Listener(
@@ -321,11 +316,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                   ),
                 ),
                 if (state.status == StoryViewerStatus.loading)
-                  const Center(
-                    child: CircularProgressIndicator(
-                      color: DarkColors.primaryColor,
-                    ),
-                  ),
+                  const Center(child: CircularProgressIndicator()),
                 if (state.status == StoryViewerStatus.failure)
                   Center(
                     child: Padding(
@@ -527,7 +518,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                   minHeight: 3,
                                   borderRadius: BorderRadius.circular(2),
                                   backgroundColor: Colors.white30,
-                                  color: Colors.white,
                                   value: i < state.index
                                       ? 1
                                       : i > state.index

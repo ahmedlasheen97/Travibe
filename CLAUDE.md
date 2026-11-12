@@ -91,6 +91,7 @@ API reference: docs/openapi.json (refresh with curl -u $TRAVIBE_DOCS_AUTH https:
 ## Conventions
 
 - `package:travibe/...` imports, snake_case files; standard `flutter_lints`.
+- Run dart format only on the specific files you changed — never on whole folders.
 - Reuse `core/widgets/`, `AppSizes`, `AppStyles`, `DarkColors`; sizes via ScreenUtil.
 - Cubit states commonly use sealed classes with `part`/`part of` files.
 - UI work: consult the Figma file per `AGENTS.md` / `docs/FIGMA_REFERENCE.md` (access
