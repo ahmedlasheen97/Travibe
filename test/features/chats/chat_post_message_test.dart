@@ -5,10 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/chats/data/chat_models.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
+import 'package:travibe/features/chats/widgets/chat_history_image.dart';
+import 'package:travibe/features/chats/widgets/chat_post_card.dart';
 import 'package:travibe/features/chats/widgets/chat_widgets.dart';
 import 'conversation_fixtures.dart';
 
@@ -16,13 +19,14 @@ Map<String, dynamic> postCard({
   int id = 4,
   String? content = 'Sunset over Petra',
   List<Map<String, dynamic>> media = const [],
+  String createdAt = '2026-11-10T09:00:00Z',
 }) => {
   'id': id,
   'user': {'id': 2, 'name': 'Sara', 'avatar_url': null},
   'content': content,
   'media': media,
   'url': 'https://travibeapp.com/p/$id',
-  'created_at': '2026-11-10T09:00:00Z',
+  'created_at': createdAt,
 };
 
 Map<String, dynamic> postMessage({
@@ -192,6 +196,7 @@ void main() {
       WidgetTester tester,
       ChatMessage message, {
       void Function(int)? onOpen,
+      bool outgoing = false,
     }) => tester.pumpWidget(
       ScreenUtilInit(
         designSize: const Size(390, 844),
@@ -199,7 +204,7 @@ void main() {
           home: Scaffold(
             body: ChatMessageBubble(
               message: message,
-              outgoing: false,
+              outgoing: outgoing,
               onOpenPost: onOpen,
             ),
           ),
@@ -241,6 +246,112 @@ void main() {
       await tester.tap(find.text('Post unavailable'));
       expect(opened, isEmpty);
     });
+
+    BoxDecoration frameOf(WidgetTester tester) =>
+        tester
+                .widgetList<Container>(
+                  find.descendant(
+                    of: find.byType(ChatMessageBubble),
+                    matching: find.byType(Container),
+                  ),
+                )
+                .firstWhere((c) => c.decoration is BoxDecoration)
+                .decoration!
+            as BoxDecoration;
+
+    testWidgets('header shows the author and relative post time', (
+      tester,
+    ) async {
+      final created = DateTime.now().toUtc().subtract(
+        const Duration(minutes: 20, seconds: 5),
+      );
+      await pump(
+        tester,
+        ChatMessage.fromJson(
+          postMessage(post: postCard(createdAt: created.toIso8601String())),
+        ),
+      );
+      expect(find.text('Sara'), findsOneWidget);
+      expect(find.text('20min'), findsOneWidget);
+    });
+
+    testWidgets('long text is capped at three lines with an ellipsis', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        ChatMessage.fromJson(postMessage(post: postCard(content: 'x ' * 400))),
+      );
+      final text = tester.widget<Text>(
+        find.descendant(
+          of: find.byType(ChatPostCard),
+          matching: find.textContaining('x x'),
+        ),
+      );
+      expect(text.maxLines, 3);
+      expect(text.overflow, TextOverflow.ellipsis);
+    });
+
+    testWidgets('first image spans the card; text-only posts have none', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        ChatMessage.fromJson(
+          postMessage(
+            post: postCard(
+              media: [
+                {'id': 9, 'url': 'https://cdn.example/p.jpg'},
+              ],
+            ),
+          ),
+        ),
+      );
+      final image = tester.widget<ChatHistoryImage>(
+        find.byType(ChatHistoryImage),
+      );
+      expect(image.width, ChatPostCard.imageWidth);
+      expect(image.maxHeight, ChatPostCard.imageMaxHeight);
+      expect(
+        tester.getSize(find.byType(ChatHistoryImage)).width,
+        ChatPostCard.imageWidth,
+      );
+
+      await pump(tester, ChatMessage.fromJson(postMessage(post: postCard())));
+      expect(find.byType(ChatHistoryImage), findsNothing);
+      expect(find.text('Sunset over Petra'), findsOneWidget);
+    });
+
+    for (final outgoing in [true, false]) {
+      testWidgets('post frame is grey, never orange; outgoing=$outgoing', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          ChatMessage.fromJson(postMessage(post: postCard())),
+          outgoing: outgoing,
+        );
+        expect(frameOf(tester).color, const Color(0xFF2C2C2C));
+        final frame = tester
+            .widgetList<Container>(
+              find.descendant(
+                of: find.byType(ChatMessageBubble),
+                matching: find.byType(Container),
+              ),
+            )
+            .firstWhere((c) => c.decoration is BoxDecoration);
+        expect(frame.padding, EdgeInsets.all(AppSizes.adaptiveWidth(8)));
+        final card = tester.getRect(find.byType(ChatPostCard));
+        final screen = tester.getRect(find.byType(Scaffold));
+        if (outgoing) {
+          expect(card.right, greaterThan(screen.center.dx));
+          expect(card.left, greaterThan(screen.left + 16));
+        } else {
+          expect(card.left, lessThan(screen.center.dx));
+          expect(card.right, lessThan(screen.right - 16));
+        }
+      });
+    }
 
     testWidgets('reply snippets to a post read "Shared a post"', (
       tester,

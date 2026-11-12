@@ -300,6 +300,8 @@ class ChatMessageBubble extends StatelessWidget {
                       message.kind == ChatMessageKind.image &&
                           !message.isDeleted
                       ? EdgeInsets.zero
+                      : _isPostCard
+                      ? EdgeInsets.all(AppSizes.adaptiveWidth(8))
                       : message.kind == ChatMessageKind.audio
                       ? const EdgeInsets.symmetric(horizontal: 8, vertical: 2)
                       : const EdgeInsets.symmetric(
@@ -311,20 +313,17 @@ class ChatMessageBubble extends StatelessWidget {
                         message.kind == ChatMessageKind.image &&
                             !message.isDeleted
                         ? Colors.transparent
-                        : outgoing
+                        // Shared posts use the grey frame in both directions.
+                        : outgoing && !_isPostCard
                         ? const Color(0xFF9B3900)
                         : const Color(0xFF2C2C2C),
                     borderRadius: message.kind == ChatMessageKind.audio
                         ? BorderRadius.circular(32)
                         : BorderRadiusDirectional.only(
-                            topStart: outgoing
-                                ? const Radius.circular(16)
-                                : Radius.zero,
-                            topEnd: outgoing
-                                ? Radius.zero
-                                : const Radius.circular(16),
-                            bottomStart: const Radius.circular(16),
-                            bottomEnd: const Radius.circular(16),
+                            topStart: outgoing ? _corner : Radius.zero,
+                            topEnd: outgoing ? Radius.zero : _corner,
+                            bottomStart: _corner,
+                            bottomEnd: _corner,
                           ),
                   ),
                   child: Column(
@@ -440,6 +439,13 @@ class ChatMessageBubble extends StatelessWidget {
       ),
     ),
   );
+  bool get _isPostCard =>
+      message.kind == ChatMessageKind.post && !message.isDeleted;
+
+  Radius get _corner => _isPostCard
+      ? Radius.circular(AppSizes.adaptiveRadius(24))
+      : const Radius.circular(16);
+
   VoidCallback? _postOpener(BuildContext context) {
     final id = int.tryParse(message.sharedPost?.id ?? message.postId ?? '');
     if (message.sharedPost == null || id == null || id < 1) return null;
