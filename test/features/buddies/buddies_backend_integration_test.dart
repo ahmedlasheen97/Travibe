@@ -1,5 +1,6 @@
 import 'package:travibe/core/datasource/remotedata/dio_client.dart';
 import 'package:travibe/root.dart';
+import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/features/buddies/screens/buddies_filters_screen.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import '../home/home_experience_fixtures.dart' as feeds;
@@ -539,10 +540,9 @@ void main() {
         ),
       );
       await tester.pump();
-      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
-      final initial = tester.getRect(find.byType(CupertinoActivityIndicator));
-      expect(initial.top, 0);
-      expect(initial.center.dx, 400);
+      // First load: card skeletons, no floating loader.
+      expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
       (backend.result as Completer<dynamic>).complete(
         home.home(users: [home.buddy()]),
       );
@@ -556,8 +556,12 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(backend.calls, 2);
+      // Refresh over existing cards keeps them and floats one loader.
       expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
-      expect(tester.getRect(find.byType(CupertinoActivityIndicator)), initial);
+      final loader = tester.getRect(find.byType(CupertinoActivityIndicator));
+      expect(loader.top, 0);
+      expect(loader.center.dx, 400);
+      expect(find.byType(BuddiesSectionSkeleton), findsNothing);
       expect(tester.element(card), same(element));
       expect(tester.getRect(card), rect);
       expect(find.byType(RefreshProgressIndicator), findsNothing);
@@ -668,7 +672,9 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(backend.calls, 2);
-      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      // Refreshing an empty Buddies home shows skeletons, not a spinner.
+      expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
       (backend.result as Completer<dynamic>).complete(home.home());
       await tester.pumpAndSettle();
       tester

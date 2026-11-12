@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/more_options_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -209,19 +210,11 @@ class _PostCardState extends State<PostCard> {
           ),
         ),
         if (widget.showFollowButton) _authorFollowAction(),
-        InkWell(
+        MoreOptionsButton(
           onTap: widget.onMoreTap,
-          child: Container(
-            width: widget.responsive ? _r(38) : AppSizes.w38,
-            height: widget.responsive ? _r(38) : AppSizes.h38,
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFF2E2E2E)),
-              borderRadius: BorderRadius.circular(_r(20)),
-            ),
-            child: const Center(
-              child: Icon(Icons.more_vert, color: DarkColors.whiteColor),
-            ),
-          ),
+          size: widget.responsive ? _r(38) : AppSizes.w38,
+          height: widget.responsive ? _r(38) : AppSizes.h38,
+          radius: _r(20),
         ),
       ],
     );

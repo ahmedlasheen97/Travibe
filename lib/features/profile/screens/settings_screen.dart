@@ -4,6 +4,7 @@ import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -42,6 +43,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _initialized = false;
   bool _ownsUser = false;
   bool get _busy => _user.state.loading || _user.state.saving != null;
+
+  /// Cached settings stay usable while `GET /profile` revalidates them; a
+  /// write supersedes that read, so only an in-flight write locks controls.
+  bool get _saving => _user.state.saving != null;
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -79,9 +84,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 SizedBox(height: AppSizes.h8),
                 _buildTopBar(),
-                if (state.loading)
-                  const LinearProgressIndicator(
-                    semanticsLabel: 'Loading settings',
+                // Only without cached settings: the app-wide current user is
+                // normally already loaded, so revalidation stays silent.
+                if (state.loading && !ready)
+                  Padding(
+                    padding: EdgeInsets.only(top: AppSizes.h8),
+                    child: Semantics(
+                      label: 'Loading settings',
+                      child: CupertinoActivityIndicator(
+                        radius: AppSizes.adaptiveRadius(10),
+                        color: DarkColors.whiteColor.withValues(alpha: .7),
+                      ),
+                    ),
                   ),
                 if (state.error != null || !state.loading && !ready) ...[
                   Text(
@@ -122,7 +136,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Active Status',
                     value: profile?.showActiveStatus,
                     saving: state.saving == 'show_active_status',
-                    onChanged: !ready || _busy
+                    onChanged: !ready || _saving
                         ? null
                         : (v) => _user.update(
                             SettingsUpdate({'show_active_status': v}),
@@ -135,7 +149,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Show your current city.',
                     value: profile?.showInTravelBuddy,
                     saving: state.saving == 'show_in_travel_buddy',
-                    onChanged: !ready || _busy
+                    onChanged: !ready || _saving
                         ? null
                         : (v) => _user.update(
                             SettingsUpdate({'show_in_travel_buddy': v}),
@@ -171,7 +185,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         : profile?.locale == 'en'
                         ? 'English'
                         : null,
-                    onTap: !ready || _busy
+                    onTap: !ready || _saving
                         ? null
                         : () async {
                             final session =
@@ -195,7 +209,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     detail: state.saving == 'currency_code'
                         ? 'Saving…'
                         : profile?.currencyCode ?? (ready ? 'None' : null),
-                    onTap: !ready || _busy
+                    onTap: !ready || _saving
                         ? null
                         : () async {
                             final session =
@@ -231,7 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Receive notifications on your phone',
                     value: profile?.pushNotificationsEnabled,
                     saving: state.saving == 'push_notifications_enabled',
-                    onChanged: !ready || _busy
+                    onChanged: !ready || _saving
                         ? null
                         : (v) => _user.update(
                             SettingsUpdate({'push_notifications_enabled': v}),

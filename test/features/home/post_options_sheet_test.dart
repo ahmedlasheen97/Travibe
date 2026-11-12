@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 
@@ -8,17 +9,20 @@ void main() {
   ) async {
     PostOptionAction? selected;
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () async {
-                selected = await PostOptionsSheet.show(
-                  context,
-                  actions: const {PostOptionAction.hidePost},
-                );
-              },
-              child: const Text('Options'),
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  selected = await PostOptionsSheet.show(
+                    context,
+                    actions: const {PostOptionAction.hidePost},
+                  );
+                },
+                child: const Text('Options'),
+              ),
             ),
           ),
         ),

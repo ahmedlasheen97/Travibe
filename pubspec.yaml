@@ -96,7 +96,6 @@ flutter:
     - assets/images/onboarding/
     - assets/images/auth/
     - assets/images/home/
-    - assets/images/posts/
     - assets/images/avatar/
     - assets/images/profile/
     - assets/images/interactions/

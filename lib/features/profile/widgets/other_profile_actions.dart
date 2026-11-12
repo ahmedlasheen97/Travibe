@@ -1,13 +1,13 @@
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
-import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/more_options_button.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
@@ -21,65 +21,110 @@ import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/shares/data/post_share_actions.dart';
 
-enum ProfileOption { share, removeFollower, report, block }
+enum ProfileOption { share, removeFollower, report, block, unblock }
 
+/// Other user's profile ⋮ menu (same frame as the post ⋮ menu).
+/// A blocked user only offers Unblock.
 class ProfileOptionsSheet extends StatelessWidget {
   const ProfileOptionsSheet({
     super.key,
     required this.followsYou,
+    this.blocked = false,
     this.pending = false,
   });
-  final bool followsYou, pending;
+  final bool followsYou, blocked, pending;
+
+  static Future<ProfileOption?> show(
+    BuildContext context, {
+    required WidgetBuilder builder,
+  }) => showOptionsSheet<ProfileOption>(context, builder: builder);
+
   @override
-  Widget build(BuildContext context) => SafeArea(
-    top: false,
-    child: Padding(
-      padding: EdgeInsets.fromLTRB(AppSizes.w20, 12, AppSizes.w20, 20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SheetHandle(),
-          const SizedBox(height: 12),
-          _action(context, ProfileOption.share, 'Share Profile', 'send-2.svg'),
-          if (followsYou)
-            _action(
-              context,
-              ProfileOption.removeFollower,
-              'Remove Follower',
-              'user-remove.svg',
-            ),
-          _action(context, ProfileOption.report, 'Report', 'flag.svg'),
-          _action(
-            context,
-            ProfileOption.block,
-            'Block User',
-            'user_remove_2.svg',
-          ),
-        ],
+  Widget build(BuildContext context) {
+    Widget row(
+      ProfileOption option,
+      String label,
+      String icon, {
+      bool danger = false,
+      Color? tint,
+    }) => OptionSheetTile(
+      key: ValueKey('profile-option-${option.name}'),
+      icon: optionSvg(
+        'assets/images/icons/$icon',
+        tint: danger ? DarkColors.dangerColor : tint ?? DarkColors.greyColor,
+      ),
+      label: label,
+      color: danger ? DarkColors.dangerColor : null,
+      onTap: pending ? null : () => Navigator.pop(context, option),
+    );
+    return OptionsSheetBody(
+      children: blocked
+          ? [row(ProfileOption.unblock, 'Unblock user', 'user-remove.svg')]
+          : [
+              row(ProfileOption.share, 'Share profile', 'send-2.svg'),
+              if (followsYou)
+                row(
+                  ProfileOption.removeFollower,
+                  'Remove follower',
+                  'user-remove.svg',
+                  tint: DarkColors.whiteColor,
+                ),
+              row(ProfileOption.report, 'Report user', 'flag.svg'),
+              row(
+                ProfileOption.block,
+                'Block user',
+                'user-remove.svg',
+                danger: true,
+              ),
+            ],
+    );
+  }
+}
+
+/// Profile header ⋮: the post card button at its responsive size.
+class ProfileMoreButton extends StatelessWidget {
+  const ProfileMoreButton({super.key, required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: EdgeInsetsDirectional.only(end: AppSizes.adaptiveWidth(20)),
+    child: Center(
+      child: MoreOptionsButton(
+        tooltip: 'Profile options',
+        onTap: onTap,
+        size: AppSizes.adaptiveRadius(38),
+        radius: AppSizes.adaptiveRadius(20),
       ),
     ),
   );
-  Widget _action(
-    BuildContext context,
-    ProfileOption option,
-    String title,
-    String icon,
-  ) => ListTile(
-    enabled: !pending,
-    leading: SvgPicture.asset(
-      'assets/images/icons/$icon',
-      width: 24,
-      height: 24,
-    ),
-    title: Text(
-      title,
-      style: TextStyle(
-        color: option == ProfileOption.block
-            ? const Color(0xFFDD312A)
-            : Colors.white,
-      ),
-    ),
-    onTap: pending ? null : () => Navigator.pop(context, option),
+}
+
+/// ⋮ for a profile the viewer has blocked (the profile body is unavailable):
+/// the only action is Unblock, confirmed with the glass dialog.
+class BlockedProfileOptionsButton extends StatelessWidget {
+  const BlockedProfileOptionsButton({super.key, required this.userId});
+  final String userId;
+
+  @override
+  Widget build(BuildContext context) => ProfileMoreButton(
+    onTap: () async {
+      final block = context.read<BlockCubit>();
+      if (block.state.pending.contains(userId)) return;
+      final action = await ProfileOptionsSheet.show(
+        context,
+        builder: (_) => BlocBuilder<BlockCubit, BlockState>(
+          bloc: block,
+          builder: (_, state) => ProfileOptionsSheet(
+            followsYou: false,
+            blocked: true,
+            pending: state.pending.contains(userId),
+          ),
+        ),
+      );
+      if (action != ProfileOption.unblock || !context.mounted) return;
+      await confirmBlockChange(context, userId, blocked: false);
+    },
   );
 }
 
@@ -154,27 +199,39 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
   }
 
   Future<void> _options() async {
-    if (_sheetOpen || _busy || !_valid || _blocked) return;
+    final id = widget.profile.id;
+    final blockCubit = context.read<BlockCubit?>();
+    if (_sheetOpen ||
+        _busy ||
+        !_valid ||
+        blockCubit?.state.pending.contains(id) == true) {
+      return;
+    }
     _sheetOpen = true;
     final follow = context.read<FollowCubit>();
-    final action = await showModalBottomSheet<ProfileOption>(
-      context: context,
-      backgroundColor: DarkColors.darkgreyColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (_) => BlocBuilder<FollowCubit, FollowState>(
-        bloc: follow,
-        builder: (_, state) => ProfileOptionsSheet(
-          followsYou:
-              state.followsYou[widget.profile.id] ??
-              widget.profile.followsYou == true,
-          pending: state.pending.contains(widget.profile.id),
-        ),
+    Widget sheet(BlockState? blocks) => BlocBuilder<FollowCubit, FollowState>(
+      bloc: follow,
+      builder: (_, state) => ProfileOptionsSheet(
+        followsYou: state.followsYou[id] ?? widget.profile.followsYou == true,
+        blocked:
+            widget.profile.isBlocked == true || blocks?.isBlocked(id) == true,
+        pending:
+            state.pending.contains(id) || blocks?.pending.contains(id) == true,
       ),
     );
+    final action = await ProfileOptionsSheet.show(
+      context,
+      builder: (_) => blockCubit == null
+          ? sheet(null)
+          : BlocBuilder<BlockCubit, BlockState>(
+              bloc: blockCubit,
+              builder: (_, blocks) => sheet(blocks),
+            ),
+    );
     _sheetOpen = false;
-    if (!mounted || !_valid || action == null || _blocked) return;
+    if (!mounted || !_valid || action == null) return;
+    // Only Unblock is valid against a blocked user.
+    if (_blocked != (action == ProfileOption.unblock)) return;
     setState(() => _busy = true);
     try {
       switch (action) {
@@ -224,11 +281,12 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
             ).showSnackBar(const SnackBar(content: Text('Report submitted.')));
           }
         case ProfileOption.block:
+        case ProfileOption.unblock:
           if (context.read<BlockCubit?>() != null) {
             await confirmBlockChange(
               context,
               widget.profile.id,
-              blocked: true,
+              blocked: action == ProfileOption.block,
               name: widget.profile.displayName,
             );
           }
@@ -251,11 +309,7 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
     final follow = context.read<FollowCubit?>();
     if (follow == null) return const SizedBox.shrink();
     if (widget.optionsOnly) {
-      return IconButton(
-        tooltip: 'Profile options',
-        onPressed: _valid && !_busy ? _options : null,
-        icon: const Icon(Icons.more_horiz),
-      );
+      return ProfileMoreButton(onTap: _valid && !_busy ? _options : null);
     }
     return FollowActionBuilder(
       userId: widget.profile.id,

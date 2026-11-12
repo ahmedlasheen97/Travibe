@@ -13,6 +13,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
+import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/features/buddies/cubit/buddies_listing_cubit.dart';
 import 'package:travibe/features/buddies/cubit/buddies_search_cubit.dart';
 import 'package:travibe/features/buddies/data/buddies_filters.dart';
@@ -585,7 +586,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byType(ListTile).first);
       await tester.pump();
-      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.byType(BuddiesGridSkeleton), findsOneWidget);
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
       expect(find.byType(BuddiesTravelerCard), findsNothing);
       pending.completeError(ApiError(message: 'Offline'));
       await tester.pumpAndSettle();

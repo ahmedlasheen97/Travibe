@@ -1,6 +1,8 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/location/device_location_service.dart';
 import 'package:flutter/foundation.dart';
 import '../widgets/buddies_loading_overlay.dart';
+import '../widgets/buddies_traveler_skeleton.dart';
 import '../cubit/allow_location_cubit.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import '../data/buddies_filters.dart';
@@ -149,13 +151,17 @@ class BuddiesLandingView extends StatelessWidget {
         ? !meta!.showInTravelBuddy
         : variant == BuddiesLandingVariant.visibilityInvitation;
     final navInset = BottomNavScope.bottomInsetOf(context);
+    final empty = nearbyTravelers.isEmpty && sharedInterestTravelers.isEmpty;
+    // First load and refresh-from-empty show card skeletons; a refresh over
+    // existing cards keeps them and shows the small floating loader.
+    final skeleton = isLoading || refreshing && empty;
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
         // Inside Root the content runs under the hideable bottom bar.
         bottom: navInset == 0,
         child: BuddiesLoadingOverlay(
-          loading: isLoading || refreshing,
+          loading: refreshing && !skeleton,
           child: RefreshIndicator.noSpinner(
             onRefresh: onRefresh ?? () async {},
             child: SingleChildScrollView(
@@ -250,10 +256,13 @@ class BuddiesLandingView extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (!isLoading) ...[
-                    if (errorMessage == null &&
-                        nearbyTravelers.isEmpty &&
-                        sharedInterestTravelers.isEmpty)
+                  if (skeleton) ...[
+                    SizedBox(height: AppSizes.adaptiveHeight(28)),
+                    const BuddiesSectionSkeleton(),
+                    SizedBox(height: AppSizes.adaptiveHeight(24)),
+                    const BuddiesSectionSkeleton(),
+                  ] else ...[
+                    if (errorMessage == null && empty)
                       Padding(
                         padding: const EdgeInsets.all(20),
                         child: Text(

@@ -17,6 +17,7 @@ import 'package:travibe/features/home/widgets/home_stories.dart';
 import 'package:travibe/features/home/widgets/suggested_users_section.dart';
 import 'package:travibe/features/home/widgets/suggested_user_card.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
@@ -381,4 +382,23 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('feed no longer shows a Trending Destinations section', (
+    tester,
+  ) async {
+    posts.explorePosts = [
+      for (var id = 1; id <= 5; id++)
+        PostModel.fromJson({
+          'id': id,
+          'content': 'Post $id',
+          'user': {'id': 9, 'name': 'Author'},
+        }),
+    ];
+    await show(tester);
+    expect(find.text('Post 1'), findsOneWidget);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -2400));
+    await tester.pumpAndSettle();
+    expect(find.text('Trending Destinations'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }

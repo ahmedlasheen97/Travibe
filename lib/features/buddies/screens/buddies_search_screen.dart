@@ -1,5 +1,6 @@
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import '../widgets/buddies_loading_overlay.dart';
+import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
@@ -150,8 +151,7 @@ class _SearchViewState extends State<_SearchView> {
             body: SafeArea(
               top: false,
               child: BuddiesLoadingOverlay(
-                loading:
-                    state.loading && (state.page == null || state.refreshing),
+                loading: state.loading && state.refreshing && items.isNotEmpty,
                 child: Column(
                   children: [
                     Padding(
@@ -299,6 +299,10 @@ class _SearchViewState extends State<_SearchView> {
                                   'No buddies found in this city yet.',
                                 ),
                               ),
+                            if (state.loading &&
+                                items.isEmpty &&
+                                (state.page == null || state.refreshing))
+                              const BuddiesGridSkeleton(),
                             for (var i = 0; i < items.length; i += 2)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 16),
@@ -354,6 +358,11 @@ class _SearchViewState extends State<_SearchView> {
                                   ],
                                 ),
                               ),
+                            if (state.loading &&
+                                state.page != null &&
+                                !state.refreshing &&
+                                items.isNotEmpty)
+                              const BuddiesGridSkeleton(rows: 1),
                             if (state.recentError != null)
                               Text(
                                 'Results are available, but the recent destination could not be saved.',
@@ -413,60 +422,9 @@ class _SearchViewState extends State<_SearchView> {
   );
 }
 
-/// Placeholder geometry only: never sample travelers or synthetic result data.
+/// Kept for existing callers; delegates to the shared shimmer grid.
 class BuddiesSearchSkeleton extends StatelessWidget {
   const BuddiesSearchSkeleton({super.key});
   @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Loading travelers',
-    liveRegion: true,
-    child: ExcludeSemantics(
-      child: Column(
-        children: [
-          for (var row = 0; row < 2; row++)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Row(
-                children: [
-                  for (var column = 0; column < 2; column++) ...[
-                    if (column > 0) const SizedBox(width: 16),
-                    Expanded(
-                      child: Container(
-                        height: 230,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF171717),
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Container(
-                              height: 134,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF292929),
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(16),
-                                ),
-                              ),
-                            ),
-                            for (var line = 0; line < 2; line++)
-                              Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Container(
-                                  height: 8,
-                                  color: const Color(0xFF292929),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-        ],
-      ),
-    ),
-  );
+  Widget build(BuildContext context) => const BuddiesGridSkeleton();
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
-import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 enum PostOptionAction {
   notInterested,
@@ -56,12 +55,8 @@ class PostOptionsSheet extends StatelessWidget {
     },
     bool commentsDisabled = false,
   }) {
-    return showModalBottomSheet<PostOptionAction>(
-      context: context,
-      backgroundColor: _sheetColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+    return showOptionsSheet<PostOptionAction>(
+      context,
       builder: (_) => PostOptionsSheet(
         actions: actions,
         commentsDisabled: commentsDisabled,
@@ -69,145 +64,87 @@ class PostOptionsSheet extends StatelessWidget {
     );
   }
 
-  // Figma own-post menu frame.
-  static const _sheetColor = Color(0xFF0A0A0A);
-
-  static Widget _svg(String path, {Color? tint}) => SvgPicture.asset(
-    path,
-    width: 24,
-    height: 24,
-    colorFilter: tint == null ? null : ColorFilter.mode(tint, BlendMode.srcIn),
-  );
-
   @override
   Widget build(BuildContext context) {
     void pick(PostOptionAction action) => Navigator.pop(context, action);
-    return SafeArea(
-      top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 16),
-          const SheetHandle(),
-          const SizedBox(height: 16),
-          if (actions.contains(PostOptionAction.toggleComments))
-            _OptionTile(
-              key: const ValueKey('post-option-toggle-comments'),
-              // No "comment off" icon in assets/images/icons/ yet.
-              icon: Icon(
-                commentsDisabled
-                    ? Icons.comment_outlined
-                    : Icons.comments_disabled_outlined,
-                color: DarkColors.greyColor,
-                size: 24,
-              ),
-              label: commentsDisabled
-                  ? 'Turn on commenting'
-                  : 'Turn off commenting',
-              onTap: () => pick(PostOptionAction.toggleComments),
+    return OptionsSheetBody(
+      children: [
+        if (actions.contains(PostOptionAction.toggleComments))
+          OptionSheetTile(
+            key: const ValueKey('post-option-toggle-comments'),
+            // No "comment off" icon in assets/images/icons/ yet.
+            icon: Icon(
+              commentsDisabled
+                  ? Icons.comment_outlined
+                  : Icons.comments_disabled_outlined,
+              color: DarkColors.greyColor,
+              size: 24,
             ),
-          if (actions.contains(PostOptionAction.copyLink))
-            _OptionTile(
-              key: const ValueKey('post-option-copy-link'),
-              icon: _svg('assets/images/icons/link-2.svg'),
-              label: 'Copy link',
-              onTap: () => pick(PostOptionAction.copyLink),
+            label: commentsDisabled
+                ? 'Turn on commenting'
+                : 'Turn off commenting',
+            onTap: () => pick(PostOptionAction.toggleComments),
+          ),
+        if (actions.contains(PostOptionAction.copyLink))
+          OptionSheetTile(
+            key: const ValueKey('post-option-copy-link'),
+            icon: optionSvg('assets/images/icons/link-2.svg'),
+            label: 'Copy link',
+            onTap: () => pick(PostOptionAction.copyLink),
+          ),
+        if (actions.contains(PostOptionAction.deletePost))
+          OptionSheetTile(
+            key: const ValueKey('post-option-delete'),
+            icon: optionSvg(
+              'assets/images/icons/trash.svg',
+              tint: DarkColors.dangerColor,
             ),
-          if (actions.contains(PostOptionAction.deletePost))
-            _OptionTile(
-              key: const ValueKey('post-option-delete'),
-              icon: _svg(
-                'assets/images/icons/trash.svg',
-                tint: DarkColors.dangerColor,
-              ),
-              label: 'Delete post',
-              color: DarkColors.dangerColor,
-              onTap: () => pick(PostOptionAction.deletePost),
+            label: 'Delete post',
+            color: DarkColors.dangerColor,
+            onTap: () => pick(PostOptionAction.deletePost),
+          ),
+        if (actions.contains(PostOptionAction.notInterested))
+          OptionSheetTile(
+            key: const ValueKey('post-option-not-interested'),
+            icon: optionSvg(
+              'assets/images/icons/slash.svg',
+              tint: DarkColors.greyColor,
             ),
-          if (actions.contains(PostOptionAction.notInterested))
-            _OptionTile(
-              key: const ValueKey('post-option-not-interested'),
-              icon: _svg(
-                'assets/images/icons/slash.svg',
-                tint: DarkColors.greyColor,
-              ),
-              label: 'Not interested',
-              onTap: () => pick(PostOptionAction.notInterested),
+            label: 'Not interested',
+            onTap: () => pick(PostOptionAction.notInterested),
+          ),
+        if (actions.contains(PostOptionAction.hidePost))
+          OptionSheetTile(
+            key: const ValueKey('post-option-hide'),
+            icon: optionSvg(
+              'assets/images/onboarding/eye-slash.svg',
+              tint: DarkColors.greyColor,
             ),
-          if (actions.contains(PostOptionAction.hidePost))
-            _OptionTile(
-              key: const ValueKey('post-option-hide'),
-              icon: _svg(
-                'assets/images/onboarding/eye-slash.svg',
-                tint: DarkColors.greyColor,
-              ),
-              label: 'Hide post',
-              onTap: () => pick(PostOptionAction.hidePost),
+            label: 'Hide post',
+            onTap: () => pick(PostOptionAction.hidePost),
+          ),
+        if (actions.contains(PostOptionAction.report))
+          OptionSheetTile(
+            key: const ValueKey('post-option-report'),
+            icon: optionSvg(
+              'assets/images/icons/flag.svg',
+              tint: DarkColors.greyColor,
             ),
-          if (actions.contains(PostOptionAction.report))
-            _OptionTile(
-              key: const ValueKey('post-option-report'),
-              icon: _svg(
-                'assets/images/icons/flag.svg',
-                tint: DarkColors.greyColor,
-              ),
-              label: 'Report',
-              onTap: () => pick(PostOptionAction.report),
+            label: 'Report',
+            onTap: () => pick(PostOptionAction.report),
+          ),
+        if (actions.contains(PostOptionAction.blockUser))
+          OptionSheetTile(
+            key: const ValueKey('post-option-block'),
+            icon: optionSvg(
+              'assets/images/icons/user-remove.svg',
+              tint: DarkColors.dangerColor,
             ),
-          if (actions.contains(PostOptionAction.blockUser))
-            _OptionTile(
-              key: const ValueKey('post-option-block'),
-              icon: _svg(
-                'assets/images/icons/user-remove.svg',
-                tint: DarkColors.dangerColor,
-              ),
-              label: 'Block user',
-              color: DarkColors.dangerColor,
-              onTap: () => pick(PostOptionAction.blockUser),
-            ),
-          const SizedBox(height: 12),
-        ],
-      ),
+            label: 'Block user',
+            color: DarkColors.dangerColor,
+            onTap: () => pick(PostOptionAction.blockUser),
+          ),
+      ],
     );
   }
-}
-
-class _OptionTile extends StatelessWidget {
-  final Widget icon;
-  final String label;
-  final VoidCallback onTap;
-  final Color? color;
-
-  const _OptionTile({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-    onTap: onTap,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-      child: Row(
-        children: [
-          SizedBox.square(dimension: 24, child: Center(child: icon)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'Plus Jakarta Sans',
-                color: color ?? DarkColors.whiteColor,
-                fontSize: 16,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }

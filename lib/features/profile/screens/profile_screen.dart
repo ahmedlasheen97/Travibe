@@ -289,6 +289,18 @@ class _ProfileViewState extends State<_ProfileView> {
     onRetry: () => context.read<ProfileCubit>().refresh(),
   );
 
+  Widget _profileOptions() => BlocBuilder<ProfileCubit, ProfileState>(
+    builder: (context, state) =>
+        state is ProfileLoaded && state.profile.isMe != true
+        ? OtherProfileActions(
+            key: ValueKey(('profile-options', state.profile.id)),
+            profile: state.profile,
+            repository: widget.chatRepository,
+            optionsOnly: true,
+          )
+        : const SizedBox.shrink(),
+  );
+
   @override
   Widget build(BuildContext context) => Scaffold(
     backgroundColor: DarkColors.backgroundColor,
@@ -304,17 +316,23 @@ class _ProfileViewState extends State<_ProfileView> {
               style: TextStyle(color: Colors.white, fontSize: 18),
             ),
             actions: [
-              BlocBuilder<ProfileCubit, ProfileState>(
-                builder: (context, state) =>
-                    state is ProfileLoaded && state.profile.isMe != true
-                    ? OtherProfileActions(
-                        key: ValueKey(('profile-options', state.profile.id)),
-                        profile: state.profile,
-                        repository: widget.chatRepository,
-                        optionsOnly: true,
-                      )
-                    : const SizedBox.shrink(),
-              ),
+              if (_block case final block?)
+                BlocBuilder<BlockCubit, BlockState>(
+                  bloc: block,
+                  builder: (context, blocks) {
+                    final id = context.read<ProfileCubit>().userId.toString();
+                    // A blocked profile body is unavailable; keep ⋮ so the
+                    // viewer can unblock from here.
+                    return blocks.blocked[id] == true
+                        ? BlockedProfileOptionsButton(
+                            key: ValueKey(('profile-unblock', id)),
+                            userId: id,
+                          )
+                        : _profileOptions();
+                  },
+                )
+              else
+                _profileOptions(),
             ],
           ),
     body: SafeArea(
