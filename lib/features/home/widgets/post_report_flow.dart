@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/widgets/report_reason_sheet.dart';
@@ -22,34 +23,39 @@ Future<bool> _sendReport(
   PostsRepo repo,
   ReportSubmission submission,
 ) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  void snack(String text, {SnackBarAction? action}) => messenger
-    ?..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text), action: action));
+  final toast = TravibeToast.of(context);
   try {
     await repo.reportPost(
       postId,
       submission.reason,
       description: submission.description,
     );
-    snack("Thanks, we'll review this post");
+    toast.present(
+      const TravibeToastData.info("Thanks, we'll review this post"),
+    );
     return true;
   } on ApiError catch (error) {
     if (isAlreadyReported(error)) {
-      snack("You've already reported this post. We're reviewing it.");
+      toast.present(
+        const TravibeToastData.info(
+          "You've already reported this post. We're reviewing it.",
+        ),
+      );
     } else {
-      snack(
-        error.message,
-        action: SnackBarAction(
-          label: 'Retry',
-          onPressed: () {
+      toast.present(
+        TravibeToastData.error(
+          error.message,
+          actionLabel: 'Retry',
+          onAction: () {
             if (context.mounted) _sendReport(context, postId, repo, submission);
           },
         ),
       );
     }
   } on ArgumentError {
-    snack('This post can no longer be reported.');
+    toast.present(
+      const TravibeToastData.error('This post can no longer be reported.'),
+    );
   }
   return false;
 }
@@ -61,25 +67,22 @@ Future<bool> notInterestedFlow(
   required String postId,
   required HiddenPostsCubit hidden,
 }) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
+  final toast = TravibeToast.of(context);
   final error = await hidden.setHidden(postId, true);
   if (error != null) {
-    messenger?.showSnackBar(SnackBar(content: Text(error.message)));
+    toast.present(TravibeToastData.error(error.message));
     return false;
   }
   if (!hidden.state.hidden.contains(postId)) return false;
-  messenger?.showSnackBar(
-    SnackBar(
-      content: const Text("Got it. We'll show you fewer posts like this."),
-      action: SnackBarAction(
-        label: 'Undo',
-        onPressed: () async {
-          final error = await hidden.setHidden(postId, false);
-          if (error != null) {
-            messenger.showSnackBar(SnackBar(content: Text(error.message)));
-          }
-        },
-      ),
+  toast.present(
+    TravibeToastData.info(
+      "Got it. We'll show you fewer posts like this.",
+      actionLabel: 'Undo',
+      onAction: () async {
+        // Unhide restores the post at its original position.
+        final error = await hidden.setHidden(postId, false);
+        if (error != null) toast.present(TravibeToastData.error(error.message));
+      },
     ),
   );
   return true;

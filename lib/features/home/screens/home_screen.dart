@@ -8,6 +8,8 @@ import 'package:travibe/core/notifications/push_notifications_host.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/stories/screens/story_viewer_screen.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
@@ -152,12 +154,73 @@ class _HomeViewState extends State<_HomeView> {
 
   final _feedOffsets = [0.0, 0.0];
 
+  // "No internet connection": a sticky toast plus quiet retries while the
+  // active feed's latest load failed for lack of a connection.
+  static const _offlineToast = 'offline';
+  static const offlineRetryInterval = Duration(seconds: 5);
+  final List<StreamSubscription<PostsState>> _feedSubscriptions = [];
+  TravibeToastController? _toasts;
+  Timer? _offlineRetry;
+  AppLifecycleListener? _lifecycle;
+  bool _offline = false;
+
+  static bool _isOfflineState(PostsState state) => switch (state) {
+    PostsFailure(:final error) => error.isConnectionError,
+    PostsLoaded(:final refreshError) => refreshError?.isConnectionError == true,
+    _ => false,
+  };
+
+  void _syncOffline() {
+    if (!mounted) return;
+    final toasts = _toasts;
+    if (toasts == null) return;
+    final state = _activeFeed.state;
+    final offline = _isOfflineState(state)
+        // Keep the toast through a retry until it resolves.
+        ? true
+        : (_offline &&
+              (state is PostsLoading ||
+                  state is PostsInitial ||
+                  (state is PostsLoaded && state.isRefreshing)));
+    if (offline == _offline) return;
+    setState(() => _offline = offline);
+    if (offline) {
+      toasts.setSticky(
+        _offlineToast,
+        TravibeToastData.error(
+          'No internet connection',
+          actionLabel: 'Refresh',
+          onAction: () => unawaited(_refreshFromUser()),
+        ),
+      );
+      _offlineRetry?.cancel();
+      _offlineRetry = Timer.periodic(
+        offlineRetryInterval,
+        (_) => _retryQuietly(),
+      );
+    } else {
+      _clearOffline();
+    }
+  }
+
+  void _clearOffline() {
+    _offlineRetry?.cancel();
+    _offlineRetry = null;
+    _toasts?.setSticky(_offlineToast, null);
+  }
+
+  void _retryQuietly() {
+    if (!mounted || !_offline) return;
+    unawaited(_activeFeed.refresh());
+  }
+
   void _switchFeed(int index) {
     if (index == _selectedTab) return;
     if (_scrollController.hasClients) {
       _feedOffsets[_selectedTab] = _scrollController.offset;
     }
     setState(() => _selectedTab = index);
+    _syncOffline();
     if (index == 1 && _followingDirty) {
       _refreshFollowing();
     } else if (_activeFeed.state is PostsInitial) {
@@ -302,6 +365,11 @@ class _HomeViewState extends State<_HomeView> {
     });
     widget.publicationSignal?.addListener(_onPostPublished);
     widget.refreshSignal?.addListener(_onHomeRetap);
+    _toasts = TravibeToastScope.maybeOf(context);
+    for (final feed in _feeds) {
+      _feedSubscriptions.add(feed.stream.listen((_) => _syncOffline()));
+    }
+    _lifecycle = AppLifecycleListener(onResume: _retryQuietly);
     _activeFeed.loadPosts();
     _scrollController.addListener(_onScroll);
   }
@@ -356,6 +424,20 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
+  /// Runs before the editor pops, so the toast is timed to the refresh end.
+  Future<void> _onStoryPublished() async {
+    try {
+      await _stories.refresh();
+    } finally {
+      if (mounted) {
+        TravibeToast.show(
+          context,
+          const TravibeToastData.success('Story published successfully'),
+        );
+      }
+    }
+  }
+
   void _onPostPublished() {
     for (final feed in _feeds) {
       unawaited(feed.refreshAfterPublication());
@@ -401,6 +483,11 @@ class _HomeViewState extends State<_HomeView> {
     _explicitRefreshes.clear();
     _followSubscription?.cancel();
     _blockSubscription?.cancel();
+    for (final subscription in _feedSubscriptions) {
+      subscription.cancel();
+    }
+    _lifecycle?.dispose();
+    _clearOffline();
     _hiddenPosts.unregisterFeeds(_feeds);
     if (_ownsHidden) _hiddenPosts.close();
     _account.close();
@@ -453,29 +540,25 @@ class _HomeViewState extends State<_HomeView> {
   }
 
   Future<void> _setPostHidden(String postId, bool hidden) async {
+    final toast = TravibeToast.of(context);
     final error = await _hiddenPosts.setHidden(postId, hidden);
     if (!mounted) return;
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message),
-          action: SnackBarAction(
-            label: 'Retry',
-            onPressed: () => _setPostHidden(postId, hidden),
-          ),
+      toast.present(
+        TravibeToastData.error(
+          error.message,
+          actionLabel: 'Retry',
+          onAction: () => _setPostHidden(postId, hidden),
         ),
       );
     } else if (_hiddenPosts.state.hidden.contains(postId) == hidden &&
         !_hiddenPosts.state.pending.contains(postId)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(hidden ? 'Post hidden' : 'Post unhidden'),
-          action: hidden
-              ? SnackBarAction(
-                  label: 'Undo',
-                  onPressed: () => _setPostHidden(postId, false),
-                )
-              : null,
+      if (!hidden) return;
+      toast.present(
+        TravibeToastData.info(
+          'Post hidden',
+          actionLabel: 'Undo',
+          onAction: () => _setPostHidden(postId, false),
         ),
       );
     }
@@ -538,7 +621,7 @@ class _HomeViewState extends State<_HomeView> {
                                 return StoryEntry(
                                   avatarUrl: owner?.avatarUrl,
                                   storiesRepo: _stories.repo,
-                                  onPublished: _stories.refresh,
+                                  onPublished: _onStoryPublished,
                                   builder: (context, onAddStory) =>
                                       BlocBuilder<StoriesCubit, StoriesState>(
                                         bloc: _stories,
@@ -599,6 +682,16 @@ class _HomeViewState extends State<_HomeView> {
                         key: const ValueKey('home-feed-content'),
                         bloc: _activeFeed,
                         builder: (context, state) {
+                          // Figma: an empty feed under the offline toast,
+                          // kept while quiet retries are in flight.
+                          if (_offline &&
+                              (state is! PostsLoaded || state.posts.isEmpty)) {
+                            return const SliverFillRemaining(
+                              key: ValueKey('home-offline-feed'),
+                              hasScrollBody: false,
+                              child: SizedBox.shrink(),
+                            );
+                          }
                           if (state is PostsFailure) {
                             return SliverFillRemaining(
                               hasScrollBody: false,
@@ -699,6 +792,7 @@ class _HomeViewState extends State<_HomeView> {
               key: ValueKey('home-top-loading'),
               size: 30,
               semanticsLabel: 'Loading posts',
+              color: DarkColors.whiteColor,
             ),
           ),
         ),
@@ -835,7 +929,8 @@ class _HomeViewState extends State<_HomeView> {
       if (showFollowingIntro)
         FollowingEmptyState(onExplorePeople: _explorePeople),
     ];
-    if (state.refreshError != null) {
+    if (state.refreshError != null &&
+        !(_offline && state.refreshError!.isConnectionError)) {
       items.add(
         ErrorRetryView(
           message: state.refreshError!.message,
@@ -861,6 +956,7 @@ class _HomeViewState extends State<_HomeView> {
             child: TravibeLoadingIndicator(
               size: 32,
               semanticsLabel: 'Loading more posts',
+              color: DarkColors.whiteColor,
             ),
           ),
         ),
@@ -894,9 +990,7 @@ class _HomeViewState extends State<_HomeView> {
     },
     onSyncError: (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      TravibeToast.show(context, TravibeToastData.error(error.message));
     },
   );
 
@@ -955,8 +1049,9 @@ class _HomeViewState extends State<_HomeView> {
                             onSaveTap: () async {
                               final error = await _saves.toggle(post);
                               if (error != null && context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text(error.message)),
+                                TravibeToast.show(
+                                  context,
+                                  TravibeToastData.error(error.message),
                                 );
                               }
                             },
@@ -986,10 +1081,9 @@ class _HomeViewState extends State<_HomeView> {
                                       post,
                                     );
                                     if (error != null && context.mounted) {
-                                      ScaffoldMessenger.of(
+                                      TravibeToast.show(
                                         context,
-                                      ).showSnackBar(
-                                        SnackBar(content: Text(error.message)),
+                                        TravibeToastData.error(error.message),
                                       );
                                     }
                                   },

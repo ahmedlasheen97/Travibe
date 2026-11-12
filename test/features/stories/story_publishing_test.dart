@@ -785,55 +785,64 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
-  testWidgets(
-    'one Post tap publishes, refreshes Home, closes editor and shows success',
-    (tester) async {
-      final api = media.MediaApi()..statuses = ['ready'];
-      final storage = media.StorageAdapter();
-      final uploads = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        wait: (_) async {},
-      );
-      addTearDown(uploads.close);
-      final adapter = StoryAdapter();
-      var refreshed = 0;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => StoryEditorScreen(
-                      draft: draft(),
-                      storiesRepo: repository(adapter),
-                      uploads: uploads,
-                      onPublished: () async {
-                        refreshed++;
-                      },
+  for (final hosted in [true, false]) {
+    testWidgets(
+      'one Post tap publishes, refreshes Home, closes editor and shows success'
+      '${hosted ? ' (host toast)' : ' (editor SnackBar)'}',
+      (tester) async {
+        final api = media.MediaApi()..statuses = ['ready'];
+        final storage = media.StorageAdapter();
+        final uploads = MediaUploadService(
+          api: api,
+          storageAdapter: storage,
+          wait: (_) async {},
+        );
+        addTearDown(uploads.close);
+        final adapter = StoryAdapter();
+        var refreshed = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => Scaffold(
+                body: TextButton(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => StoryEditorScreen(
+                        draft: draft(),
+                        storiesRepo: repository(adapter),
+                        uploads: uploads,
+                        onPublished: hosted
+                            ? () async {
+                                refreshed++;
+                              }
+                            : null,
+                      ),
                     ),
                   ),
+                  child: const Text('Open editor'),
                 ),
-                child: const Text('Open editor'),
               ),
             ),
           ),
-        ),
-      );
-      await tester.tap(find.text('Open editor'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('story-post')));
-      await tester.runAsync(() async {
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-      });
-      await tester.pumpAndSettle();
-      expect(adapter.requests, hasLength(1));
-      expect(refreshed, 1);
-      expect(find.byType(StoryEditorScreen), findsNothing);
-      expect(find.text('Story published'), findsOneWidget);
-    },
-  );
+        );
+        await tester.tap(find.text('Open editor'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('story-post')));
+        await tester.runAsync(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        });
+        await tester.pumpAndSettle();
+        expect(adapter.requests, hasLength(1));
+        expect(refreshed, hosted ? 1 : 0);
+        expect(find.byType(StoryEditorScreen), findsNothing);
+        // A host (Home) passing onPublished owns the success toast.
+        expect(
+          find.text('Story published'),
+          hosted ? findsNothing : findsOneWidget,
+        );
+      },
+    );
+  }
   testWidgets(
     'Followers enables Post and shows the supported audience descriptions',
     (tester) async {

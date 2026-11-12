@@ -7,10 +7,14 @@ class TravibeLoadingIndicator extends StatelessWidget {
     super.key,
     this.size = 64,
     this.semanticsLabel = 'Loading',
+    this.color,
   }) : assert(size > 0 && size < double.infinity);
 
   final double size;
   final String semanticsLabel;
+
+  /// Defaults to the theme's primary color.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -21,7 +25,7 @@ class TravibeLoadingIndicator extends StatelessWidget {
       dimension: size,
       child: Center(
         child: CupertinoActivityIndicator(
-          color: Theme.of(context).primaryColor,
+          color: color ?? Theme.of(context).primaryColor,
           radius: 15,
           animating: !MediaQuery.disableAnimationsOf(context),
         ),

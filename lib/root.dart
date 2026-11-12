@@ -28,10 +28,13 @@ import 'package:travibe/features/create_post/screens/create_post_screen.dart';
 import 'package:travibe/features/create_post/data/create_post_repo.dart';
 import 'package:travibe/features/create_post/data/post_image_picker.dart';
 import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
-import 'package:travibe/features/create_post/widgets/post_upload_toast.dart';
-import 'package:travibe/features/create_post/widgets/create_post_styles.dart';
+import 'package:travibe/features/create_post/widgets/discard_post_dialog.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
+import 'package:travibe/features/stories/data/stories_repo.dart';
 
 class Root extends StatefulWidget {
   const Root({
@@ -44,6 +47,7 @@ class Root extends StatefulWidget {
     this.profileRepo,
     this.mediaUploads,
     this.postImagePicker,
+    this.storiesRepo,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
@@ -53,6 +57,7 @@ class Root extends StatefulWidget {
   final ProfileRepo? profileRepo;
   final MediaUploadFactory? mediaUploads;
   final PostImagePicker? postImagePicker;
+  final StoriesRepo? storiesRepo;
 
   @override
   State<Root> createState() => _RootState();
@@ -154,6 +159,7 @@ class _RootState extends State<Root> {
     _buddiesRefreshes.dispose();
     _profileRefreshes.dispose();
     _navVisibility.dispose();
+    _toasts.dispose();
     _savedPosts.close();
     _saves.close();
     _likes.close();
@@ -166,6 +172,7 @@ class _RootState extends State<Root> {
 
   int _currentIndex = 0;
   final _navVisibility = BottomNavVisibility();
+  final _toasts = TravibeToastController();
 
   late final List<Widget> screens = [
     HomeScreen(
@@ -173,6 +180,7 @@ class _RootState extends State<Root> {
       publicationSignal: _publications,
       refreshSignal: _homeRefreshes,
       accountRepo: widget.homeAccountRepo,
+      storiesRepo: widget.storiesRepo,
     ),
     ExploreScreen(),
     SizedBox(),
@@ -222,135 +230,128 @@ class _RootState extends State<Root> {
         child: BottomNavScope(
           visibility: _navVisibility,
           barHeight: navHeight,
-          child: Scaffold(
-            extendBody: true,
-            body: Stack(
-              children: [
-                NotificationListener<ScrollNotification>(
-                  onNotification: _navVisibility.handleScroll,
-                  // Fixed clearance: extendBody's animated inset would relayout
-                  // the tabs on every frame of the slide.
-                  child: Builder(
-                    builder: (context) => MediaQuery(
-                      data: MediaQuery.of(context).copyWith(
-                        padding: MediaQuery.paddingOf(
-                          context,
-                        ).copyWith(bottom: navHeight),
-                        viewPadding: MediaQuery.viewPaddingOf(
-                          context,
-                        ).copyWith(bottom: safeBottom),
-                      ),
-                      child: IndexedStack(
-                        index: _currentIndex,
-                        children: [
-                          for (var i = 0; i < screens.length; i++)
-                            _visitedTabs.contains(i)
-                                ? TickerMode(
-                                    enabled: i == _currentIndex,
-                                    child: screens[i],
-                                  )
-                                : const SizedBox.shrink(),
-                        ],
+          child: TravibeToastScope(
+            controller: _toasts,
+            child: Scaffold(
+              extendBody: true,
+              body: Stack(
+                children: [
+                  NotificationListener<ScrollNotification>(
+                    onNotification: _navVisibility.handleScroll,
+                    // Fixed clearance: extendBody's animated inset would relayout
+                    // the tabs on every frame of the slide.
+                    child: Builder(
+                      builder: (context) => MediaQuery(
+                        data: MediaQuery.of(context).copyWith(
+                          padding: MediaQuery.paddingOf(
+                            context,
+                          ).copyWith(bottom: navHeight),
+                          viewPadding: MediaQuery.viewPaddingOf(
+                            context,
+                          ).copyWith(bottom: safeBottom),
+                        ),
+                        child: IndexedStack(
+                          index: _currentIndex,
+                          children: [
+                            for (var i = 0; i < screens.length; i++)
+                              _visitedTabs.contains(i)
+                                  ? TickerMode(
+                                      enabled: i == _currentIndex,
+                                      child: screens[i],
+                                    )
+                                  : const SizedBox.shrink(),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-                ListenableBuilder(
-                  listenable: _navVisibility,
-                  builder: (context, child) => AnimatedPositioned(
-                    duration: MediaQuery.disableAnimationsOf(context)
-                        ? Duration.zero
-                        : BottomNavVisibility.duration,
-                    curve: BottomNavVisibility.curve,
-                    left: 0,
-                    right: 0,
-                    bottom:
-                        (_navVisibility.visible ? navHeight : safeBottom) +
-                        AppSizes.h16,
-                    child: child!,
+                  TravibeToastHost(
+                    controller: _toasts,
+                    visibility: _navVisibility,
+                    navHeight: navHeight,
+                    safeBottom: safeBottom,
                   ),
-                  child: const PostUploadToast(),
-                ),
-              ],
-            ),
-            bottomNavigationBar: HideableBottomBar(
-              visibility: _navVisibility,
-              child: LiquidGlassBottomNav(
-                navigation: BottomNavigationBar(
-                  currentIndex: _currentIndex,
-                  onTap: (value) {
-                    _navVisibility.show();
-                    if (value == 0) {
-                      _push?.refreshCount();
-                      unawaited(_chatUnread?.refresh() ?? Future.value());
-                    }
-                    if (value == 2) {
-                      _showCreateOptions();
-                      return;
-                    }
-                    if (value == 0 && _currentIndex == 0) {
-                      _homeRefreshes.value++;
-                      return;
-                    }
-                    if (value == 3 && _currentIndex == 3) {
-                      _buddiesRefreshes.value++;
-                      return;
-                    }
-                    if (value == 4 && _currentIndex == 4) {
-                      _profileRefreshes.value++;
-                      return;
-                    }
-                    setState(() {
-                      _currentIndex = value;
-                      _visitedTabs.add(value);
-                    });
-                  },
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  items: [
-                    for (int i = 0; i < 5; i++)
-                      if (i == 2)
-                        BottomNavigationBarItem(
-                          icon: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(24),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(
-                                    0xFFE45C10,
-                                  ).withValues(alpha: 0.6),
-                                  blurRadius: 10,
-                                  spreadRadius: 0,
-                                  offset: Offset.zero,
-                                ),
-                              ],
+                ],
+              ),
+              bottomNavigationBar: HideableBottomBar(
+                visibility: _navVisibility,
+                child: LiquidGlassBottomNav(
+                  navigation: BottomNavigationBar(
+                    currentIndex: _currentIndex,
+                    onTap: (value) {
+                      _navVisibility.show();
+                      if (value == 0) {
+                        _push?.refreshCount();
+                        unawaited(_chatUnread?.refresh() ?? Future.value());
+                      }
+                      if (value == 2) {
+                        _showCreateOptions();
+                        return;
+                      }
+                      if (value == 0 && _currentIndex == 0) {
+                        _homeRefreshes.value++;
+                        return;
+                      }
+                      if (value == 3 && _currentIndex == 3) {
+                        _buddiesRefreshes.value++;
+                        return;
+                      }
+                      if (value == 4 && _currentIndex == 4) {
+                        _profileRefreshes.value++;
+                        return;
+                      }
+                      setState(() {
+                        _currentIndex = value;
+                        _visitedTabs.add(value);
+                      });
+                    },
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    items: [
+                      for (int i = 0; i < 5; i++)
+                        if (i == 2)
+                          BottomNavigationBarItem(
+                            icon: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFFE45C10,
+                                    ).withValues(alpha: 0.6),
+                                    blurRadius: 10,
+                                    spreadRadius: 0,
+                                    offset: Offset.zero,
+                                  ),
+                                ],
+                              ),
+                              child: SvgPicture.asset(
+                                'assets/images/home/Component 53 (1).svg',
+                                width: AppSizes.w42,
+                                height: AppSizes.h42,
+                              ),
                             ),
-                            child: SvgPicture.asset(
-                              'assets/images/home/Component 53 (1).svg',
-                              width: AppSizes.w42,
-                              height: AppSizes.h42,
+                            label: ' ',
+                          )
+                        else
+                          BottomNavigationBarItem(
+                            icon: SvgPicture.asset(
+                              i == _currentIndex
+                                  ? _filledIcons[i]
+                                  : _outlineIcons[i],
+                              width: 22,
+                              height: 22,
                             ),
+                            label: [
+                              'Home',
+                              'Explore',
+                              '',
+                              'Buddies',
+                              'Profile',
+                            ][i],
                           ),
-                          label: ' ',
-                        )
-                      else
-                        BottomNavigationBarItem(
-                          icon: SvgPicture.asset(
-                            i == _currentIndex
-                                ? _filledIcons[i]
-                                : _outlineIcons[i],
-                            width: 22,
-                            height: 22,
-                          ),
-                          label: [
-                            'Home',
-                            'Explore',
-                            '',
-                            'Buddies',
-                            'Profile',
-                          ][i],
-                        ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -373,34 +374,46 @@ class _RootState extends State<Root> {
     _navVisibility.show();
   }
 
+  static const _uploadToast = 'upload';
+
   void _onPostUpload(BuildContext context, PostUploadState state) {
-    if (state is! PostUploadDone) return;
-    // Home stays mounted, so its existing Cubits and scroll/tab state survive.
-    _publications.value++;
-    _activity.published(state.post);
-    // Figma: floating green toast, 20px side margins, radius 4.
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: createPostSuccess,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-        elevation: 0,
-        content: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Post published successfully',
-                style: createPostTextStyle,
-              ),
+    switch (state) {
+      case PostUploading():
+        _toasts.setSticky(
+          _uploadToast,
+          const TravibeToastData.info(
+            'Uploading your post',
+            leading: CupertinoActivityIndicator(
+              radius: 10,
+              color: DarkColors.whiteColor,
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
+      case PostUploadFailed():
+        _toasts.setSticky(
+          _uploadToast,
+          TravibeToastData.error(
+            'Couldn’t publish your post',
+            actionLabel: 'Retry',
+            onAction: _postUploads.retry,
+            onClose: () async {
+              if (await showDiscardPostDialog(this.context)) {
+                _postUploads.discard();
+              }
+            },
+          ),
+        );
+      case PostUploadDone(:final post):
+        _toasts.setSticky(_uploadToast, null);
+        // Home stays mounted, so its existing Cubits and scroll/tab state survive.
+        _publications.value++;
+        _activity.published(post);
+        _toasts.show(
+          const TravibeToastData.success('Post published successfully'),
+        );
+      case PostUploadIdle():
+        _toasts.setSticky(_uploadToast, null);
+    }
   }
 
   Future<void> _showCreateOptions() async {
