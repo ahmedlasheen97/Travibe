@@ -15,7 +15,7 @@ import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
-import 'package:flutter/rendering.dart';
+import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/liquid_glass_bottom_nav.dart';
@@ -153,6 +153,7 @@ class _RootState extends State<Root> {
     _homeRefreshes.dispose();
     _buddiesRefreshes.dispose();
     _profileRefreshes.dispose();
+    _navVisibility.dispose();
     _savedPosts.close();
     _saves.close();
     _likes.close();
@@ -164,7 +165,7 @@ class _RootState extends State<Root> {
   }
 
   int _currentIndex = 0;
-  bool _isNavVisible = true;
+  final _navVisibility = BottomNavVisibility();
 
   late final List<Widget> screens = [
     HomeScreen(
@@ -203,6 +204,8 @@ class _RootState extends State<Root> {
 
   @override
   Widget build(BuildContext context) {
+    final navHeight = LiquidGlassBottomNav.heightOf(context);
+    final safeBottom = MediaQuery.viewPaddingOf(context).bottom;
     return MultiBlocProvider(
       providers: [
         BlocProvider.value(value: _saves),
@@ -216,54 +219,67 @@ class _RootState extends State<Root> {
       ],
       child: BlocListener<PostUploadCubit, PostUploadState>(
         listener: _onPostUpload,
-        child: Scaffold(
-          body: Stack(
-            children: [
-              NotificationListener<UserScrollNotification>(
-                onNotification: (notification) {
-                  if (notification.metrics.axis != Axis.vertical) return false;
-                  if (notification.direction == ScrollDirection.reverse) {
-                    // scrolling down → hide
-                    if (_isNavVisible) setState(() => _isNavVisible = false);
-                  } else if (notification.direction ==
-                      ScrollDirection.forward) {
-                    // scrolling up → show
-                    if (!_isNavVisible) setState(() => _isNavVisible = true);
-                  }
-                  return false; // let the notification keep bubbling
-                },
-                child: IndexedStack(
-                  index: _currentIndex,
-                  children: [
-                    for (var i = 0; i < screens.length; i++)
-                      _visitedTabs.contains(i)
-                          ? TickerMode(
-                              enabled: i == _currentIndex,
-                              child: screens[i],
-                            )
-                          : const SizedBox.shrink(),
-                  ],
+        child: BottomNavScope(
+          visibility: _navVisibility,
+          barHeight: navHeight,
+          child: Scaffold(
+            extendBody: true,
+            body: Stack(
+              children: [
+                NotificationListener<ScrollNotification>(
+                  onNotification: _navVisibility.handleScroll,
+                  // Fixed clearance: extendBody's animated inset would relayout
+                  // the tabs on every frame of the slide.
+                  child: Builder(
+                    builder: (context) => MediaQuery(
+                      data: MediaQuery.of(context).copyWith(
+                        padding: MediaQuery.paddingOf(
+                          context,
+                        ).copyWith(bottom: navHeight),
+                        viewPadding: MediaQuery.viewPaddingOf(
+                          context,
+                        ).copyWith(bottom: safeBottom),
+                      ),
+                      child: IndexedStack(
+                        index: _currentIndex,
+                        children: [
+                          for (var i = 0; i < screens.length; i++)
+                            _visitedTabs.contains(i)
+                                ? TickerMode(
+                                    enabled: i == _currentIndex,
+                                    child: screens[i],
+                                  )
+                                : const SizedBox.shrink(),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 16,
-                child: PostUploadToast(),
-              ),
-            ],
-          ),
-          bottomNavigationBar: AnimatedSlide(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            offset: _isNavVisible ? Offset.zero : const Offset(0, 1.5),
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 200),
-              opacity: _isNavVisible ? 1 : 0,
+                ListenableBuilder(
+                  listenable: _navVisibility,
+                  builder: (context, child) => AnimatedPositioned(
+                    duration: MediaQuery.disableAnimationsOf(context)
+                        ? Duration.zero
+                        : BottomNavVisibility.duration,
+                    curve: BottomNavVisibility.curve,
+                    left: 0,
+                    right: 0,
+                    bottom:
+                        (_navVisibility.visible ? navHeight : safeBottom) +
+                        AppSizes.h16,
+                    child: child!,
+                  ),
+                  child: const PostUploadToast(),
+                ),
+              ],
+            ),
+            bottomNavigationBar: HideableBottomBar(
+              visibility: _navVisibility,
               child: LiquidGlassBottomNav(
                 navigation: BottomNavigationBar(
                   currentIndex: _currentIndex,
                   onTap: (value) {
+                    _navVisibility.show();
                     if (value == 0) {
                       _push?.refreshCount();
                       unawaited(_chatUnread?.refresh() ?? Future.value());
@@ -353,8 +369,8 @@ class _RootState extends State<Root> {
     setState(() {
       _currentIndex = 3;
       _visitedTabs.add(3);
-      _isNavVisible = true;
     });
+    _navVisibility.show();
   }
 
   void _onPostUpload(BuildContext context, PostUploadState state) {
@@ -397,10 +413,8 @@ class _RootState extends State<Root> {
         picker: widget.postImagePicker,
       );
       if (!mounted || draft == null) return;
-      setState(() {
-        _currentIndex = 0;
-        _isNavVisible = true;
-      });
+      setState(() => _currentIndex = 0);
+      _navVisibility.show();
       // The composer is already closed; the toast reports upload progress.
       _postUploads.enqueue(draft);
     } finally {

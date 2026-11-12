@@ -16,6 +16,7 @@ import 'package:flutter/foundation.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/features/profile/screens/edit_profile_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -317,6 +318,8 @@ class _ProfileViewState extends State<_ProfileView> {
             ],
           ),
     body: SafeArea(
+      // Inside Root the content runs under the hideable bottom bar.
+      bottom: BottomNavScope.bottomInsetOf(context) == 0,
       child: Stack(
         children: [
           Column(
@@ -512,6 +515,9 @@ class _ProfileViewState extends State<_ProfileView> {
           )
         else
           _notLoaded('Saved hotels are not loaded yet.'),
+        SliverToBoxAdapter(
+          child: SizedBox(height: BottomNavScope.bottomInsetOf(context)),
+        ),
       ],
     );
   }

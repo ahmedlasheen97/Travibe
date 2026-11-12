@@ -11,6 +11,14 @@ class LiquidGlassBottomNav extends StatelessWidget {
   final BottomNavigationBar navigation;
   static final _blur = ImageFilter.blur(sigmaX: 18, sigmaY: 18);
 
+  /// Full bar height including the system bottom inset (theme `AppSizes.h95`,
+  /// never less than 64px of controls above the inset).
+  static double heightOf(BuildContext context) {
+    final style = Theme.of(context).extension<BottomNavStyle>()!;
+    final inset = MediaQuery.viewPaddingOf(context).bottom;
+    return math.max(64.0, style.height - inset) + inset;
+  }
+
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).extension<BottomNavStyle>()!;

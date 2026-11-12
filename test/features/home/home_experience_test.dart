@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -369,15 +370,13 @@ void main() {
         of: find.byType(SuggestedUsersSection),
         matching: find.byType(ListView),
       );
-      final before = tester
-          .widget<AnimatedSlide>(find.byType(AnimatedSlide))
-          .offset;
+      final nav = tester
+          .widget<HideableBottomBar>(find.byType(HideableBottomBar))
+          .visibility;
+      final before = nav.visible;
       await tester.drag(scroll, const Offset(-100, 0));
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<AnimatedSlide>(find.byType(AnimatedSlide)).offset,
-        before,
-      );
+      expect(nav.visible, before);
       expect(find.byType(BottomNavigationBar), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

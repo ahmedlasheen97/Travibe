@@ -14,6 +14,7 @@ import '../cubit/buddies_cubit.dart';
 import '../data/buddies_home_response.dart';
 import '../data/buddies_repo.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/buddies/data/buddies_landing_data.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_section.dart';
@@ -147,16 +148,19 @@ class BuddiesLandingView extends StatelessWidget {
     final invitation = meta != null
         ? !meta!.showInTravelBuddy
         : variant == BuddiesLandingVariant.visibilityInvitation;
+    final navInset = BottomNavScope.bottomInsetOf(context);
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
+        // Inside Root the content runs under the hideable bottom bar.
+        bottom: navInset == 0,
         child: BuddiesLoadingOverlay(
           loading: isLoading || refreshing,
           child: RefreshIndicator.noSpinner(
             onRefresh: onRefresh ?? () async {},
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.only(top: 20, bottom: 36),
+              padding: EdgeInsets.only(top: 20, bottom: 36 + navInset),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
