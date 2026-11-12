@@ -7,6 +7,13 @@ String formatCount(int count) {
   return '$count';
 }
 
+/// "1 Like", "2 Likes", "1.2K Likes". [count] is an int or an already
+/// formatted count; only exactly one takes the singular.
+String countLabel(Object count, String singular, [String? plural]) {
+  final text = count is int ? formatCount(count) : '$count';
+  return '$text ${text == '1' ? singular : plural ?? '${singular}s'}';
+}
+
 String timeAgo(DateTime? date) {
   if (date == null) return '';
   final diff = DateTime.now().difference(date);

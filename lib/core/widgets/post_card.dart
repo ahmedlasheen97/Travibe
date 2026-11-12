@@ -647,7 +647,9 @@ extension on _PostCardState {
         vertical,
       ),
       child: Text(
-        widget.detailPresentation ? '${widget.likes} Likes' : widget.likes,
+        widget.detailPresentation
+            ? countLabel(widget.likes, 'Like')
+            : widget.likes,
         style: TextStyle(
           color: DarkColors.whiteColor,
           fontSize: responsive ? AppSizes.adaptiveFont(13) : 13,

@@ -53,7 +53,7 @@ class ProfileOptionsSheet extends StatelessWidget {
             context,
             ProfileOption.block,
             'Block User',
-            'user-remove 2.svg',
+            'user_remove_2.svg',
           ),
         ],
       ),
@@ -215,14 +215,9 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
             await context.read<CurrentUserCubit?>()?.load();
           }
         case ProfileOption.report:
-          final reason = await ReportReasonSheet.show(context);
-          if (!mounted || !_valid || reason == null || _blocked) break;
-          await context.read<ProfileCubit>().reportUser(switch (reason) {
-            ReportReason.spamOrScam => 'spam_or_scam',
-            ReportReason.harassment => 'harassment',
-            ReportReason.inappropriateContent => 'inappropriate_content',
-            ReportReason.somethingElse => 'something_else',
-          });
+          final report = await ReportReasonSheet.show(context);
+          if (!mounted || !_valid || report == null || _blocked) break;
+          await context.read<ProfileCubit>().reportUser(report.reason.apiValue);
           if (mounted && _valid) {
             ScaffoldMessenger.of(
               context,

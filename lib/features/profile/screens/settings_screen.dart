@@ -143,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   _divider(),
                   _settingsTile(
-                    icon: _svgIcon('user-remove 3.svg'),
+                    icon: _svgIcon('user_remove_3.svg'),
                     title: 'Blocked Accounts',
                     onTap: () {
                       Navigator.push(

@@ -7,6 +7,7 @@ import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/hidden_post_response.dart';
 import 'package:travibe/features/home/data/post_model.dart';
+import 'package:travibe/features/home/data/report_reason.dart';
 
 enum FeedType { explore, following }
 
@@ -151,6 +152,38 @@ class PostsRepo {
       throw ApiExceptions.handleError(e);
     } catch (_) {
       throw ApiError(message: 'Unable to update commenting. Please try again.');
+    }
+  }
+
+  /// `POST /reports` with `type: post`. A duplicate pending report is a 422
+  /// (see [isAlreadyReported]).
+  Future<void> reportPost(
+    String postId,
+    ReportReason reason, {
+    String? description,
+  }) async {
+    final id = int.tryParse(postId);
+    if (id == null || id < 1) throw ArgumentError.value(postId, 'postId');
+    final note = description?.trim() ?? '';
+    try {
+      final response = await _apiService.post('reports', {
+        'type': 'post',
+        'id': id,
+        'reason': reason.apiValue,
+        if (note.isNotEmpty)
+          'description': note.length > reportDescriptionMaxLength
+              ? note.substring(0, reportDescriptionMaxLength)
+              : note,
+      });
+      if (response is! Map || response['data'] is! Map) {
+        throw ApiError(message: 'Unable to confirm the report. Please retry.');
+      }
+    } on ApiError {
+      rethrow;
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    } catch (_) {
+      throw ApiError(message: 'Unable to send the report. Please try again.');
     }
   }
 

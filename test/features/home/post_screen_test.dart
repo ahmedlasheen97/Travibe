@@ -14,13 +14,13 @@ import '../comments/fixtures.dart';
 import '../likes/fixtures.dart';
 import '../likes/likers_fixtures.dart';
 
-PostModel post() => PostModel.fromJson({
+PostModel post({int likes = 123}) => PostModel.fromJson({
   'id': 10,
   'user_id': 2,
   'user': {'id': 2, 'name': 'Ahmed Adel'},
   'content': 'Bali was everything I needed.',
   'visibility': 'public',
-  'likes_count': 123,
+  'likes_count': likes,
   'is_liked': true,
   'comments_count': 2,
   'is_saved': false,
@@ -62,6 +62,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('like count is singular only for exactly one', (tester) async {
+    await show(tester, PostScreen(post: post(likes: 1), comments: comments));
+    expect(find.text('1 Like'), findsOneWidget);
+    expect(find.text('1 Likes'), findsNothing);
+  });
+
   testWidgets('shows the post, inline comments and a pinned composer', (
     tester,
   ) async {
@@ -73,7 +79,7 @@ void main() {
     expect(find.text('Comments'), findsOneWidget);
     expect(find.byType(CommentsThreadView), findsOneWidget);
     expect(find.text('Bali is really pure magic'), findsOneWidget);
-    expect(find.text('View 1 replies'), findsOneWidget);
+    expect(find.text('View 1 reply'), findsOneWidget);
     expect(find.text('Add a comment'), findsOneWidget);
     // The composer is outside the scroll view, so it stays at the bottom.
     expect(

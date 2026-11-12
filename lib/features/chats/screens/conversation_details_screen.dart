@@ -158,7 +158,7 @@ class _ConversationDetailsScreenState extends State<ConversationDetailsScreen> {
                             'User Profile',
                           ),
                           (ChatOption.report, 'flag.svg', 'Report'),
-                          (ChatOption.block, 'user-remove 2.svg', 'Block User'),
+                          (ChatOption.block, 'user_remove_2.svg', 'Block User'),
                         ])
                           SizedBox(
                             width: 80,
