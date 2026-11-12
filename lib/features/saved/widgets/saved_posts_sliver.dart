@@ -1,3 +1,5 @@
+import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
@@ -122,6 +124,12 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
             image: media.length == 1 ? media.first : null,
             images: media.length > 1 ? media : null,
             likes: formatCount(value?.count ?? post.likesCount),
+            onOpen: () => PostScreen.open(context, post: post),
+            onLikesCountTap: () => LikedBySheet.show(
+              context,
+              postId: target.postId,
+              count: value?.count ?? post.likesCount,
+            ),
             isLiked: value?.isLiked ?? post.isLiked,
             isLikePending: value?.pending == true,
             onLikeTap: () async {

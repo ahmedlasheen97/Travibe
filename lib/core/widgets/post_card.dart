@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/action_icon_button.dart';
@@ -14,6 +15,9 @@ import 'package:travibe/core/widgets/action_icon_button.dart';
 class PostCard extends StatefulWidget {
   final bool responsive;
   final bool homePresentation;
+
+  /// Post screen (Figma): no card surface, full caption, "N Likes", bare icons.
+  final bool detailPresentation;
   final Object? authorId;
   // Optional identity from an already-confirmed /user read in the same session.
   final Object? currentUserId;
@@ -26,6 +30,12 @@ class PostCard extends StatefulWidget {
   final VoidCallback? onMoreTap;
   final VoidCallback? onCommentsTap;
   final VoidCallback? onLikeTap;
+
+  /// Like count tap (opens "Liked by"); never toggles the like.
+  final VoidCallback? onLikesCountTap;
+
+  /// Taps on text, images or empty space; buttons keep their own actions.
+  final VoidCallback? onOpen;
   final bool isLiked;
   final bool isLikePending;
   final VoidCallback? onShareTap;
@@ -50,6 +60,7 @@ class PostCard extends StatefulWidget {
     this.postId,
     this.responsive = false,
     this.homePresentation = false,
+    this.detailPresentation = false,
     this.authorId,
     this.currentUserId,
     this.currentUserSessionRevision,
@@ -72,6 +83,8 @@ class PostCard extends StatefulWidget {
     this.onMoreTap,
     this.onCommentsTap,
     this.onLikeTap,
+    this.onLikesCountTap,
+    this.onOpen,
     this.isLiked = false,
     this.isLikePending = false,
     this.onShareTap,
@@ -99,14 +112,20 @@ class _PostCardState extends State<PostCard> {
   bool get _hasCarousel => widget.images != null && widget.images!.length > 1;
   bool get _hasSingleImage => widget.images == null && widget.image != null;
 
+  /// Minimum tap target for the split like control.
+  static const double _minTap = 44;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(_w(16)),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(_r(20)),
-      ),
+    final detail = widget.detailPresentation;
+    final card = Container(
+      padding: detail ? EdgeInsets.zero : EdgeInsets.all(_w(16)),
+      decoration: detail
+          ? null
+          : BoxDecoration(
+              color: const Color(0xFF141414),
+              borderRadius: BorderRadius.circular(_r(20)),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -138,6 +157,18 @@ class _PostCardState extends State<PostCard> {
             child: _buildActions(),
           ),
         ],
+      ),
+    );
+    final onOpen = widget.onOpen;
+    if (onOpen == null) return card;
+    // Buttons inside win the gesture arena; everything else opens the post.
+    return Semantics(
+      onTapHint: 'Open post',
+      child: GestureDetector(
+        key: const ValueKey('post-open'),
+        behavior: HitTestBehavior.opaque,
+        onTap: onOpen,
+        child: card,
       ),
     );
   }
@@ -304,6 +335,17 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _buildText() {
+    if (widget.detailPresentation) {
+      return Text(
+        widget.text,
+        style: TextStyle(
+          fontFamily: 'Plus Jakarta Sans',
+          color: Colors.white,
+          fontSize: _font(16),
+          height: 1.5,
+        ),
+      );
+    }
     if (widget.homePresentation) {
       return HomePostCaption(
         key: ValueKey(widget.postId),
@@ -326,7 +368,8 @@ class _PostCardState extends State<PostCard> {
       );
     }
 
-    if (_isExpanded) {
+    // An openable card shows the full caption on the Post screen instead.
+    if (_isExpanded && widget.onOpen == null) {
       return GestureDetector(
         onTap: () => setState(() => _isExpanded = false),
         child: Text(
@@ -341,7 +384,9 @@ class _PostCardState extends State<PostCard> {
     }
 
     return GestureDetector(
-      onTap: () => setState(() => _isExpanded = true),
+      onTap: widget.onOpen != null
+          ? null
+          : () => setState(() => _isExpanded = true),
       child: Text.rich(
         TextSpan(
           style: TextStyle(
@@ -476,25 +521,12 @@ class _PostCardState extends State<PostCard> {
         .watch<PostActivityCubit?>()
         ?.state
         .comments[widget.postId];
+    final bordered = !widget.detailPresentation;
     final actions = <Widget>[
-      Semantics(
-        button: true,
-        label: widget.isLiked ? 'Unlike post' : 'Like post',
-        toggled: widget.isLiked,
-        enabled: !widget.isLikePending && widget.onLikeTap != null,
-        child: ActionIconButton(
-          key: const ValueKey('post-like'),
-          responsive: widget.responsive,
-          iconPath: widget.isLiked
-              ? 'assets/images/interactions/heart.svg'
-              : 'assets/images/interactions/heart2.svg',
-          count: widget.likes,
-          preserveAssetColors: true,
-          onTap: widget.isLikePending ? null : widget.onLikeTap,
-        ),
-      ),
+      _buildLikeAction(),
       ActionIconButton(
         responsive: widget.responsive,
+        bordered: bordered,
         iconPath: 'assets/images/interactions/message.svg',
         count: count == null ? widget.comments : formatCount(count),
         onTap: widget.onCommentsTap,
@@ -506,6 +538,7 @@ class _PostCardState extends State<PostCard> {
         child: ActionIconButton(
           key: const ValueKey('post-share'),
           responsive: widget.responsive,
+          bordered: bordered,
           iconPath: 'assets/images/interactions/send.svg',
           onTap: widget.onShareTap,
         ),
@@ -555,6 +588,105 @@ class _PostCardState extends State<PostCard> {
         actions[2],
         const Spacer(),
         save,
+      ],
+    );
+  }
+}
+
+/// Like control split in two: heart toggles, count opens "Liked by".
+extension on _PostCardState {
+  Widget _buildLikeAction() {
+    final radius = BorderRadius.circular(_r(24));
+    final iconSize = widget.responsive ? AppSizes.adaptiveRadius(18) : 18.0;
+    final label = widget.detailPresentation
+        ? '${widget.likes} Likes'
+        : widget.likes;
+    final heart = Semantics(
+      button: true,
+      label: widget.isLiked ? 'Unlike post' : 'Like post',
+      toggled: widget.isLiked,
+      enabled: !widget.isLikePending && widget.onLikeTap != null,
+      child: InkWell(
+        key: const ValueKey('post-like'),
+        borderRadius: radius,
+        onTap: widget.isLikePending ? null : widget.onLikeTap,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: _PostCardState._minTap,
+            minHeight: _PostCardState._minTap,
+          ),
+          child: Padding(
+            padding: EdgeInsetsDirectional.only(
+              start: widget.detailPresentation ? 0 : _w(8),
+              end: _w(4),
+            ),
+            child: Center(
+              widthFactor: 1,
+              child: SvgPicture.asset(
+                widget.isLiked
+                    ? 'assets/images/interactions/heart.svg'
+                    : 'assets/images/interactions/heart2.svg',
+                width: iconSize,
+                height: iconSize,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final text = Text(
+      label,
+      style: TextStyle(
+        color: DarkColors.whiteColor,
+        fontSize: widget.responsive ? AppSizes.adaptiveFont(13) : 13,
+      ),
+    );
+    final countChild = ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: _PostCardState._minTap,
+        minHeight: _PostCardState._minTap,
+      ),
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(start: _w(2), end: _w(10)),
+        child: Center(widthFactor: 1, child: text),
+      ),
+    );
+    final countAction = widget.onLikesCountTap == null
+        ? countChild
+        : Semantics(
+            button: true,
+            label: 'View likes',
+            child: InkWell(
+              key: const ValueKey('post-likes-count'),
+              borderRadius: radius,
+              onTap: widget.onLikesCountTap,
+              child: ExcludeSemantics(child: countChild),
+            ),
+          );
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [heart, countAction],
+    );
+    if (widget.detailPresentation) return row;
+    // Pill outline at the old height; the transparent tap areas extend past it.
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Positioned.fill(
+          child: Center(
+            child: Container(
+              height:
+                  (widget.responsive ? AppSizes.adaptiveHeight(6) : 6) * 2 +
+                  iconSize +
+                  2,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF2E2E2E)),
+                borderRadius: radius,
+              ),
+            ),
+          ),
+        ),
+        row,
       ],
     );
   }

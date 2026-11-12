@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/notifications/data/notification_targets.dart';
-import 'package:travibe/features/notifications/screens/notification_post_screen.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/shares/screens/open_shared_post.dart';
 import 'send_post_fixtures.dart';
 
@@ -52,7 +52,7 @@ void main() {
       );
     });
     expect(requested, [10]);
-    expect(find.byType(NotificationPostScreen), findsOneWidget);
+    expect(find.byType(PostScreen), findsOneWidget);
     expect(find.text('Sunset over Petra'), findsOneWidget);
   });
 
@@ -63,7 +63,7 @@ void main() {
       tester,
       (_) async => throw ApiError(message: 'Not found', statusCode: 404),
     );
-    expect(find.byType(NotificationPostScreen), findsNothing);
+    expect(find.byType(PostScreen), findsNothing);
     expect(find.text(sharedPostUnavailable), findsOneWidget);
   });
 }

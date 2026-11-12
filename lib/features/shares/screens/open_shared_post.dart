@@ -4,7 +4,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/notifications/data/notification_targets.dart';
 import 'package:travibe/features/notifications/screens/notification_navigation.dart';
-import 'package:travibe/features/notifications/screens/notification_post_screen.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
 
 /// Loads an authorized post (`GET posts/{id}` plus block/deleted checks).
 typedef SharedPostLoader = Future<NotificationContent> Function(int id);
@@ -58,10 +58,7 @@ Future<void> openSharedPost(
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
       settings: RouteSettings(name: 'post/$id'),
-      builder: (_) => notificationRouteScope(
-        context,
-        NotificationPostScreen(content: content.inSession(session)),
-      ),
+      builder: (_) => notificationRouteScope(context, PostScreen(post: post)),
     ),
   );
 }

@@ -23,22 +23,25 @@ import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/screens/story_viewer_screen.dart';
 import '../data/notification_model.dart';
 import '../data/notification_targets.dart';
-import 'notification_post_screen.dart';
+import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
 
 /// Borrow existing Root state across Navigator routes; never dispose its owners.
 Widget notificationRouteScope(BuildContext context, Widget child) {
   final likes = context.read<LikesCubit?>();
   final saves = context.read<SavesCubit?>();
   final activity = context.read<PostActivityCubit?>();
+  final hidden = context.read<HiddenPostsCubit?>();
   return chatRouteScope(
     context,
-    likes == null && saves == null && activity == null
+    likes == null && saves == null && activity == null && hidden == null
         ? child
         : MultiBlocProvider(
             providers: [
               if (likes != null) BlocProvider.value(value: likes),
               if (saves != null) BlocProvider.value(value: saves),
               if (activity != null) BlocProvider.value(value: activity),
+              if (hidden != null) BlocProvider.value(value: hidden),
             ],
             child: child,
           ),
@@ -89,14 +92,11 @@ Future<void> openNotificationDestination(
       return;
     case NotificationTargetKind.post:
     case NotificationTargetKind.comment:
-      screen = NotificationPostScreen(
-        content: content,
+      screen = PostScreen(
+        post: content.post!,
         comments: comments,
         highlightCommentId: content.comment?.id,
-        openComments:
-            target.kind == NotificationTargetKind.comment ||
-            notification.type == 'post_commented' ||
-            notification.type == 'comment_replied',
+        highlightParentId: content.comment?.parentId,
       );
     case NotificationTargetKind.conversation:
       final conversation = content.conversation;

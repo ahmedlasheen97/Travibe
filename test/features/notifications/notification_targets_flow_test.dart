@@ -14,7 +14,7 @@ import 'package:travibe/features/notifications/data/notification_presentation.da
 import 'package:travibe/features/notifications/cubit/notification_activity.dart';
 import 'package:travibe/features/notifications/screens/notifications_screen.dart';
 import 'package:travibe/features/notifications/screens/notification_navigation.dart';
-import 'package:travibe/features/notifications/screens/notification_post_screen.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/notifications/widgets/notification_row.dart';
 import 'package:travibe/features/comments/screens/comments_screen.dart';
 import 'package:travibe/features/chats/screens/conversation_screen.dart';
@@ -567,16 +567,15 @@ void main() {
             ? find.byType(ConversationScreen)
             : follow
             ? find.byType(ProfileScreen)
-            : find.byType(NotificationPostScreen);
+            : find.byType(PostScreen);
         expect(screen, findsOneWidget);
         if (message) {
           expect(find.byType(ChatPendingRequestControls), findsOneWidget);
           expect(find.byType(ChatComposer), findsNothing);
         }
-        if (type == 'post_commented' || comment) {
-          expect(find.byType(CommentsScreen), findsOneWidget);
-          Navigator.of(tester.element(find.byType(CommentsScreen))).pop();
-          await tester.pumpAndSettle();
+        if (!story && !message && !follow) {
+          // Comments are inline on the Post screen.
+          expect(find.byType(CommentsThreadView), findsOneWidget);
         }
         Navigator.of(tester.element(screen)).pop();
         await tester.pumpAndSettle();
@@ -634,10 +633,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('notification-n1')));
     await tester.pumpAndSettle();
-    expect(find.byType(NotificationPostScreen), findsOneWidget);
+    expect(find.byType(PostScreen), findsOneWidget);
     await preferences.saveToken('replacement-session');
     await tester.pumpAndSettle();
-    expect(find.byType(NotificationPostScreen), findsNothing);
+    expect(find.byType(PostScreen), findsNothing);
     expect(find.text('Sign in again to view this content.'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     // Drain cancellation of the replacement account's offstage preview lookup.
