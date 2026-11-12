@@ -170,7 +170,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(StoryEditorScreen), findsNothing);
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
-      expect(find.text('Story published'), findsOneWidget);
+      // The host (Home) owns the success toast when it passes onPublished.
+      expect(find.text('Story published'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );

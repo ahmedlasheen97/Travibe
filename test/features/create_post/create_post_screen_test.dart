@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import '../../helpers/cursor_fixtures.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -349,7 +350,7 @@ void main() {
       expect(find.text('Uploading your post'), findsOneWidget);
       expect(
         find.descendant(
-          of: find.byKey(const ValueKey('post-upload-progress')),
+          of: find.byType(TravibeToastView),
           matching: find.byType(CupertinoActivityIndicator),
         ),
         findsOneWidget,
@@ -430,12 +431,17 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Post'));
     await tester.pumpAndSettle();
-    expect(find.text('Couldn’t upload your post'), findsOneWidget);
-    expect(find.text('Unable to upload your photo.'), findsOneWidget);
+    expect(find.text('Couldn’t publish your post'), findsOneWidget);
+    final failed = tester.widget<TravibeToastView>(
+      find.byType(TravibeToastView),
+    );
+    expect(failed.data.variant, TravibeToastVariant.error);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
     expect(repo.requests, isEmpty);
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
-    expect(find.text('Couldn’t upload your post'), findsNothing);
+    expect(find.text('Couldn’t publish your post'), findsNothing);
     expect(repo.requests.single.toJson()['media_ids'], [100]);
     expect(find.text('Post published successfully'), findsOneWidget);
     expect(tester.takeException(), isNull);

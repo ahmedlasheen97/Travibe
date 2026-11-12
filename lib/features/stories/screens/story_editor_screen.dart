@@ -108,9 +108,12 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(state.error!.message)));
       } else if (state.status == StoryPublishStatus.success) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Story published')));
+        // A host with onPublished (Home) shows its own floating toast.
+        if (widget.onPublished == null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Story published')));
+        }
         Navigator.of(context).pop();
       }
     },

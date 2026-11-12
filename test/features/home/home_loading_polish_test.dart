@@ -527,7 +527,7 @@ void main() {
         find.byType(CupertinoActivityIndicator),
       );
       expect(native.radius, 15);
-      expect(native.color, DarkColors.primaryColor);
+      expect(native.color, DarkColors.whiteColor);
       expect(find.byType(TravibeLoadingIndicator), findsOneWidget);
       expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
       expectHomeTopLoader(tester);

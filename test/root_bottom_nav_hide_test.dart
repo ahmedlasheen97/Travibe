@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -198,7 +199,7 @@ void main() {
         .read<PostUploadCubit>()
         .enqueue(const CreatePostRequest(content: 'Hello'));
     await tester.pump(const Duration(milliseconds: 300));
-    final toast = find.byKey(const ValueKey('post-upload-progress'));
+    final toast = find.byType(TravibeToastView);
     final shown = tester.getRect(toast).bottom;
     expect(shown, lessThanOrEqualTo(tester.getRect(glass()).top));
     nav(tester).hide();

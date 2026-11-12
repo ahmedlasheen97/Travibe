@@ -8,7 +8,10 @@ class ApiExceptions {
         return ApiError(message: 'Request to API server was cancelled');
 
       case DioExceptionType.connectionTimeout:
-        return ApiError(message: 'Connection timeout with API server');
+        return ApiError(
+          message: 'Connection timeout with API server',
+          isConnectionError: true,
+        );
 
       case DioExceptionType.sendTimeout:
         return ApiError(message: 'Send timeout in connection with API server');
@@ -26,6 +29,7 @@ class ApiExceptions {
         return ApiError(
           message:
               'Connection to API server failed. Check your internet connection.',
+          isConnectionError: true,
         );
 
       case DioExceptionType.badCertificate:

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/widgets/post_options_sheet.dart';
@@ -21,10 +22,10 @@ Future<void> runOwnPostAction(
   required PostModel post,
   required PostsCubit feed,
 }) async {
-  final messenger = ScaffoldMessenger.of(context);
-  void show(String text) => messenger
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  final toast = TravibeToast.of(context);
+  void show(String text, {bool error = false}) => toast.present(
+    error ? TravibeToastData.error(text) : TravibeToastData.info(text),
+  );
 
   switch (action) {
     case PostOptionAction.copyLink:
@@ -32,7 +33,7 @@ Future<void> runOwnPostAction(
         await PostShareActions(verifiedPostUri: post.shareUri).copyLink();
         show('Link copied');
       } catch (_) {
-        show('Unable to copy the link. Please try again.');
+        show('Unable to copy the link. Please try again.', error: true);
       }
     case PostOptionAction.toggleComments:
       final disable = !post.commentsDisabled;
@@ -40,11 +41,12 @@ Future<void> runOwnPostAction(
       show(
         error?.message ??
             (disable ? 'Commenting turned off' : 'Commenting turned on'),
+        error: error != null,
       );
     case PostOptionAction.deletePost:
       if (!await showDeletePostDialog(context)) return;
       final error = await feed.deletePost(post);
-      show(error?.message ?? 'Post deleted');
+      show(error?.message ?? 'Post deleted', error: error != null);
     default:
       return;
   }

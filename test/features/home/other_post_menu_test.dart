@@ -8,6 +8,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/post_card.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/data/hidden_post_response.dart';
 import 'package:travibe/features/home/data/report_reason.dart';
 import 'package:travibe/root.dart';
@@ -218,14 +219,39 @@ void main() {
     await tester.tap(find.text('Undo'));
     await tester.pumpAndSettle();
     expect(feeds.hides.last, ('20', false));
+    expect(find.text('Post 20'), findsOneWidget);
+    expect(
+      find.text("Got it. We'll show you fewer posts like this."),
+      findsNothing,
+    );
   });
 
-  testWidgets('Hide post still hides as before', (tester) async {
+  testWidgets('Hide post shows the info toast and Undo restores in place', (
+    tester,
+  ) async {
     await pumpHome(tester);
     await openMenu(tester);
     await tester.tap(find.text('Hide post'));
     await tester.pumpAndSettle();
     expect(feeds.hides, [('20', true)]);
+    expect(find.text('Post 20'), findsNothing);
     expect(find.text('Post hidden'), findsOneWidget);
+    final toast = tester.widget<TravibeToastView>(
+      find.byType(TravibeToastView),
+    );
+    expect(toast.data.variant, TravibeToastVariant.info);
+    expect(toast.data.actionLabel, 'Undo');
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(feeds.hides.last, ('20', false));
+    expect(find.text('Post hidden'), findsNothing);
+    expect(find.byType(SnackBar), findsNothing);
+    // Back in its original slot: after Post 10, before the suggestions.
+    final restored = tester.getTopLeft(find.text('Post 20')).dy;
+    expect(tester.getTopLeft(find.text('Post 10')).dy, lessThan(restored));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('home-suggestions'))).dy,
+      greaterThan(restored),
+    );
   });
 }
