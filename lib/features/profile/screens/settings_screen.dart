@@ -1,10 +1,10 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/notifications/push_notification_service.dart';
@@ -98,9 +98,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     padding: EdgeInsets.only(top: AppSizes.h8),
                     child: Semantics(
                       label: 'Loading settings',
-                      child: CupertinoActivityIndicator(
+                      child: AppActivityIndicator(
                         radius: AppSizes.adaptiveRadius(10),
-                        color: DarkColors.whiteColor.withValues(alpha: .7),
                       ),
                     ),
                   ),

@@ -224,10 +224,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             ? const SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(
-                  color: Colors.white,
-                  strokeWidth: 2.5,
-                ),
+                child: CircularProgressIndicator(strokeWidth: 2.5),
               )
             : const Text('Verify', style: ActionButtonStyle.label),
       ),

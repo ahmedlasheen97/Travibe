@@ -1,6 +1,6 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
@@ -310,7 +310,7 @@ class _ConversationDetailsScreenState extends State<ConversationDetailsScreen> {
                             if (state.loading)
                               const Padding(
                                 padding: EdgeInsets.all(16),
-                                child: CupertinoActivityIndicator(),
+                                child: AppActivityIndicator(),
                               )
                             else if (state.continuation != null)
                               TextButton(

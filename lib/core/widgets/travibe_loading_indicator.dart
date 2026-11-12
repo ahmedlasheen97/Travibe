@@ -1,7 +1,7 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Theme;
 
-/// Home's native activity indicator, colored by the existing Travibe theme.
+/// Home's native activity indicator, white like every app loader.
 class TravibeLoadingIndicator extends StatelessWidget {
   const TravibeLoadingIndicator({
     super.key,
@@ -13,7 +13,7 @@ class TravibeLoadingIndicator extends StatelessWidget {
   final double size;
   final String semanticsLabel;
 
-  /// Defaults to the theme's primary color.
+  /// Defaults to [appLoaderColor] (white).
   final Color? color;
 
   @override
@@ -24,8 +24,8 @@ class TravibeLoadingIndicator extends StatelessWidget {
     child: SizedBox.square(
       dimension: size,
       child: Center(
-        child: CupertinoActivityIndicator(
-          color: color ?? Theme.of(context).primaryColor,
+        child: AppActivityIndicator(
+          color: color ?? appLoaderColor,
           radius: 15,
           animating: !MediaQuery.disableAnimationsOf(context),
         ),

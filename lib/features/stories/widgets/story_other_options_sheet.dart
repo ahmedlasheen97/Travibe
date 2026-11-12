@@ -61,10 +61,7 @@ class StoryOtherOptionsSheet extends StatelessWidget {
             leading: state?.pending.contains(userId) == true
                 ? const SizedBox.square(
                     dimension: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.red,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : SvgPicture.asset(
                     'assets/images/interactions/user-remove.svg',

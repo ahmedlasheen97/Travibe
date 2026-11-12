@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import '../data/chat_history_cache.dart';
 import '../widgets/chat_reverb_host.dart';
 import '../widgets/chat_network_banner.dart';
@@ -603,7 +604,7 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                                   const Padding(
                                     padding: EdgeInsets.all(16),
                                     child: Center(
-                                      child: CupertinoActivityIndicator(),
+                                      child: AppActivityIndicator(),
                                     ),
                                   ),
                               ],

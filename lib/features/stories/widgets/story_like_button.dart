@@ -48,10 +48,7 @@ class StoryLikeButton extends StatelessWidget {
                 icon: pending
                     ? const SizedBox.square(
                         dimension: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
+                        child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : SvgPicture.asset(
                         liked

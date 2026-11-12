@@ -41,13 +41,30 @@ Code: `features/shares/data/share_post_messenger.dart` (send seam),
 
 ## Deep links
 
-`travibe://posts/{id}` (the backend redirects `https://travibeapp.com/p/{id}` there) is
-registered in `Info.plist` (`CFBundleURLTypes`) and the Android manifest. Flutter's
-default deep linking is disabled so links never reach GoRouter. `app_links` feeds
-`core/deeplinks/post_deep_links.dart`: the coordinator keeps the latest post ID until
-`Root` attaches with a session (cold start, background, or after login), then calls
-`openSharedPost`. Universal links still need `apple-app-site-association` /
-`assetlinks.json` on the backend.
+`travibe://posts/{id}` (the backend redirects `https://travibeapp.com/p/{id}` there) and
+`travibe://users/{id}` (profile `url`) are registered in `Info.plist` (`CFBundleURLTypes`,
+scheme-level) and the Android manifest (hosts `posts` and `users`). In these URIs
+`posts`/`users` is the **host**, not the path (`Uri.parse('travibe://users/42').host ==
+'users'`, `pathSegments == ['42']`). Flutter's default deep linking is disabled so links
+never reach GoRouter.
+
+`app_links` feeds `core/deeplinks/deep_links.dart`: `parseDeepLink` → `PostLink`/`UserLink`;
+`DeepLinkCoordinator` keeps the latest link until `Root` attaches with a session (cold
+start, background, or after login), then `openDeepLink` dispatches:
+
+- post → `openSharedPost` (`shares/screens/open_shared_post.dart`).
+- user → `openSharedProfile` (`profile/screens/open_shared_profile.dart`): the signed-in
+  user's own id (current user, or `is_me` from the response) switches Root to the Profile
+  tab; otherwise `GET /users/{id}` — `data: null` (blocked), 404/any error, or a user the
+  viewer blocked → SnackBar "This profile is unavailable."; else `ProfileScreen.open`.
+
+Root attaches with a context below its `MultiBlocProvider`, so opened screens share the
+app-wide Follow/Block/Likes/Saves cubits.
+
+Manual test: `xcrun simctl openurl booted "travibe://users/1"` /
+`adb shell am start -a android.intent.action.VIEW -d "travibe://users/1"`.
+Universal links / App Links still need `apple-app-site-association` / `assetlinks.json` on
+the backend (send iOS Team ID + bundle ID, Android package + release SHA-256).
 
 ## Removed
 

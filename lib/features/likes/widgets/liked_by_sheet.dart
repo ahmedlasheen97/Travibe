@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -133,7 +134,7 @@ class _LikedBySheetState extends State<LikedBySheet> {
       );
     }
     final users = state.items;
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: _cubit.refresh,
       child: NotificationListener<ScrollNotification>(
         onNotification: (event) {

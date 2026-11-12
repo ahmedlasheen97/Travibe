@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'dart:async';
 import 'package:travibe/features/chats/screens/chat_navigation.dart';
@@ -622,7 +623,7 @@ class _CommentsViewState extends State<_CommentsView> {
         (_) => unawaited(_revealHighlight()),
       );
     }
-    return RefreshIndicator(
+    return AppRefreshIndicator(
       onRefresh: () async {
         await Future.wait([
           cubit.load(parentId: widget.parentId),

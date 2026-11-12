@@ -21,18 +21,19 @@ import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/shares/data/post_share_actions.dart';
 
-enum ProfileOption { share, removeFollower, report, block, unblock }
+enum ProfileOption { share, copyLink, removeFollower, report, block, unblock }
 
 /// Other user's profile ⋮ menu (same frame as the post ⋮ menu).
-/// A blocked user only offers Unblock.
+/// A blocked user only offers Unblock. Share/Copy need the backend `url`.
 class ProfileOptionsSheet extends StatelessWidget {
   const ProfileOptionsSheet({
     super.key,
     required this.followsYou,
     this.blocked = false,
     this.pending = false,
+    this.canShare = false,
   });
-  final bool followsYou, blocked, pending;
+  final bool followsYou, blocked, pending, canShare;
 
   static Future<ProfileOption?> show(
     BuildContext context, {
@@ -61,7 +62,10 @@ class ProfileOptionsSheet extends StatelessWidget {
       children: blocked
           ? [row(ProfileOption.unblock, 'Unblock user', 'user-remove.svg')]
           : [
-              row(ProfileOption.share, 'Share profile', 'send-2.svg'),
+              if (canShare) ...[
+                row(ProfileOption.share, 'Share profile', 'send-2.svg'),
+                row(ProfileOption.copyLink, 'Copy profile link', 'link-2.svg'),
+              ],
               if (followsYou)
                 row(
                   ProfileOption.removeFollower,
@@ -129,7 +133,7 @@ class BlockedProfileOptionsButton extends StatelessWidget {
 }
 
 /// Uses the existing shared follow state, confirmed Conversation API and native
-/// share channel. No public profile URL is fabricated.
+/// share channel. Sharing uses the backend `url` as-is; none is fabricated.
 class OtherProfileActions extends StatefulWidget {
   const OtherProfileActions({
     super.key,
@@ -213,6 +217,7 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
       bloc: follow,
       builder: (_, state) => ProfileOptionsSheet(
         followsYou: state.followsYou[id] ?? widget.profile.followsYou == true,
+        canShare: widget.profile.url != null,
         blocked:
             widget.profile.isBlocked == true || blocks?.isBlocked(id) == true,
         pending:
@@ -240,13 +245,18 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
           final origin = box == null
               ? const Rect.fromLTWH(0, 0, 1, 1)
               : box.localToGlobal(Offset.zero) & box.size;
-          final profile = widget.profile;
           await PostShareActions(
-            text: [
-              profile.displayName,
-              if (profile.username?.isNotEmpty == true) '@${profile.username}',
-            ].join(' '),
+            verifiedPostUri: widget.profile.url,
           ).moreOptions(origin);
+        case ProfileOption.copyLink:
+          await PostShareActions(
+            verifiedPostUri: widget.profile.url,
+          ).copyLink();
+          if (mounted && _valid) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Link copied')));
+          }
         case ProfileOption.removeFollower:
           if (!(follow.state.followsYou[widget.profile.id] ??
               widget.profile.followsYou == true)) {

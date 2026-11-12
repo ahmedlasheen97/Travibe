@@ -33,7 +33,6 @@ class FollowPill extends StatelessWidget {
             child: CircularProgressIndicator(
               semanticsLabel: 'Updating follow status',
               strokeWidth: 2,
-              color: Colors.white,
             ),
           )
         : Text(

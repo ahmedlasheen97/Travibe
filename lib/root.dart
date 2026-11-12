@@ -1,8 +1,9 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
 import 'package:travibe/features/chats/data/chat_reverb_service.dart';
 import 'package:travibe/features/chats/cubit/chat_unread_cubit.dart';
 import 'dart:async';
-import 'package:travibe/core/deeplinks/post_deep_links.dart';
+import 'package:travibe/core/deeplinks/deep_links.dart';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
@@ -29,8 +30,6 @@ import 'package:travibe/features/create_post/data/create_post_repo.dart';
 import 'package:travibe/features/create_post/data/post_image_picker.dart';
 import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
 import 'package:travibe/features/create_post/widgets/discard_post_dialog.dart';
-import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
-import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
@@ -65,7 +64,7 @@ class Root extends StatefulWidget {
 
 class _RootState extends State<Root> {
   PushNotificationsCoordinator? _push;
-  PostDeepLinkCoordinator? _postLinks;
+  DeepLinkCoordinator? _deepLinks;
   ChatReverbService? _reverb;
   ChatUnreadCubit? _chatUnread;
   StreamSubscription<BlockState>? _reverbBlocks;
@@ -98,14 +97,19 @@ class _RootState extends State<Root> {
             reverb?.blockedUsers({...state.blockedIds, ...state.pending}),
       );
     }
-    final links = PostDeepLinksScope.maybeOf(context);
-    if (!identical(links, _postLinks)) {
-      _postLinks?.detach(this);
-      _postLinks = links;
-      // After the first frame, so the post opens above the Root shell.
+    final links = DeepLinksScope.maybeOf(context);
+    if (!identical(links, _deepLinks)) {
+      _deepLinks?.detach(this);
+      _deepLinks = links;
+      // After the first frame, so a post/profile opens above the Root shell.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && identical(links, _postLinks)) {
-          links?.attach(this, context);
+        if (mounted && identical(links, _deepLinks)) {
+          // Below Root's providers, so opened screens share Follow/Block/etc.
+          links?.attach(
+            this,
+            _shellKey.currentContext ?? context,
+            showMyProfile: _showMyProfile,
+          );
         }
       });
     }
@@ -143,13 +147,14 @@ class _RootState extends State<Root> {
   final _buddiesRefreshes = ValueNotifier<int>(0);
   final _profileRefreshes = ValueNotifier<int>(0);
   final Set<int> _visitedTabs = {0};
+  final _shellKey = GlobalKey();
   bool _openingComposer = false;
   late final _blockCubit = BlockCubit(follow: _followCubit);
 
   @override
   void dispose() {
     _push?.detach(this);
-    _postLinks?.detach(this);
+    _deepLinks?.detach(this);
     _reverb?.detach(this);
     _chatUnread?.detach(this);
     unawaited(_reverbBlocks?.cancel() ?? Future.value());
@@ -226,6 +231,7 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _postUploads),
       ],
       child: BlocListener<PostUploadCubit, PostUploadState>(
+        key: _shellKey,
         listener: _onPostUpload,
         child: BottomNavScope(
           visibility: _navVisibility,
@@ -361,15 +367,20 @@ class _RootState extends State<Root> {
     );
   }
 
-  void _explorePeople() {
+  /// A link to the signed-in user's own profile opens the Profile tab.
+  void _showMyProfile() => _showTab(4);
+
+  void _explorePeople() => _showTab(3);
+
+  void _showTab(int index) {
     final rootRoute = ModalRoute.of(context);
     Navigator.of(context).popUntil(
       (route) => rootRoute == null ? route.isFirst : route == rootRoute,
     );
     if (!mounted) return;
     setState(() {
-      _currentIndex = 3;
-      _visitedTabs.add(3);
+      _currentIndex = index;
+      _visitedTabs.add(index);
     });
     _navVisibility.show();
   }
@@ -383,10 +394,7 @@ class _RootState extends State<Root> {
           _uploadToast,
           const TravibeToastData.info(
             'Uploading your post',
-            leading: CupertinoActivityIndicator(
-              radius: 10,
-              color: DarkColors.whiteColor,
-            ),
+            leading: AppActivityIndicator(radius: 10),
           ),
         );
       case PostUploadFailed():

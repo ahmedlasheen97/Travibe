@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/stories/cubit/story_publish_cubit.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
@@ -228,12 +228,11 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                                                   label: publishing.progress,
                                                   liveRegion: true,
                                                   child:
-                                                      const CupertinoActivityIndicator(
+                                                      const AppActivityIndicator(
                                                         key: ValueKey(
                                                           'story-post-progress',
                                                         ),
                                                         radius: 10,
-                                                        color: Colors.white,
                                                       ),
                                                 ),
                                               )

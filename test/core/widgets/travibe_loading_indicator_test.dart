@@ -10,14 +10,17 @@ void main() {
     WidgetTester tester, {
     double size = 64,
     bool motion = true,
-    Color color = DarkColors.primaryColor,
+    Color? color,
   }) async {
     await tester.pumpWidget(
       MaterialApp(
-        theme: ThemeData(primaryColor: color),
+        // An orange theme must not leak into the loader.
+        theme: ThemeData(primaryColor: DarkColors.primaryColor),
         home: MediaQuery(
           data: MediaQueryData(disableAnimations: !motion),
-          child: Center(child: TravibeLoadingIndicator(size: size)),
+          child: Center(
+            child: TravibeLoadingIndicator(size: size, color: color),
+          ),
         ),
       ),
     );
@@ -26,7 +29,7 @@ void main() {
 
   for (final size in [64.0, 32.0]) {
     testWidgets(
-      'one native themed radius-15 indicator in a ${size}px centered frame',
+      'one native white radius-15 indicator in a ${size}px centered frame',
       (tester) async {
         final semantics = tester.ensureSemantics();
         await show(tester, size: size);
@@ -34,7 +37,7 @@ void main() {
           find.byType(CupertinoActivityIndicator),
         );
         expect(indicator.radius, 15);
-        expect(indicator.color, DarkColors.primaryColor);
+        expect(indicator.color, DarkColors.whiteColor);
         expect(indicator.animating, true);
         expect(
           tester.getSize(find.byType(TravibeLoadingIndicator)),
@@ -56,7 +59,7 @@ void main() {
     );
   }
   testWidgets(
-    'uses the actual primary theme color and respects reduced motion',
+    'an explicit color overrides white and reduced motion is respected',
     (tester) async {
       await show(tester, motion: false, color: Colors.teal);
       var indicator = tester.widget<CupertinoActivityIndicator>(

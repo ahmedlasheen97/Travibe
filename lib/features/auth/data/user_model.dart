@@ -1,3 +1,5 @@
+import 'package:travibe/core/utils/json_parsers.dart';
+
 class UserModel {
   final String id;
   final String name;
@@ -9,6 +11,9 @@ class UserModel {
   final int followersCount;
   final int followingCount;
 
+  /// Backend profile share link, used as-is.
+  final Uri? url;
+
   const UserModel({
     required this.id,
     required this.name,
@@ -19,6 +24,7 @@ class UserModel {
     required this.isFollowing,
     required this.followersCount,
     required this.followingCount,
+    this.url,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -42,6 +48,7 @@ class UserModel {
 
       followingCount:
           int.tryParse(json['following_count']?.toString() ?? '0') ?? 0,
+      url: parseHttpsUri(json['url']),
     );
   }
 
@@ -56,6 +63,7 @@ class UserModel {
       'is_following': isFollowing,
       'followers_count': followersCount,
       'following_count': followingCount,
+      'url': url?.toString(),
     };
   }
 }

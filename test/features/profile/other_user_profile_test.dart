@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,7 @@ import 'package:travibe/features/search/data/users_page_model.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'package:travibe/features/shares/data/post_share_actions.dart';
 import '../chats/chat_fakes.dart';
 import 'fixtures.dart';
 
@@ -84,6 +86,8 @@ class Chats extends FakeChatRepository {
   }
 }
 
+const shareUrl = 'https://example.invalid/u/23';
+
 void main() {
   late ReportingProfiles profiles;
   late Blocks blocks;
@@ -101,6 +105,7 @@ void main() {
         'is_me': false,
         'follows_you': true,
         'is_following': false,
+        'url': shareUrl,
         'gender': 'female',
         'nationality': null,
         'nationality_code': 'EG',
@@ -199,7 +204,8 @@ void main() {
       await tester.tap(find.text('Remove'));
       await tester.pump();
       expect(repo.removed, ['23']);
-      expect(follow.state.followsYou['23'], isNull);
+      // Seeded from the loaded profile; unchanged until the removal confirms.
+      expect(follow.state.followsYou['23'], true);
       repo.removing!.complete();
       await tester.pumpAndSettle();
       expect(follow.state.followsYou['23'], false);
@@ -212,6 +218,100 @@ void main() {
       expect(find.text('Block user'), findsOneWidget);
     },
   );
+  group('profile share link', () {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    tearDown(() {
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
+      messenger.setMockMethodCallHandler(PostShareActions.channel, null);
+    });
+
+    testWidgets(
+      'Share profile sends the backend url as-is to the native sheet',
+      (tester) async {
+        final calls = <MethodCall>[];
+        messenger.setMockMethodCallHandler(PostShareActions.channel, (
+          call,
+        ) async {
+          calls.add(call);
+          return null;
+        });
+        await show(tester);
+        await tester.tap(find.byTooltip('Profile options'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Share profile'));
+        await tester.pumpAndSettle();
+        expect(calls.single.method, 'share');
+        final args = calls.single.arguments as Map;
+        expect(args['url'], shareUrl);
+        expect(args.containsKey('text'), isFalse);
+      },
+    );
+
+    testWidgets('Copy profile link copies the url and confirms', (
+      tester,
+    ) async {
+      final copied = <Object?>[];
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') copied.add(call.arguments);
+        return null;
+      });
+      await show(tester);
+      await tester.tap(find.byTooltip('Profile options'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Copy profile link'));
+      await tester.pump();
+      await tester.pump();
+      expect(copied, [
+        {'text': shareUrl},
+      ]);
+      expect(find.text('Link copied'), findsOneWidget);
+    });
+
+    testWidgets('a missing or invalid url hides Share and Copy', (
+      tester,
+    ) async {
+      for (final url in [null, 'not a link', 'http://example.invalid/u/23']) {
+        profiles.result = ProfileModel.fromJson({
+          ...profileJson(id: 23),
+          'is_me': false,
+          'url': url,
+        });
+        await show(tester);
+        await tester.tap(find.byTooltip('Profile options'));
+        await tester.pumpAndSettle();
+        expect(find.text('Share profile'), findsNothing, reason: '$url');
+        expect(find.text('Copy profile link'), findsNothing, reason: '$url');
+        expect(find.text('Report user'), findsOneWidget);
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+      }
+    });
+  });
+
+  testWidgets('Follows You badge is a grey chip with white text', (
+    tester,
+  ) async {
+    await show(tester);
+    final label = find.text('Follows You');
+    final text = tester.widget<Text>(label);
+    expect(text.style!.color, DarkColors.whiteColor);
+    expect(text.style!.fontSize, 12);
+    final box = tester.widget<DecoratedBox>(
+      find.ancestor(of: label, matching: find.byType(DecoratedBox)).first,
+    );
+    final decoration = box.decoration as BoxDecoration;
+    expect(decoration.color, DarkColors.darkgreyColor);
+    expect(decoration.borderRadius, BorderRadius.circular(8));
+    final padding = tester.widget<Padding>(
+      find.ancestor(of: label, matching: find.byType(Padding)).first,
+    );
+    expect(
+      padding.padding,
+      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    );
+  });
+
   testWidgets('is_following alone never reveals Remove Follower', (
     tester,
   ) async {
@@ -265,7 +365,9 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(ConversationScreen), findsNothing);
-      expect(follow.state.following, isEmpty);
+      // Only the new account's own profile read; no carried-over mutation.
+      expect(follow.state.following, {'23': false});
+      expect(follow.state.revision, 0);
     },
   );
   for (final width in [320.0, 375.0, 393.0, 430.0]) {
@@ -413,9 +515,10 @@ void main() {
               .topLeft
               .x;
       expect(radius, closeTo(24, 24 * .15));
-      expect(find.byType(OptionSheetTile), findsNWidgets(4));
+      expect(find.byType(OptionSheetTile), findsNWidgets(5));
       final labels = [
         'Share profile',
+        'Copy profile link',
         'Remove follower',
         'Report user',
         'Block user',
@@ -442,7 +545,16 @@ void main() {
       expect(labelColor(tester, 'Block user'), DarkColors.dangerColor);
       expect(labelColor(tester, 'Share profile'), DarkColors.whiteColor);
       expect(labelColor(tester, 'Report user'), DarkColors.whiteColor);
-      expect(find.text('Copy profile link'), findsNothing);
+      final linkIcon = tester.widget<SvgPicture>(
+        find.descendant(
+          of: find.byKey(const ValueKey('profile-option-copyLink')),
+          matching: find.byType(SvgPicture),
+        ),
+      );
+      expect(
+        (linkIcon.bytesLoader as SvgAssetLoader).assetName,
+        'assets/images/icons/link-2.svg',
+      );
       expect(find.text('Unblock user'), findsNothing);
       expect(tester.takeException(), isNull);
     });

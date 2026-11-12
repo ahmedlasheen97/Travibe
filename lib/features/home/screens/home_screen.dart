@@ -9,7 +9,6 @@ import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/stories/screens/story_viewer_screen.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
@@ -792,7 +791,6 @@ class _HomeViewState extends State<_HomeView> {
               key: ValueKey('home-top-loading'),
               size: 30,
               semanticsLabel: 'Loading posts',
-              color: DarkColors.whiteColor,
             ),
           ),
         ),
@@ -956,7 +954,6 @@ class _HomeViewState extends State<_HomeView> {
             child: TravibeLoadingIndicator(
               size: 32,
               semanticsLabel: 'Loading more posts',
-              color: DarkColors.whiteColor,
             ),
           ),
         ),

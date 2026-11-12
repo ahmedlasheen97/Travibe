@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'fixtures.dart';
+import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -133,6 +135,34 @@ void main() {
       expect(find.text('Author 23 post 201'), findsOneWidget);
       expect(find.text('Saved'), findsNothing);
       expect(find.text('Edit Profile'), findsNothing);
+    },
+  );
+  testWidgets(
+    'public profile posts never show Follow; header state is shared app-wide',
+    (tester) async {
+      // Header says Following while the posts endpoint's author flag is stale.
+      profiles = _FollowingProfiles();
+      await show(tester, userId: 23);
+      expect(find.widgetWithText(FilledButton, 'Following'), findsOneWidget);
+      expect(find.byType(PostCard), findsWidgets);
+      for (final card in tester.widgetList<PostCard>(find.byType(PostCard))) {
+        expect(card.showFollowButton, isFalse);
+      }
+      for (final label in ['Follow', 'Following']) {
+        expect(
+          find.descendant(
+            of: find.byType(PostCard),
+            matching: find.text(label),
+          ),
+          findsNothing,
+          reason: label,
+        );
+      }
+      // Seeded for Home/Post cards, without counting as a follow mutation.
+      expect(follow.state.following['23'], isTrue);
+      expect(follow.state.followsYou['23'], isTrue);
+      expect(follow.state.revision, 0);
+      expect(repo.authorReads, hasLength(1));
     },
   );
   testWidgets('switching public profiles discards stale author responses', (
@@ -268,4 +298,15 @@ void main() {
       expect(repo.writes.single.id, '101');
     },
   );
+}
+
+class _FollowingProfiles extends AuthorProfilesRepo {
+  @override
+  Future<ProfileModel?> getPublicProfile(int userId) async =>
+      ProfileModel.fromJson({
+        ...profileJson(id: userId, name: 'Public $userId'),
+        'is_me': false,
+        'is_following': true,
+        'follows_you': true,
+      });
 }

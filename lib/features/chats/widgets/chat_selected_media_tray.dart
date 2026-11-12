@@ -1,5 +1,5 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import '../data/chat_media_selection.dart';
 import '../data/chat_models.dart';
 import 'chat_send_button.dart';
@@ -84,11 +84,7 @@ class ChatSelectedMediaTray extends StatelessWidget {
                         Positioned.fill(
                           child: ColoredBox(
                             color: Colors.black54,
-                            child: Center(
-                              child: CupertinoActivityIndicator(
-                                color: Colors.white,
-                              ),
-                            ),
+                            child: Center(child: AppActivityIndicator()),
                           ),
                         ),
                     ],

@@ -1,6 +1,6 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:video_player/video_player.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import '../cubit/chat_audio_controller.dart';
@@ -198,7 +198,7 @@ class _ChatVideoMessageState extends State<ChatVideoMessage>
                 icon: _busy
                     ? const SizedBox.square(
                         dimension: 18,
-                        child: CupertinoActivityIndicator(),
+                        child: AppActivityIndicator(),
                       )
                     : Icon(
                         player?.value.isPlaying == true

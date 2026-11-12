@@ -39,6 +39,7 @@ import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:travibe/features/profile/widgets/profile_stats.dart';
 import 'package:travibe/features/profile/widgets/profile_tabs.dart';
 import 'package:travibe/features/profile/widgets/profile_top_bar.dart';
+import 'package:travibe/features/shares/data/post_share_actions.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
@@ -203,6 +204,7 @@ class _ProfileViewState extends State<_ProfileView> {
   int _selectedTab = 0;
   int _savedSubTab = 0;
   StreamSubscription<FollowState>? _followSubscription;
+  StreamSubscription<ProfileState>? _profileSubscription;
   StreamSubscription<BlockState>? _blockSubscription;
   BlockCubit? _block;
   BuildContext? _contentContext;
@@ -260,6 +262,20 @@ class _ProfileViewState extends State<_ProfileView> {
       }
     });
     final id = cubit.userId?.toString();
+    if (id != null && follow != null) {
+      // Share the profile's confirmed relationship with every post card.
+      void seed(ProfileState state) {
+        if (state is! ProfileLoaded || state.profile.isMe == true) return;
+        follow.seed(
+          state.profile.id,
+          following: state.profile.isFollowing,
+          followsYou: state.profile.followsYou,
+        );
+      }
+
+      seed(cubit.state);
+      _profileSubscription = cubit.stream.listen(seed);
+    }
     if (id != null) {
       var blocked = _block?.state.blocked[id];
       if (blocked == true) cubit.publicProfileUnavailable();
@@ -280,8 +296,22 @@ class _ProfileViewState extends State<_ProfileView> {
   void dispose() {
     widget.refreshSignal?.removeListener(_retap);
     _followSubscription?.cancel();
+    _profileSubscription?.cancel();
     _blockSubscription?.cancel();
     super.dispose();
+  }
+
+  Future<void> _shareMyProfile(Uri url, Rect origin) async {
+    try {
+      await PostShareActions(verifiedPostUri: url).moreOptions(origin);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to share your profile. Please try again.'),
+        ),
+      );
+    }
   }
 
   Widget _unavailable() => ErrorRetryView(
@@ -495,6 +525,9 @@ class _ProfileViewState extends State<_ProfileView> {
                             ),
                           ),
                         ),
+                  onShare: profile.url == null
+                      ? null
+                      : (origin) => _shareMyProfile(profile.url!, origin),
                 ),
               if (context.read<ProfileCubit>().userId != null &&
                   profile.isMe != true)
@@ -547,14 +580,14 @@ class _ProfileViewState extends State<_ProfileView> {
             padding: const EdgeInsets.only(top: 8),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: const Color(0xFF3A2216),
+                color: DarkColors.darkgreyColor,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 child: Text(
                   'Follows You',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                  style: TextStyle(color: DarkColors.whiteColor, fontSize: 12),
                 ),
               ),
             ),

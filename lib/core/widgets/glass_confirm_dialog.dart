@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
@@ -147,10 +147,7 @@ class GlassConfirmDialog extends StatelessWidget {
                           child: loading
                               ? Semantics(
                                   label: loadingLabel ?? confirmLabel,
-                                  child: const CupertinoActivityIndicator(
-                                    radius: 11,
-                                    color: DarkColors.primaryColor,
-                                  ),
+                                  child: const AppActivityIndicator(radius: 11),
                                 )
                               : Text(confirmLabel),
                         ),

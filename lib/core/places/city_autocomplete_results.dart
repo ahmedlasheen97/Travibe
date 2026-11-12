@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:flutter/material.dart';
 import 'city_autocomplete_cubit.dart';
@@ -81,10 +81,7 @@ class CityAutocompleteResults extends StatelessWidget {
                     width: 18,
                     height: 18,
                     child: currentCityStyle
-                        ? const CupertinoActivityIndicator(
-                            radius: 9,
-                            color: DarkColors.primaryColor,
-                          )
+                        ? const AppActivityIndicator(radius: 9)
                         : const CircularProgressIndicator(strokeWidth: 2),
                   ),
                   const SizedBox(width: 12),

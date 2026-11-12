@@ -349,7 +349,7 @@ void main() {
   );
 
   testWidgets(
-    'refresh has one orange indicator, no native spinner and preserves cards',
+    'refresh has one white indicator, no native spinner and preserves cards',
     (tester) async {
       await show(tester);
       people.hold = true;
@@ -368,7 +368,7 @@ void main() {
               find.byType(CupertinoActivityIndicator),
             )
             .color,
-        DarkColors.primaryColor,
+        DarkColors.whiteColor,
       );
       expect(find.byType(RefreshProgressIndicator), findsNothing);
       expect(tester.element(find.byType(FollowUserTile)), same(element));

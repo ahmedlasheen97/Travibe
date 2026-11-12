@@ -612,7 +612,7 @@ void main() {
     },
   );
   testWidgets(
-    'saving displays one orange Cupertino loader and prevents duplicate city requests',
+    'saving displays one white Cupertino loader and prevents duplicate city requests',
     (tester) async {
       await show(tester);
       await chooseParis(tester);
@@ -629,7 +629,7 @@ void main() {
               find.byType(CupertinoActivityIndicator),
             )
             .color,
-        DarkColors.primaryColor,
+        DarkColors.whiteColor,
       );
       expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
       expect(api.calls, ['PUT profile/location']);

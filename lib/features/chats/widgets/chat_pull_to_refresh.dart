@@ -1,7 +1,7 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
 
 const double _radius = 12;
 
@@ -10,13 +10,11 @@ Widget _indicator(BuildContext context, {double? progress}) => Semantics(
   liveRegion: progress == null,
   excludeSemantics: true,
   child: progress == null
-      ? CupertinoActivityIndicator(
-          color: DarkColors.primaryColor,
+      ? AppActivityIndicator(
           radius: _radius,
           animating: !MediaQuery.disableAnimationsOf(context),
         )
-      : CupertinoActivityIndicator.partiallyRevealed(
-          color: DarkColors.primaryColor,
+      : AppActivityIndicator.partiallyRevealed(
           radius: _radius,
           progress: progress,
         ),

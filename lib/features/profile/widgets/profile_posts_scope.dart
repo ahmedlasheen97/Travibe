@@ -52,10 +52,17 @@ class _ProfilePostsScopeState extends State<ProfilePostsScope> {
     });
     final follow = context.read<FollowCubit?>();
     var following = follow?.state.following[widget.userId.toString()];
+    var revision = follow?.state.revision;
     _follows = follow?.stream.listen((state) {
       final next = state.following[widget.userId.toString()];
+      final mutated = state.revision != revision;
+      revision = state.revision;
       if (next == following) return;
+      final previous = following;
       following = next;
+      // A first known value without a mutation (the profile's own seed) is
+      // not a follow change.
+      if (previous == null && !mutated) return;
       if (_posts.state is! PostsInitial) {
         unawaited(_posts.refreshAfterPublication());
       }

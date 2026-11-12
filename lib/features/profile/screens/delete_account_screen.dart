@@ -1,7 +1,7 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -291,10 +291,7 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
                         child: state.loading
                             ? Semantics(
                                 label: 'Deleting account',
-                                child: const CupertinoActivityIndicator(
-                                  radius: 11,
-                                  color: DarkColors.primaryColor,
-                                ),
+                                child: const AppActivityIndicator(radius: 11),
                               )
                             : Text(
                                 'Delete my Account',
