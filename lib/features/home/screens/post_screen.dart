@@ -301,13 +301,15 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _header() {
     if (context.read<FollowCubit?>() == null) {
-      return _card(following: _post.user.isFollowing);
+      return _card(following: _post.user.isFollowing, requested: false);
     }
     return FollowActionBuilder(
       userId: _post.user.id,
       initialFollowing: _post.user.isFollowing,
-      builder: (context, following, pending, toggle) => _card(
-        following: following,
+      initialRequested: _post.user.followRequested,
+      builder: (context, relation, pending, toggle) => _card(
+        following: relation.isFollowing,
+        requested: relation.isRequested,
         pending: pending,
         onFollow: _post.user.isBlocked ? null : toggle,
         showFollow: true,
@@ -317,6 +319,7 @@ class _PostScreenState extends State<PostScreen> {
 
   Widget _card({
     required bool following,
+    required bool requested,
     bool pending = false,
     VoidCallback? onFollow,
     bool showFollow = false,
@@ -366,6 +369,7 @@ class _PostScreenState extends State<PostScreen> {
       showFollowButton: showFollow,
       neutralFollowButton: true,
       isFollowing: following,
+      isFollowRequested: requested,
       isFollowPending: pending,
       onFollowTap: onFollow,
       showMoreButton: false,

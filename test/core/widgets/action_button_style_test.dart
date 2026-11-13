@@ -7,6 +7,7 @@ import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/features/profile/widgets/profile_action_buttons.dart';
 import 'package:travibe/features/auth/widgets/social_login_button.dart';
+import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/follow/widgets/follow_pill.dart';
 
 void main() {
@@ -200,7 +201,7 @@ void main() {
           theme: darkTheme,
           home: Scaffold(
             body: FollowPill(
-              following: false,
+              relation: FollowRelation.follow,
               pending: false,
               onPressed: () {},
             ),

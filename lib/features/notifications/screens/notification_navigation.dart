@@ -1,3 +1,4 @@
+import 'package:travibe/features/follow_requests/screens/follow_requests_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -89,6 +90,9 @@ Future<void> openNotificationDestination(
         profileRepo: profiles,
         postsRepo: posts,
       );
+      return;
+    case NotificationTargetKind.followRequests:
+      await FollowRequestsScreen.open(context);
       return;
     case NotificationTargetKind.post:
     case NotificationTargetKind.comment:

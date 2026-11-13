@@ -1,3 +1,5 @@
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
+import 'package:travibe/features/follow_requests/widgets/follow_request_actions.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'notification_navigation.dart';
 import '../data/notification_targets.dart';
@@ -139,6 +141,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final shared = context.read<FollowCubit?>();
     _ownsFollow = shared == null;
     _follow = shared ?? FollowCubit();
+    // Inline Accept/decline needs current pending requests.
+    unawaited(context.read<IncomingRequestsCubit?>()?.sync());
     _notifications = widget.activity ?? NotificationActivity(repo: widget.repo);
     WidgetsBinding.instance.addObserver(this);
     _session.addListener(_sessionChanged);
@@ -337,7 +341,17 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                                   ?.id;
                               // Follow is never self-sent; hide when already
                               // following. Tapping flips the pill to Following.
+                              final incoming = context
+                                  .watch<IncomingRequestsCubit?>();
+                              // Inline Accept / X while the request waits.
+                              final canRespond =
+                                  item.type == 'follow_requested' &&
+                                  actor?.id != null &&
+                                  actor?.isBlocked != true &&
+                                  incoming?.state.contains(actor!.id!) == true;
                               final canFollow =
+                                  item.type != 'follow_requested' &&
+                                  item.type != 'follow_request_accepted' &&
                                   widget.presentation.kind(item) ==
                                       NotificationKind.follow &&
                                   actor?.id != null &&
@@ -358,18 +372,22 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                                 onRead: () => _openNotification(item),
                                 onAvatarTap: () =>
                                     _openNotification(item, profile: true),
-                                followAction: canFollow
+                                followAction: canRespond
+                                    ? FollowRequestActions(userId: actor!.id!)
+                                    : canFollow
                                     ? FollowActionBuilder(
                                         userId: actor.id!,
                                         initialFollowing: actor.isFollowing!,
+                                        initialRequested:
+                                            actor.followRequested == true,
                                         builder:
                                             (
                                               context,
-                                              following,
+                                              relation,
                                               pending,
                                               onToggle,
                                             ) => FollowPill(
-                                              following: following,
+                                              relation: relation,
                                               pending: pending,
                                               onPressed: onToggle,
                                             ),

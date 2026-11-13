@@ -6,9 +6,16 @@ import 'package:travibe/features/search/data/users_page_model.dart';
 enum FollowListType { suggested, followers, following }
 
 class FollowStatus {
-  const FollowStatus({required this.userId, required this.isFollowing});
+  const FollowStatus({
+    required this.userId,
+    required this.isFollowing,
+    this.followRequested = false,
+  });
   final String userId;
   final bool isFollowing;
+
+  /// A pending request to a private account.
+  final bool followRequested;
 
   factory FollowStatus.fromJson(Map<String, dynamic> json) {
     final data = json['data'];
@@ -20,6 +27,7 @@ class FollowStatus {
     return FollowStatus(
       userId: data['user_id'].toString(),
       isFollowing: data['is_following'] as bool,
+      followRequested: data['follow_requested'] == true,
     );
   }
 }

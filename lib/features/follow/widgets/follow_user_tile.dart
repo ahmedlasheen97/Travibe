@@ -19,7 +19,8 @@ class FollowUserTile extends StatelessWidget {
   Widget build(BuildContext context) => FollowActionBuilder(
     userId: user.id,
     initialFollowing: user.isFollowing,
-    builder: (context, following, pending, onToggle) {
+    initialRequested: user.followRequested,
+    builder: (context, relation, pending, onToggle) {
       final current = context.read<FollowCubit>().state.users[user.id] ?? user;
       return BlocBuilder<BlockCubit, BlockState>(
         builder: (context, block) {
@@ -28,7 +29,10 @@ class FollowUserTile extends StatelessWidget {
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: PersonResultTile(
-              user: current.copyWith(isFollowing: following),
+              user: current.copyWith(
+                isFollowing: relation.isFollowing,
+                followRequested: relation.isRequested,
+              ),
               followsYou:
                   context.read<FollowCubit>().state.followsYou[user.id] ??
                   current.followsYou,

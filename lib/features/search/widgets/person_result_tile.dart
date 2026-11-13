@@ -104,11 +104,18 @@ class PersonResultTile extends StatelessWidget {
                           ? 'Updating…'
                           : user.isFollowing
                           ? 'Following'
+                          : user.followRequested
+                          ? 'Requested'
                           : 'Follow',
                       maxLines: trailing == null ? null : 1,
                       overflow: trailing == null ? null : TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color:
+                            !isFollowingPending &&
+                                !user.isFollowing &&
+                                user.followRequested
+                            ? const Color(0xFF989693)
+                            : Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                       ),

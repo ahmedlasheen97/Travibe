@@ -254,14 +254,15 @@ class _LikerRow extends StatelessWidget {
   Widget _follow(BuildContext context) => FollowActionBuilder(
     userId: user.id,
     initialFollowing: user.isFollowing,
-    builder: (context, following, pending, toggle) {
+    initialRequested: user.followRequested,
+    builder: (context, relation, pending, toggle) {
       final block = context.watch<BlockCubit?>()?.state;
       final blocked =
           block?.isBlocked(user.id, fallback: user.isBlocked) ?? user.isBlocked;
       return ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 120),
         child: FollowPill(
-          following: following,
+          relation: relation,
           pending: pending,
           onPressed: blocked || block?.pending.contains(user.id) == true
               ? null

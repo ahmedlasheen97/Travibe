@@ -14,6 +14,9 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
+import 'package:travibe/features/follow_requests/data/follow_requests_repo.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
@@ -47,6 +50,7 @@ class Root extends StatefulWidget {
     this.mediaUploads,
     this.postImagePicker,
     this.storiesRepo,
+    this.followRequestsRepo,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
@@ -57,6 +61,7 @@ class Root extends StatefulWidget {
   final MediaUploadFactory? mediaUploads;
   final PostImagePicker? postImagePicker;
   final StoriesRepo? storiesRepo;
+  final FollowRequestsRepo? followRequestsRepo;
 
   @override
   State<Root> createState() => _RootState();
@@ -68,6 +73,15 @@ class _RootState extends State<Root> {
   ChatReverbService? _reverb;
   ChatUnreadCubit? _chatUnread;
   StreamSubscription<BlockState>? _reverbBlocks;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_incoming.sync());
+    });
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -119,12 +133,17 @@ class _RootState extends State<Root> {
     _push = next;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(next, _push)) {
-        next?.attach(this, context, follow: _followCubit);
+        next?.attach(this, context, follow: _followCubit, incoming: _incoming);
       }
     });
   }
 
   late final _followCubit = FollowCubit(repo: widget.followRepo);
+  late final _incoming = IncomingRequestsCubit(
+    repo: widget.followRequestsRepo,
+    follow: _followCubit,
+    currentUser: () => mounted ? context.read<CurrentUserCubit?>() : null,
+  );
   late final _saves = SavesCubit(repo: widget.postsRepo);
   late final _savedPosts = SavedPostsCubit(
     saves: _saves,
@@ -171,6 +190,7 @@ class _RootState extends State<Root> {
     _activity.close();
     _hidden.close();
     _blockCubit.close();
+    _incoming.close();
     _followCubit.close();
     super.dispose();
   }
@@ -227,6 +247,7 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _activity),
         BlocProvider.value(value: _hidden),
         BlocProvider.value(value: _followCubit),
+        BlocProvider.value(value: _incoming),
         BlocProvider.value(value: _blockCubit),
         BlocProvider.value(value: _postUploads),
       ],

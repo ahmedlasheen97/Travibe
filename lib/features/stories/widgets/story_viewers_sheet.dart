@@ -175,10 +175,11 @@ class StoryViewersSheet extends StatelessWidget {
           FollowActionBuilder(
             userId: user.author.id.toString(),
             initialFollowing: user.isFollowing,
-            builder: (context, following, pending, toggle) => ConstrainedBox(
+            initialRequested: user.followRequested,
+            builder: (context, relation, pending, toggle) => ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 120),
               child: FollowPill(
-                following: following,
+                relation: relation,
                 pending: pending,
                 onPressed: toggle,
                 // Keep the same neutral background while disabled/pending too.

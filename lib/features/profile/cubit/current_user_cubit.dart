@@ -150,6 +150,26 @@ class CurrentUserCubit extends Cubit<CurrentUserState> {
     }
   }
 
+  /// Optimistic follower-count change (e.g. an accepted follow request). The
+  /// own profile applies the same delta; the next server read reconciles.
+  void adjustFollowersCount(int delta) {
+    final profile = state.profile;
+    if (isClosed || profile == null || delta == 0) return;
+    final count = profile.followersCount;
+    if (count == null) return;
+    emit(
+      CurrentUserState(
+        profile: profile.withFollowersCount(
+          (count + delta).clamp(0, 1 << 31).toInt(),
+        ),
+        loading: state.loading,
+        saving: state.saving,
+        error: state.error,
+        revision: state.revision + 1,
+      ),
+    );
+  }
+
   /// Publish canonical profile fields while preserving an active settings write.
   void cacheProfile(ProfileModel profile, {required int expectedSession}) {
     if (isClosed ||

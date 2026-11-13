@@ -45,6 +45,9 @@ class ProfileModel {
     this.isFollowing,
     this.followsYou,
     this.isBlocked,
+    this.isPrivate,
+    this.followRequested,
+    this.canViewContent,
     this.url,
   });
 
@@ -87,6 +90,18 @@ class ProfileModel {
   final bool? isFollowing;
   final bool? followsYou;
   final bool? isBlocked;
+
+  /// Whether the account is private (`is_private`).
+  final bool? isPrivate;
+
+  /// Whether the viewer has a pending request to this account.
+  final bool? followRequested;
+
+  /// `can_view_content`; missing (older payloads) means viewable.
+  final bool? canViewContent;
+
+  /// True when another user's private content is hidden from the viewer.
+  bool get isLocked => isMe != true && canViewContent == false;
 
   /// Backend share link (`url`), used as-is; never built in the app.
   final Uri? url;
@@ -147,9 +162,58 @@ class ProfileModel {
       isFollowing: isFollowing,
       followsYou: followsYou,
       isBlocked: isBlocked,
+      isPrivate: source.isPrivate ?? isPrivate,
+      followRequested: followRequested,
+      canViewContent: canViewContent,
       url: url,
     );
   }
+
+  ProfileModel withFollowersCount(int? value) =>
+      _copy(followersCount: value ?? followersCount);
+
+  ProfileModel withPrivacy(bool value) => _copy(isPrivate: value);
+
+  ProfileModel _copy({int? followersCount, bool? isPrivate}) => ProfileModel(
+    id: id,
+    name: name,
+    username: username,
+    email: email,
+    locale: locale,
+    currencyCode: currencyCode,
+    showActiveStatus: showActiveStatus,
+    showInTravelBuddy: showInTravelBuddy,
+    pushNotificationsEnabled: pushNotificationsEnabled,
+    settingsIncluded: settingsIncluded,
+    emailVerifiedAt: emailVerifiedAt,
+    termsAcceptedAt: termsAcceptedAt,
+    profileCompletedAt: profileCompletedAt,
+    profileCompleted: profileCompleted,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+    avatarUrl: avatarUrl,
+    bio: bio,
+    countryCode: countryCode,
+    currentLocation: currentLocation,
+    locationIncluded: locationIncluded,
+    nationality: nationality,
+    nationalityCode: nationalityCode,
+    gender: gender,
+    languageSelections: languageSelections,
+    interestSelections: interestSelections,
+    travelStyleSelections: travelStyleSelections,
+    postsCount: postsCount,
+    followersCount: followersCount ?? this.followersCount,
+    followingCount: followingCount,
+    isMe: isMe,
+    isFollowing: isFollowing,
+    followsYou: followsYou,
+    isBlocked: isBlocked,
+    isPrivate: isPrivate ?? this.isPrivate,
+    followRequested: followRequested,
+    canViewContent: canViewContent,
+    url: url,
+  );
 
   ProfileModel withLocation(String? value) {
     return ProfileModel(
@@ -187,6 +251,9 @@ class ProfileModel {
       isFollowing: isFollowing,
       followsYou: followsYou,
       isBlocked: isBlocked,
+      isPrivate: isPrivate,
+      followRequested: followRequested,
+      canViewContent: canViewContent,
       url: url,
     );
   }
@@ -248,6 +315,9 @@ class ProfileModel {
       isFollowing: _flag(data['is_following']),
       followsYou: _flag(data['follows_you']),
       isBlocked: _flag(data['is_blocked']),
+      isPrivate: _flag(data['is_private']),
+      followRequested: _flag(data['follow_requested']),
+      canViewContent: _flag(data['can_view_content']),
       url: parseHttpsUri(data['url']),
     );
   }

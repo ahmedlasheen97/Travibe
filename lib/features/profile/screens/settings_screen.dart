@@ -1,5 +1,10 @@
+import 'dart:async';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
+import 'package:travibe/features/follow_requests/screens/follow_requests_screen.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -63,6 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _ownsUser = provided == null;
     _user = provided ?? CurrentUserCubit();
     _user.load();
+    unawaited(context.read<IncomingRequestsCubit?>()?.sync());
   }
 
   @override
@@ -162,6 +168,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ),
                   ),
                   _divider(),
+                  _settingsToggleTile(
+                    icon: _svgIcon('security-user.svg'),
+                    title: 'Private Account',
+                    value: profile?.isPrivate,
+                    saving: state.saving == 'is_private',
+                    onChanged: !ready || _saving ? null : _setPrivate,
+                  ),
+                  ..._followRequestsRow(profile?.isPrivate == true),
+                  _divider(),
                   _settingsTile(
                     icon: _svgIcon('user_remove_3.svg'),
                     title: 'Blocked Accounts',
@@ -208,39 +223,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             }
                           },
                   ),
-                  _divider(),
-                  _settingsTile(
-                    icon: _svgIcon('moneys.svg'),
-                    title: 'Currency',
-                    detail: state.saving == 'currency_code'
-                        ? 'Saving…'
-                        : profile?.currencyCode ?? (ready ? 'None' : null),
-                    onTap: !ready || _saving
-                        ? null
-                        : () async {
-                            final session =
-                                PreferencesManager().sessionRevision;
-                            final result =
-                                await Navigator.push<CurrencySelection>(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CurrencyScreen(
-                                      selectedCurrencyCode:
-                                          profile?.currencyCode,
-                                      allowedCodes: _user.supportedCurrencies,
+                  if (kShowCurrencySetting) ...[
+                    _divider(),
+                    _settingsTile(
+                      icon: _svgIcon('moneys.svg'),
+                      title: 'Currency',
+                      detail: state.saving == 'currency_code'
+                          ? 'Saving…'
+                          : profile?.currencyCode ?? (ready ? 'None' : null),
+                      onTap: !ready || _saving
+                          ? null
+                          : () async {
+                              final session =
+                                  PreferencesManager().sessionRevision;
+                              final result =
+                                  await Navigator.push<CurrencySelection>(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => CurrencyScreen(
+                                        selectedCurrencyCode:
+                                            profile?.currencyCode,
+                                        allowedCodes: _user.supportedCurrencies,
+                                      ),
                                     ),
-                                  ),
+                                  );
+                              if (mounted &&
+                                  result != null &&
+                                  session ==
+                                      PreferencesManager().sessionRevision) {
+                                _user.update(
+                                  SettingsUpdate({
+                                    'currency_code': result.code,
+                                  }),
                                 );
-                            if (mounted &&
-                                result != null &&
-                                session ==
-                                    PreferencesManager().sessionRevision) {
-                              _user.update(
-                                SettingsUpdate({'currency_code': result.code}),
-                              );
-                            }
-                          },
-                  ),
+                              }
+                            },
+                    ),
+                  ],
                 ]),
                 SizedBox(height: AppSizes.h24),
                 _sectionTitle('Notifications'),
@@ -352,6 +371,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
         );
       },
     );
+  }
+
+  /// Going public auto-accepts every pending request, so confirm first.
+  Future<void> _setPrivate(bool value) async {
+    final incoming = context.read<IncomingRequestsCubit?>();
+    if (!value) {
+      final confirmed = await showGlassConfirmDialog(
+        context,
+        title: 'Switch to public?',
+        message: 'All pending follow requests will be accepted.',
+        confirmLabel: 'Switch to public',
+        destructive: false,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    await _user.update(SettingsUpdate({'is_private': value}));
+    if (!mounted || value || _user.state.profile?.isPrivate != false) return;
+    // Accepted requesters are now followers: refresh requests and counts.
+    unawaited(incoming?.sync());
+    unawaited(_user.load());
+  }
+
+  /// Shown only while private, or while requests are still waiting.
+  List<Widget> _followRequestsRow(bool isPrivate) {
+    final incoming = context.watch<IncomingRequestsCubit?>();
+    final total = incoming?.state.total ?? 0;
+    if (incoming == null || (!isPrivate && total == 0)) return const [];
+    return [
+      _divider(),
+      _settingsTile(
+        icon: _svgIcon('people.svg'),
+        title: 'Follow Requests',
+        detail: total > 0 ? '$total' : null,
+        onTap: () => FollowRequestsScreen.open(context),
+      ),
+    ];
   }
 
   Widget _buildTopBar() {

@@ -324,7 +324,8 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
     return FollowActionBuilder(
       userId: widget.profile.id,
       initialFollowing: widget.profile.isFollowing == true,
-      builder: (context, following, pending, onToggle) => Padding(
+      initialRequested: widget.profile.followRequested == true,
+      builder: (context, relation, pending, onToggle) => Padding(
         padding: EdgeInsets.symmetric(horizontal: AppSizes.w20),
         child: Row(
           children: [
@@ -341,17 +342,14 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton(
-                style: _style(!following),
+                style: _style(
+                  relation == FollowRelation.follow,
+                  muted: relation.isRequested && !pending,
+                ),
                 onPressed: _valid && !_blocked ? onToggle : null,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    pending
-                        ? 'Updating…'
-                        : following
-                        ? 'Following'
-                        : 'Follow',
-                  ),
+                  child: Text(pending ? 'Updating…' : relation.label),
                 ),
               ),
             ),
@@ -361,14 +359,15 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
     );
   }
 
-  ButtonStyle _style(bool orange) => FilledButton.styleFrom(
-    backgroundColor: orange
-        ? DarkColors.primaryColor
-        : DarkColors.darkgreyColor,
-    foregroundColor: Colors.white,
-    minimumSize: const Size(0, 44),
-    padding: const EdgeInsets.symmetric(horizontal: 12),
-    shape: ActionButtonStyle.shape,
-    textStyle: ActionButtonStyle.label,
-  );
+  ButtonStyle _style(bool orange, {bool muted = false}) =>
+      FilledButton.styleFrom(
+        backgroundColor: orange
+            ? DarkColors.primaryColor
+            : DarkColors.darkgreyColor,
+        foregroundColor: muted ? requestedFollowColor : Colors.white,
+        minimumSize: const Size(0, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        shape: ActionButtonStyle.shape,
+        textStyle: ActionButtonStyle.label,
+      );
 }

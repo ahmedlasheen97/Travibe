@@ -28,15 +28,9 @@ Widget buttons(FollowCubit cubit) => MaterialApp(
             FollowActionBuilder(
               userId: '7',
               initialFollowing: false,
-              builder: (context, following, pending, onToggle) => TextButton(
+              builder: (context, relation, pending, onToggle) => TextButton(
                 onPressed: onToggle,
-                child: Text(
-                  pending
-                      ? 'Updating'
-                      : following
-                      ? 'Following'
-                      : 'Follow',
-                ),
+                child: Text(pending ? 'Updating' : relation.label),
               ),
             ),
         ],

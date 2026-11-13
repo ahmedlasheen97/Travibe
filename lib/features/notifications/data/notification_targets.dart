@@ -19,6 +19,9 @@ enum NotificationTargetKind {
   profile,
   conversation,
   buddies,
+
+  /// My incoming follow requests list (`follow_requested`).
+  followRequests,
 }
 
 /// Documented short `target_type` values; legacy morph names still accepted.
@@ -49,7 +52,11 @@ class NotificationTarget {
     if (item.type == 'buddy_nearby') {
       return const NotificationTarget(NotificationTargetKind.buddies, 0);
     }
-    if (item.type == 'user_followed') {
+    if (item.type == 'follow_requested') {
+      return const NotificationTarget(NotificationTargetKind.followRequests, 0);
+    }
+    if (item.type == 'user_followed' ||
+        item.type == 'follow_request_accepted') {
       final actor = positive(item.actor?.id);
       return actor == null || item.actor?.isBlocked == true
           ? null
@@ -332,6 +339,7 @@ class NotificationTargetsRepository {
         return NotificationContent(target, conversation: conversation);
       case NotificationTargetKind.profile:
       case NotificationTargetKind.buddies:
+      case NotificationTargetKind.followRequests:
         return NotificationContent(target);
     }
   }

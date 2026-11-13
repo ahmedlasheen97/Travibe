@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 
 /// Presentation shared with Home suggestions; follow mutations stay in
 /// FollowActionBuilder/FollowCubit, supplied through [onPressed].
 class FollowPill extends StatelessWidget {
   const FollowPill({
     super.key,
-    required this.following,
+    required this.relation,
     required this.pending,
     required this.onPressed,
     this.style,
   });
-  final bool following, pending;
+  final FollowRelation relation;
+  final bool pending;
   final VoidCallback? onPressed;
   final ButtonStyle? style;
   static const backgroundColor = Color(0xFF2F2E2D);
@@ -36,12 +38,12 @@ class FollowPill extends StatelessWidget {
             ),
           )
         : Text(
-            following ? 'Following' : 'Follow',
+            relation.label,
             maxLines: 1,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               height: 24 / 14,
-              color: Colors.white,
+              color: relation.isRequested ? requestedFollowColor : Colors.white,
               fontWeight: FontWeight.w500,
               decoration: TextDecoration.none,
             ),
