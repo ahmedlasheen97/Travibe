@@ -24,13 +24,17 @@ class NotificationActor {
     this.avatarUrl,
     this.isFollowing,
     this.isBlocked,
+    this.followRequested,
   });
   final String? id, name, username, avatarUrl;
-  final bool? isFollowing, isBlocked;
+  final bool? isFollowing, isBlocked, followRequested;
   factory NotificationActor.fromJson(Map json) => NotificationActor(
     id: _id(json['id']),
     isFollowing: json['is_following'] is bool ? json['is_following'] : null,
     isBlocked: json['is_blocked'] is bool ? json['is_blocked'] : null,
+    followRequested: json['follow_requested'] is bool
+        ? json['follow_requested']
+        : null,
     name: _text(json['name']),
     username: _text(json['username']),
     avatarUrl: _text(json['avatar_url']),

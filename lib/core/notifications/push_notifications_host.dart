@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -118,7 +119,12 @@ class PushNotificationsCoordinator {
   void Function()? _open;
   StreamSubscription<PushActivity>? _activity;
 
-  void attach(Object owner, BuildContext context, {FollowCubit? follow}) {
+  void attach(
+    Object owner,
+    BuildContext context, {
+    FollowCubit? follow,
+    IncomingRequestsCubit? incoming,
+  }) {
     if (identical(_owner, owner)) return;
     detachAll();
     _owner = owner;
@@ -142,12 +148,18 @@ class PushNotificationsCoordinator {
                   activity: notifications,
                 );
                 final scoped = notificationRouteScope(context, screen);
-                return follow == null
-                    ? scoped
-                    : BlocProvider<FollowCubit>.value(
-                        value: follow,
-                        child: scoped,
-                      );
+                if (follow == null && incoming == null) return scoped;
+                return MultiBlocProvider(
+                  providers: [
+                    if (follow != null)
+                      BlocProvider<FollowCubit>.value(value: follow),
+                    if (incoming != null)
+                      BlocProvider<IncomingRequestsCubit>.value(
+                        value: incoming,
+                      ),
+                  ],
+                  child: scoped,
+                );
               },
             ),
           )

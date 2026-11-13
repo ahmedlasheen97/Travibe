@@ -26,6 +26,8 @@ class ProfileCubit extends Cubit<ProfileState> {
        ) {
     PreferencesManager().addListener(_sessionChanged);
     if (userId == null && currentUser != null) {
+      // Baseline for follower-count deltas from the shared current user.
+      _lastCurrentUser = currentUser.state.profile;
       _userSubscription = currentUser.stream.listen((state) {
         if (isClosed) return;
         final profile = state.profile;
@@ -37,12 +39,27 @@ class ProfileCubit extends Cubit<ProfileState> {
             state.saving == null &&
             !state.loading &&
             !identical(profile, _lastCurrentUser)) {
+          final previous = _lastCurrentUser;
           _lastCurrentUser = profile;
           final existing = this.state;
           if (existing is ProfileLoaded && existing.profile.id == profile.id) {
+            // Apply only follower-count *changes* (accepted requests), never
+            // a possibly older absolute count from the shared resource.
+            final before = previous?.followersCount;
+            final after = profile.followersCount;
+            final current = existing.profile.followersCount;
+            final delta = before != null && after != null && current != null
+                ? after - before
+                : 0;
+            var next = existing.profile.withSettings(profile);
+            if (delta != 0) {
+              next = next.withFollowersCount(
+                (current! + delta).clamp(0, 1 << 31).toInt(),
+              );
+            }
             emit(
               ProfileLoaded(
-                existing.profile.withSettings(profile),
+                next,
                 refreshing: existing.refreshing,
                 error: existing.error,
               ),

@@ -91,12 +91,18 @@ void main() {
     },
   );
   test(
-    'failure keeps confirmed state and preserves backend error/status',
+    'failure keeps confirmed state and maps backend error, keeping status',
     () async {
+      final unrelated = ApiError(message: 'Server busy', statusCode: 503);
+      final first = cubit.toggle('7', currentlyFollowing: false);
+      repo.calls.single.result.completeError(unrelated);
+      expect(await first, same(unrelated));
       final error = ApiError(message: 'Blocked', statusCode: 422);
       final request = cubit.toggle('7', currentlyFollowing: false);
-      repo.calls.single.result.completeError(error);
-      expect(await request, same(error));
+      repo.calls.last.result.completeError(error);
+      final mapped = await request;
+      expect(mapped?.message, "You can't follow this account.");
+      expect(mapped?.statusCode, 422);
       expect(cubit.state.following, isEmpty);
       expect(cubit.state.pending, isEmpty);
       expect(cubit.state.revision, 0);
@@ -113,7 +119,9 @@ void main() {
       repo.statusResult.complete(
         const FollowStatus(userId: '7', isFollowing: true),
       );
-      expect(await request, same(error));
+      final mapped = await request;
+      expect(mapped?.message, 'You already follow or requested this account.');
+      expect(mapped?.statusCode, error.statusCode);
       expect(cubit.state.following['7'], isTrue);
       expect(cubit.state.revision, 0);
       expect(repo.calls, hasLength(1));

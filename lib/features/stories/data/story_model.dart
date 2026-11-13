@@ -232,12 +232,13 @@ class StoryViewerUser {
     }
     isFollowing = _bool(map['is_following']);
     followsYou = _bool(map['follows_you']);
+    followRequested = map['follow_requested'] == true;
     hasLiked = _bool(map['has_liked']);
   }
   late final StoryAuthor author;
   late final String? username, countryCode;
   late final DateTime? viewedAt;
-  late final bool isFollowing, followsYou, hasLiked;
+  late final bool isFollowing, followsYou, followRequested, hasLiked;
 }
 
 class StoryViewersPage {

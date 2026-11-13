@@ -55,6 +55,9 @@ class PostCard extends StatefulWidget {
   final bool showFollowButton;
   final bool neutralFollowButton;
   final bool isFollowing;
+
+  /// A pending follow request (private account): grey "Requested".
+  final bool isFollowRequested;
   final bool isFollowPending;
   final VoidCallback? onFollowTap;
 
@@ -82,6 +85,7 @@ class PostCard extends StatefulWidget {
     this.showFollowButton = false,
     this.neutralFollowButton = false,
     this.isFollowing = false,
+    this.isFollowRequested = false,
     this.isFollowPending = false,
     this.onFollowTap,
     this.onMoreTap,
@@ -280,6 +284,8 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _buildFollowButton() {
+    // "Requested" shares the outlined Following look with a grey label.
+    final followed = widget.isFollowing || widget.isFollowRequested;
     return InkWell(
       onTap: widget.isFollowPending || widget.onFollowTap == null
           ? null
@@ -297,13 +303,9 @@ class _PostCardState extends State<PostCard> {
         padding: EdgeInsets.symmetric(horizontal: _w(14), vertical: _h(8)),
         decoration: BoxDecoration(
           color: widget.neutralFollowButton
-              ? (widget.isFollowing
-                    ? const Color(0xFF262626)
-                    : const Color(0xFF303030))
-              : (widget.isFollowing
-                    ? Colors.transparent
-                    : DarkColors.primaryColor),
-          border: widget.isFollowing
+              ? (followed ? const Color(0xFF262626) : const Color(0xFF303030))
+              : (followed ? Colors.transparent : DarkColors.primaryColor),
+          border: followed
               ? Border.all(
                   color: widget.neutralFollowButton
                       ? const Color(0xFF444444)
@@ -316,7 +318,7 @@ class _PostCardState extends State<PostCard> {
         ),
         // Paint Follow's new border without adding inset/size. Following already
         // had a decoration border, so its original layout is retained above.
-        foregroundDecoration: widget.neutralFollowButton && !widget.isFollowing
+        foregroundDecoration: widget.neutralFollowButton && !followed
             ? BoxDecoration(
                 borderRadius: BorderRadius.circular(_r(30)),
                 border: Border.all(color: const Color(0xFF444444)),
@@ -327,9 +329,13 @@ class _PostCardState extends State<PostCard> {
               ? 'Updating…'
               : widget.isFollowing
               ? 'Following'
+              : widget.isFollowRequested
+              ? 'Requested'
               : 'Follow',
           style: TextStyle(
-            color: Colors.white,
+            color: !widget.isFollowPending && widget.isFollowRequested
+                ? const Color(0xFF989693)
+                : Colors.white,
             fontSize: _font(12),
             fontWeight: FontWeight.w600,
           ),

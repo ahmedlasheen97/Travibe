@@ -30,6 +30,8 @@ class NotificationPresentationResolver {
     'post_commented': NotificationKind.comment,
     'comment_replied': NotificationKind.comment,
     'user_followed': NotificationKind.follow,
+    'follow_requested': NotificationKind.follow,
+    'follow_request_accepted': NotificationKind.follow,
     'message_received': NotificationKind.messageRequest,
     'message_request_accepted': NotificationKind.messageRequest,
     'buddy_nearby': NotificationKind.nearby,
@@ -42,6 +44,8 @@ class NotificationPresentationResolver {
     'post_commented': 'commented on your post',
     'comment_replied': 'replied to your comment',
     'user_followed': 'followed you',
+    'follow_requested': 'requested to follow you',
+    'follow_request_accepted': 'accepted your follow request',
     'message_received': 'sent you a message',
     'message_request_accepted': 'accepted your message request',
     'buddy_nearby':

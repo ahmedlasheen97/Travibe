@@ -59,7 +59,7 @@ void main() {
   }) => FollowActionBuilder(
     userId: author?.toString() ?? '',
     initialFollowing: following,
-    builder: (_, following, pending, toggle) => PostCard(
+    builder: (_, relation, pending, toggle) => PostCard(
       authorId: author,
       currentUserId: fallback,
       currentUserSessionRevision: revision,
@@ -71,7 +71,7 @@ void main() {
       likes: '0',
       comments: '0',
       showFollowButton: true,
-      isFollowing: following,
+      isFollowing: relation.isFollowing,
       isFollowPending: pending,
       onFollowTap: toggle,
       onMoreTap: more,

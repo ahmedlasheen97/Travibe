@@ -239,9 +239,13 @@ class _SearchViewState extends State<_SearchView> {
                     key: ValueKey(user.id),
                     userId: user.id,
                     initialFollowing: user.isFollowing,
-                    builder: (context, following, pending, onToggle) =>
+                    initialRequested: user.followRequested,
+                    builder: (context, relation, pending, onToggle) =>
                         PersonResultTile(
-                          user: user.copyWith(isFollowing: following),
+                          user: user.copyWith(
+                            isFollowing: relation.isFollowing,
+                            followRequested: relation.isRequested,
+                          ),
                           followsYou:
                               context
                                   .read<FollowCubit>()

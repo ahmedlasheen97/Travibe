@@ -9,6 +9,10 @@ class PublicUserModel {
   final bool isFollowing;
   final bool followsYou;
   final bool isBlocked;
+  final bool isPrivate;
+
+  /// The viewer has a pending follow request to this user.
+  final bool followRequested;
   final int followersCount;
   final int followingCount;
 
@@ -21,6 +25,8 @@ class PublicUserModel {
     required this.isFollowing,
     this.followsYou = false,
     required this.isBlocked,
+    this.isPrivate = false,
+    this.followRequested = false,
     required this.followersCount,
     required this.followingCount,
   });
@@ -39,6 +45,8 @@ class PublicUserModel {
       isFollowing: parseBool(json['is_following']),
       followsYou: parseBool(json['follows_you']),
       isBlocked: parseBool(json['is_blocked']),
+      isPrivate: parseBool(json['is_private']),
+      followRequested: parseBool(json['follow_requested']),
       followersCount: parseInt(json['followers_count']),
       followingCount: parseInt(json['following_count']),
     );
@@ -48,6 +56,7 @@ class PublicUserModel {
     bool? isFollowing,
     bool? followsYou,
     bool? isBlocked,
+    bool? followRequested,
     int? followersCount,
   }) {
     return PublicUserModel(
@@ -59,6 +68,8 @@ class PublicUserModel {
       isFollowing: isFollowing ?? this.isFollowing,
       followsYou: followsYou ?? this.followsYou,
       isBlocked: isBlocked ?? this.isBlocked,
+      isPrivate: isPrivate,
+      followRequested: followRequested ?? this.followRequested,
       followersCount: followersCount ?? this.followersCount,
       followingCount: followingCount,
     );

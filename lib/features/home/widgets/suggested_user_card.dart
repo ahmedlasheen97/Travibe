@@ -24,7 +24,8 @@ class SuggestedUserCard extends StatelessWidget {
   Widget build(BuildContext context) => FollowActionBuilder(
     userId: user.id,
     initialFollowing: user.isFollowing,
-    builder: (context, following, pending, onToggle) => Container(
+    initialRequested: user.followRequested,
+    builder: (context, relation, pending, onToggle) => Container(
       width: 144,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -71,7 +72,7 @@ class SuggestedUserCard extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: FollowPill(
-              following: following,
+              relation: relation,
               pending: pending,
               onPressed: onToggle,
             ),

@@ -1,6 +1,7 @@
 import 'package:travibe/core/notifications/firebase_messaging_client.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
@@ -564,7 +565,7 @@ void main() {
   );
 
   testWidgets(
-    'language and currency screens apply server-backed preferences, including null',
+    'language applies server-backed preferences; Currency row is hidden by flag',
     (tester) async {
       final api = SettingsApi();
       final user = settingsCubit(api);
@@ -587,12 +588,13 @@ void main() {
       }
       expect(preferences.language.value, 'ar');
       expect(api.patches.last, {'locale': 'ar'});
-      await tapVisible(tester, find.text('Currency'));
-      expect(find.byType(CurrencyScreen), findsOneWidget);
-      expect(find.text('No preferred currency'), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('currency-none')));
-      await tester.pumpAndSettle();
-      expect(api.patches.last, {'currency_code': null});
+      // Currency returns with the Explore tab (kShowCurrencySetting).
+      expect(kShowCurrencySetting, isFalse);
+      expect(find.text('Language'), findsOneWidget);
+      expect(find.text('Currency'), findsNothing);
+      expect(find.text('AED'), findsNothing);
+      await tester.scrollUntilVisible(find.text('Log Out'), 160);
+      expect(find.text('Currency'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -781,9 +783,7 @@ void main() {
       expect(find.byType(TextButton), findsNothing);
     });
 
-    testWidgets('Language and Currency values sit beside the chevron', (
-      tester,
-    ) async {
+    testWidgets('Language value sits beside the chevron', (tester) async {
       final api = SettingsApi();
       final user = settingsCubit(api);
       addTearDown(user.close);
@@ -794,10 +794,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      for (final (title, value) in [
-        ('Language', 'English'),
-        ('Currency', 'AED'),
-      ]) {
+      for (final (title, value) in [('Language', 'English')]) {
         final row = find.ancestor(
           of: find.text(title),
           matching: find.byType(InkWell),

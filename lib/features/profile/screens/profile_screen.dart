@@ -1,4 +1,5 @@
 import 'package:travibe/features/chats/data/chat_repository.dart';
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
 import 'package:travibe/features/profile/widgets/other_profile_actions.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
@@ -38,6 +39,8 @@ import 'package:travibe/features/profile/widgets/profile_saved_sub_tabs.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:travibe/features/profile/widgets/profile_stats.dart';
 import 'package:travibe/features/profile/widgets/profile_tabs.dart';
+import 'package:travibe/features/profile/widgets/follow_request_card.dart';
+import 'package:travibe/features/profile/widgets/private_profile_locked.dart';
 import 'package:travibe/features/profile/widgets/profile_top_bar.dart';
 import 'package:travibe/features/shares/data/post_share_actions.dart';
 
@@ -82,6 +85,7 @@ class ProfileScreen extends StatelessWidget {
     final likes = context.read<LikesCubit?>();
     final activity = context.read<PostActivityCubit?>();
     final hidden = context.read<HiddenPostsCubit?>();
+    final incoming = context.read<IncomingRequestsCubit?>();
     return navigator
         .push<void>(
           MaterialPageRoute(
@@ -101,7 +105,8 @@ class ProfileScreen extends StatelessWidget {
                   savedPosts == null &&
                   likes == null &&
                   activity == null &&
-                  hidden == null) {
+                  hidden == null &&
+                  incoming == null) {
                 return screen;
               }
               return MultiBlocProvider(
@@ -114,6 +119,7 @@ class ProfileScreen extends StatelessWidget {
                   if (hidden != null) BlocProvider.value(value: hidden),
                   if (follow != null) BlocProvider.value(value: follow),
                   if (block != null) BlocProvider.value(value: block),
+                  if (incoming != null) BlocProvider.value(value: incoming),
                 ],
                 child: screen,
               );
@@ -227,13 +233,15 @@ class _ProfileViewState extends State<_ProfileView> {
   Future<void> _refresh(BuildContext content) {
     if (_refreshRequest != null) return _refreshRequest!;
     final profile = content.read<ProfileCubit>();
-    if (profile.state is! ProfileLoaded) return Future.value();
+    final loaded = profile.state;
+    if (loaded is! ProfileLoaded) return Future.value();
+    final locked = profile.userId != null && loaded.profile.isLocked;
     final session = PreferencesManager().sessionRevision;
     setState(() => _refreshing = true);
     final requests = <Future<void>>[
       // Join an already-running profile request rather than superseding it.
       profile.loadProfile(),
-      if (_selectedTab == 0) content.read<PostsCubit>().refresh(),
+      if (_selectedTab == 0 && !locked) content.read<PostsCubit>().refresh(),
       if (_selectedTab == 2 && _savedSubTab == 0 && profile.userId == null)
         content.read<SavedPostsCubit>().load(),
     ];
@@ -270,6 +278,7 @@ class _ProfileViewState extends State<_ProfileView> {
           state.profile.id,
           following: state.profile.isFollowing,
           followsYou: state.profile.followsYou,
+          requested: state.profile.followRequested,
         );
       }
 
@@ -448,6 +457,11 @@ class _ProfileViewState extends State<_ProfileView> {
         _block != null && context.read<FollowCubit?>() != null;
     final canViewSaved = context.read<ProfileCubit>().userId == null;
     final selected = !canViewSaved && _selectedTab == 2 ? 0 : _selectedTab;
+    final isOther =
+        context.read<ProfileCubit>().userId != null && profile.isMe != true;
+    // Private account I can't see: header and counts only (lists are 403).
+    final locked = isOther && profile.isLocked;
+    final connections = canOpenConnections && !locked;
     return CustomScrollView(
       key: const PageStorageKey('profile-content'),
       physics: const AlwaysScrollableScrollPhysics(),
@@ -489,7 +503,7 @@ class _ProfileViewState extends State<_ProfileView> {
                 posts: profile.postsCount,
                 followers: profile.followersCount,
                 following: profile.followingCount,
-                onFollowersTap: canOpenConnections
+                onFollowersTap: connections
                     ? () => FollowUsersScreen.open(
                         context,
                         type: FollowListType.followers,
@@ -500,7 +514,7 @@ class _ProfileViewState extends State<_ProfileView> {
                         onExplorePeople: widget.onExplorePeople,
                       )
                     : null,
-                onFollowingTap: canOpenConnections
+                onFollowingTap: connections
                     ? () => FollowUsersScreen.open(
                         context,
                         type: FollowListType.following,
@@ -513,6 +527,7 @@ class _ProfileViewState extends State<_ProfileView> {
                     : null,
               ),
               SizedBox(height: AppSizes.h20),
+              if (isOther) FollowRequestCard(userId: profile.id),
               if (context.read<ProfileCubit>().userId == null)
                 ProfileActionButtons(
                   onEdit: state.refreshing
@@ -537,13 +552,16 @@ class _ProfileViewState extends State<_ProfileView> {
                   repository: widget.chatRepository,
                 ),
               SizedBox(height: AppSizes.h24),
-              ProfileTabs(
-                selectedIndex: selected,
-                showSaved: canViewSaved,
-                onTabSelected: (index) => setState(() => _selectedTab = index),
-              ),
-              SizedBox(height: AppSizes.h8),
-              if (selected == 2)
+              if (!locked) ...[
+                ProfileTabs(
+                  selectedIndex: selected,
+                  showSaved: canViewSaved,
+                  onTabSelected: (index) =>
+                      setState(() => _selectedTab = index),
+                ),
+                SizedBox(height: AppSizes.h8),
+              ],
+              if (!locked && selected == 2)
                 ProfileSavedSubTabs(
                   selectedIndex: _savedSubTab,
                   onTabSelected: (index) =>
@@ -552,7 +570,9 @@ class _ProfileViewState extends State<_ProfileView> {
             ],
           ),
         ),
-        if (selected == 1)
+        if (locked)
+          const SliverToBoxAdapter(child: PrivateProfileLocked())
+        else if (selected == 1)
           _buildAboutTab(profile)
         else if (selected == 2 && _savedSubTab == 0)
           SavedPostsSliver(showLoadingIndicators: !_refreshing)

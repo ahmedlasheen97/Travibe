@@ -13,7 +13,8 @@ class SettingsUpdate {
                   RegExp(r'^[A-Z]{3}$').hasMatch(entry.value),
         'show_active_status' ||
         'show_in_travel_buddy' ||
-        'push_notifications_enabled' => entry.value is bool,
+        'push_notifications_enabled' ||
+        'is_private' => entry.value is bool,
         _ => false,
       };
       if (!valid) throw ApiError(message: 'Invalid settings update.');

@@ -30,6 +30,16 @@ const cases = <String, (NotificationKind, String?, String)>{
     'replied to your comment',
   ),
   'user_followed': (NotificationKind.follow, 'followedyou.svg', 'followed you'),
+  'follow_requested': (
+    NotificationKind.follow,
+    'followedyou.svg',
+    'requested to follow you',
+  ),
+  'follow_request_accepted': (
+    NotificationKind.follow,
+    'followedyou.svg',
+    'accepted your follow request',
+  ),
   'message_received': (
     NotificationKind.messageRequest,
     'messagerequest.svg',

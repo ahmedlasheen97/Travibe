@@ -168,8 +168,11 @@ void main() {
           child: FollowActionBuilder(
             userId: '7',
             initialFollowing: false,
-            builder: (_, following, pending, toggle) =>
-                card(following: following, pending: pending, onTap: toggle),
+            builder: (_, relation, pending, toggle) => card(
+              following: relation.isFollowing,
+              pending: pending,
+              onTap: toggle,
+            ),
           ),
         ),
       );

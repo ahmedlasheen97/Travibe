@@ -3,7 +3,7 @@
     "info": {
         "title": "Travibe API",
         "version": "1.0.0",
-        "description": "# Travibe API\n\nWelcome to the Travibe API \u2014 a simple REST API for authentication, user management, and account access.\n\n## Quick Start\n\nAll API requests go to: **`\/api\/v1`**\n\nFor example: `https:\/\/travibe.com\/api\/v1\/users`\n\n## How to Authenticate\n\nWe use **token-based authentication**. Here's the flow:\n\n1. **Sign up or log in** using the auth endpoints\n2. **You'll get a token** in the response\n3. **Add the token to your requests** in the `Authorization` header\n\n```http\nGET \/api\/v1\/profile\nAuthorization: Bearer your_token_here\n```\n\n### Tokens\n\n- Each device or app gets its own token\n- Send a stable `device_name` with every auth request to label the session\n- If you request a new token with the same `device_name`, you'll replace the old one\n- Some endpoints (like changing your email) require a verified email address\n- Tokens stay valid until you log out\n\n## What You'll Get Back\n\n### When it works\n\nSuccessful responses contain your data wrapped in a `data` field:\n\n```json\n{\n  \"data\": {\n    \"id\": \"12345\",\n    \"email\": \"user@example.com\",\n    \"name\": \"John Doe\"\n  }\n}\n```\n\nSome operations that do not return data (like deleting a conversation or a\nmessage) return `200` with a `message` confirmation.\n\n### When something's wrong\n\n**Validation errors** (status `422`):\n\n```json\n{\n  \"message\": \"Validation failed\",\n  \"errors\": {\n    \"email\": [\"Email is required\", \"Email must be valid\"]\n  }\n}\n```\n\n**Other errors** (like bad credentials, status `401`):\n\n```json\n{\n  \"message\": \"Unauthorized\"\n}\n```\n\n## Private Accounts\n\nA user can make their account private from `PATCH \/settings` with\n`is_private: true`. Switching it back to `false` approves every pending request.\n\n- A follow to a private account becomes a request. `POST \/users\/{user}\/follow`\n  returns `201` with `is_following: false` and `follow_requested: true`, and\n  sends the owner a `follow_requested` notification. A second request is a\n  `409`.\n- `GET \/follow-requests` lists incoming requests, most recent first.\n  `POST \/follow-requests\/{user}\/accept` approves one, and\n  `DELETE \/follow-requests\/{user}` declines it. `POST \/users\/{user}\/unfollow`\n  cancels your own pending request.\n- A pending request is not a follower. It does not count in `followers_count`\n  and grants no access.\n- Until the request is accepted, the account's posts and stories are not\n  visible. `GET \/users\/{user}` still returns the basic profile with\n  `is_private: true`, `follow_requested` for the caller, and\n  `can_view_content: false`. A post or story you may not see is `403`; lists\n  omit it.\n- The followers and following lists of a private account are visible to its\n  owner and accepted followers only. Anyone else gets `403`. Follower and\n  following counts stay visible.\n- Accepted followers see the account's public and followers-only posts and\n  stories. A `private` post stays visible to its author only.\n\n## Buddies\n\nBuddies endpoints help a signed-in user find people to meet. Discovery is opt-in:\n\n- A user appears only when `show_in_travel_buddy` is on and the profile is complete.\n- The viewer never sees themselves.\n- A block in either direction hides both users.\n- `city` and `country_code` are the user's current location, not a precise position.\n\nThe list endpoints accept these filters:\n\n- `gender[]`: `male` and\/or `female`.\n- `nationality[]`: ISO 3166-1 alpha-2 nationality codes.\n- `languages[]`: language slugs.\n- `interests[]`: interest slugs.\n- `travel_styles[]`: travel-style slugs.\n\nValues within one filter are OR-ed. Different filters are AND-ed. Each filter\naccepts at most 20 values.\n\n`GET \/buddies\/search` matches the current city exactly, after trimming and case\nfolding. Text after the first comma is ignored, so `Bali, Indonesia` searches\nfor `Bali`. An optional `country_code` narrows the current country. Results\nnever include trip data. Trips and Travel Matches are not part of this API.\n\n## Stories\n\nStories are 24-hour photo posts shown in the stories bar at the top of the feed.\n\n- Upload the photo through the media endpoints first (`POST \/media\/presign`, a\n  direct `PUT` to storage, then `POST \/media\/{media}\/finalize`), then send its\n  id in the `media_ids` array to `POST \/stories` together with the overlay\n  document.\n- A story holds exactly one photo. The `media_ids` array must contain that one\n  photo id. The overlay is an app-owned JSON document (positioned text,\n  stickers and drawing) that the server stores and returns verbatim, so the\n  client re-renders the finished layout. `elements` must be a JSON array (up to\n  50 items); each item's shape belongs to the client. String values under\n  `text` and `content` inside `type: text` elements are also read for\n  `@username` mentions; no other element type is inspected.\n- A user can have at most 10 active stories at a time. Expired stories do not\n  count. Creating an eleventh active story returns `422` with a `stories`\n  validation error; the top-level `message` repeats the reason.\n- The stories bar returns one entry per author, each story carrying its single\n  photo's `thumbnail_url`. The full photo and overlay come from\n  `GET \/stories\/{story}`. Each author group carries up to 10 active stories.\n  The bar is paginated by author group: `page` and `per_page` (1-100, default\n  15).\n- `visibility` is `public` or `followers`. A private account's stories are\n  visible to accepted followers only. `location_name` is an optional label\n  the app supplies; there is no server-side place lookup.\n- Stories expire 24 hours after posting and are then deleted. An expired or\n  unknown story is `404`; a story you may not see (a block in either direction,\n  or a followers-only story you do not follow) is `403`.\n- Watching a story records a single view per viewer\n  (`POST \/stories\/{story}\/view`). Repeat views refresh the timestamp but do not\n  increment the count, and only the author can list who watched\n  (`GET \/stories\/{story}\/viewers`). The viewers list omits users blocked in\n  either direction.\n- Liking a story follows the same shape as post likes: `POST \/stories\/{story}\/like` and\n  `DELETE \/stories\/{story}\/like`. The count rides on the story payload\n  (`likes_count`, plus the caller's `is_liked`); only the author can list who\n  liked it (`GET \/stories\/{story}\/likes`), and the viewers list marks each viewer\n  with `has_liked`.\n- Deleting a story is immediate and returns `200` with a `message`; stories have\n  no restore.\n\n## Mentions\n\nMentions are written as `@username` in post text, comment text, or a story's\n`text` elements. The server stores up to 10 distinct mentions per item and\nreturns them in the `mentions` array of the post, comment or story detail\nresponse. Each entry carries the lowercased `handle` exactly as written and the\n`user` it resolves to.\n\n- The client finds each `@handle` in the text case-insensitively, matches it to\n  a `mentions` entry, and renders it as a link. Everything else stays plain\n  text; there are no character offsets in the response.\n- A mention grants no access. It never changes who can see a post, comment or\n  story.\n- A notification is sent only to a mentioned user who could already view the\n  content under the normal visibility rules: any user for public content, a\n  follower for followers-only content, and nobody for private content.\n  Self-mentions are stored but never notified.\n- A comment mention notification targets the comment itself: `target_type` is\n  the comment and `target_id` is its id. Its `data` carries `post_id` and\n  `comment_id`; open the post with `data.post_id`.\n- A blocked or unknown handle is silently left as plain text. Publishing still\n  succeeds, and no mention row or notification is created for that handle.\n- Re-saving unchanged content does not re-notify mentioned users. Widening a\n  post's visibility can notify users who could not view it before.\n\n## Realtime Notifications\n\nThe REST notification endpoints are the source of truth. Polling stays the\nfallback. The WebSocket channel only delivers updates faster while the app is in\nthe foreground; it is not a background push mechanism.\n\n- **Transport:** Reverb, using the Pusher protocol. Use a Pusher-protocol client\n  (for example `pusher-websocket` or a native Pusher SDK). Laravel Echo is not\n  used.\n- **Channels:** `private-users.{id}` carries notifications. `presence-conversations.{id}`\n  carries the open chat. A user can subscribe only to their own user channel and\n  to conversations they participate in. One WebSocket connection can hold both\n  subscriptions.\n- **Authorization:** `POST \/api\/v1\/broadcasting\/auth` with the bearer token,\n  form fields `socket_id` and `channel_name`. `channel_name` is\n  `private-users.{id}` or `presence-conversations.{id}`. The response is the\n  Pusher authorization object; a presence channel also returns `channel_data`.\n  Another user's channel, or a conversation you do not participate in, is `403`.\n- **Events:**\n  - `notification.created` \u2014 the `NotificationResource` fields plus\n    `unread_count`. Sent for a new notification, and when an existing\n    notification becomes unread again. A `type: message_received` event is a\n    new chat message; its `data` carries `conversation_id`, `message_id`,\n    `message_type`, `preview` and `is_request`.\n  - The notification `preview` block is derived from the target at read time.\n    It carries `thumbnail_url` (the first image of the post or story, `null`\n    when there is none) and `excerpt` (the first 100 characters of the post or\n    comment text, `null` when there is none). A comment notification previews\n    the comment text with the parent post's image. Follow and chat\n    notifications have `preview: null`. A post, comment, or story preview is\n    also `null` when the recipient can no longer view the target, such as\n    followers-only content after unfollowing, an expired story, or a block in\n    either direction.\n    Never treat the block as stored data: it follows edits and disappears\n    with the target.\n  - Like notifications (`post_liked`, `story_liked`, `comment_liked`) target\n    the liked item. Their `data` is empty except for a comment like, whose\n    `data` carries `post_id` so the client can open the thread. Removing the\n    like deletes the notification again.\n  - Follow notifications (`user_followed`, `follow_requested`,\n    `follow_request_accepted`) target the acting user's public profile, so\n    `target_type` is `user`.\n  - `notification.read` \u2014 `notification_id` and `unread_count`.\n  - `notifications.read_all` \u2014 `marked_count` and `unread_count` (always `0`).\n  - `notifications.read_conversation` \u2014 `conversation_id`, `marked_count` and\n    `unread_count`. Sent when reading a conversation clears its\n    `message_received` notifications, so other devices can correct the badge.\n  - `message.sent` \u2014 the full `MessageResource`. Sent on the conversation\n    presence channel and on the sender's `private-users.{id}` channel so other\n    sender devices stay in sync. The client appends a message only when its id\n    is new.\n  - `typing.updated` \u2014 `conversation_id`, `user_id` and `is_typing`, on the\n    conversation presence channel. It is ephemeral and is not stored.\n  - `messages.read` \u2014 `conversation_id`, `reader_id`, `last_read_message_id`\n    and `read_at`, on the conversation presence channel. Sent when a read marks\n    at least one incoming message. It is ephemeral and is not stored.\n  - The conversation presence channel also emits the standard\n    `pusher_internal:subscription_succeeded` member list and\n    `pusher:member_added` \/ `pusher:member_removed` events. Use the members for\n    the live online indicator.\n- **Reconnect:** the socket does not replay missed events. After a reconnect,\n  call `GET \/api\/v1\/notifications` and read pages newest first until you reach\n  the last notification id you already have. Then call\n  `GET \/api\/v1\/notifications\/unread-count` to correct the badge. For the open\n  chat, call `GET \/api\/v1\/conversations\/{conversation}\/messages?updated_since=`\n  with the highest `updated_at` you already have.\n\n## Push Notifications\n\nPush is a wake-up signal, not the source of truth. The notification row and the\nREST endpoints stay authoritative; every push carries the notification id,\ntype, target and current unread count so the app can open the right screen and\nrefresh. When the target has a preview, the push also carries it, so the\nnotification shade needs no request: `preview_excerpt` and `thumbnail_url`. For\npost, comment, story and mention targets they match the in-app `preview` (up to\n100 characters, first image). A chat push has no in-app preview block, so\n`preview_excerpt` comes from the notification's `data.preview` instead (up to\n103 characters) and there is no thumbnail. For a non-text message that excerpt\nis a localized category label (`Photo`, `Voice message`, `Video`, `Shared a\npost`), not the\nmessage text. FCM `image` is set from\n`thumbnail_url` when present. Both data keys are absent when the type has no\npreview, such as a follow notification, and when a preview is withheld because\nthe recipient can no longer view the target. Each key can appear on its own: a\ntext-only post sends only `preview_excerpt`, while an image-only post or a story\nsends only `thumbnail_url`. A block between the recipient and the actor, or a\nmuted chat thread, means no push at all. Register a device with\n`POST \/api\/v1\/device-tokens` and remove it with\n`DELETE \/api\/v1\/device-tokens\/{deviceToken}`. A device that signs in to another\naccount is reassigned to that account, and each account keeps at most ten device\ntokens. The raw FCM token is never returned or logged.\n\nPush permission is the device setting. `push_notifications_enabled` is the\naccount setting; when it is off the notification row is still written and no\npush is sent.\n\nEmail delivery is outside this API. Chat uses the conversation presence channel;\nnotifications use the user channel.\n\n## Chat\n\nChat is 1:1 only. There are no group threads. The app keeps one WebSocket\nconnection. The open chat subscribes to `presence-conversations.{id}`; the user\nchannel carries notifications. REST remains the source of truth for history,\nsending, read state, and reconnect.\n\n- **Inbox.** `GET \/conversations` returns accepted conversations and pending\n  requests the caller started, newest activity first. `GET\n  \/conversations\/requests` returns only pending requests received from someone\n  else. Both accept `search`, a prefix match on the other participant's name or\n  username. Message bodies are never searched.\n- **Starting a thread.** `POST \/conversations` takes the other user's `user_id`.\n  A new thread returns `201`; an existing pair returns `200`. The thread is\n  accepted immediately when the recipient already follows the caller, and\n  otherwise waits for `POST \/conversations\/{conversation}\/accept`. A request the\n  recipient declines is deleted permanently. The recipient does not see a thread\n  in their lists until its first message arrives. If they start the same thread\n  first, it becomes theirs and they can send straight away.\n- **History and reconnect.** Fetch\n  `GET \/conversations\/{conversation}\/messages` once when the chat opens. After a\n  reconnect or foreground, pass the highest `updated_at` you have as\n  `updated_since`. That returns new messages and changes to older ones, including\n  deleted placeholders, read ticks, replies whose quoted message was deleted,\n  and shared posts whose post changed. Replace any message whose id you already\n  have. Timestamps have one-second precision and the filter is inclusive,\n  so a message you already have may come back. Previewing a pending request or\n  reading across a block sends the other user no delivery or read receipt; after\n  accepting, call `POST \/conversations\/{conversation}\/read` again to send it. `after_id` returns only newer\n  messages and misses those changes, and the two cannot be combined. To scroll\n  back, request later pages. New messages shift the pages, so an older page can\n  repeat messages you already have; match them by id. While the\n  chat is open, `message.sent` delivers new messages; the client does not poll.\n  Fetching marks the other participant's messages as delivered.\n- **Realtime.** `message.sent` arrives on `presence-conversations.{id}` with the\n  full `MessageResource`. Append it when the message id is new. The same event\n  goes to the sender's `private-users.{id}` channel for other sender devices.\n  The open chat does not need a GET per message. The `message_received`\n  notification still updates the inbox and badge.\n- **Typing.** `POST \/conversations\/{conversation}\/typing` with\n  `is_typing: true|false` broadcasts `typing.updated` on the conversation\n  presence channel. It is ephemeral and not stored. The recipient of a pending\n  request cannot type until they accept; a block in either direction is `403`.\n- **Presence.** `POST \/presence\/heartbeat` every 30-45 seconds marks the caller\n  online and updates `last_seen_at`, at most once a minute; `DELETE \/presence` and logout mark the\n  caller offline. `GET \/conversations` returns `other_user.is_online` and\n  `other_user.last_seen_at` when the other user allows `show_active_status`.\n  The conversation presence channel also reports live member joins and leaves.\n  A presence member list always shows who is in the chat: `show_active_status`\n  hides the REST fields, not the channel membership.\n- **Notifications.** Sending a message creates a `message_received`\n  notification for the recipient and broadcasts `notification.created` on\n  `private-users.{id}` over Reverb. Its `data` carries `conversation_id`,\n  `message_id`, `message_type`, `preview` and `is_request`. A muted thread\n  sends no notification. A thread the recipient hid comes back on a new\n  message from the other user, and that message notifies them. The row also\n  dispatches one FCM wake-up push, subject to the same rules as every other\n  notification: no push for a muted thread, and none when the account's\n  `push_notifications_enabled` is off or no device tokens remain. Email is\n  not used.\n- **Unread and read state.** Sending increments only the recipient's\n  `unread_count`; `POST \/conversations\/{conversation}\/read` marks incoming\n  messages read and delivered, resets the counter and moves\n  `last_read_message_id`. When at\n  least one incoming message becomes read, the endpoint broadcasts\n  `messages.read` on the conversation presence channel. Apply the event only\n  to your own messages at or below `last_read_message_id`. Reading also marks\n  the thread's `message_received` notifications read, so the notification badge\n  stays in step with the conversation. The message\n  payload still carries `delivered_at` and `read_at`, so a closed chat, another\n  device, or a reconnect gets the ticks from an `updated_since` fetch.\n- **Deleting.** Deleting a message keeps a placeholder for both participants,\n  releases its media and, if it was unread, lowers the recipient's\n  `unread_count`. Deleting a conversation hides it only for the caller and marks\n  its `message_received` notifications read;\n  when both participants hide it, the thread and its content are removed. While\n  the thread still exists, a new message restores it for both participants.\n  `POST \/conversations` restores only the caller's own hidden thread.\n- **Blocking and reporting.** A block does not delete the thread. It stays\n  visible with `is_blocked: true` and sending returns `403`. While blocked,\n  neither user sees the other's `is_online` or `last_seen_at`, and subscribing to\n  `presence-conversations.{id}` returns `403`, so do not open that channel when\n  `is_blocked` is true. The recipient of a pending request also gets `403` until\n  they accept it, so previewing a request never shows up as a member join. A subscription that was already open stays open until\n  the client disconnects. Report a user through `POST \/reports` with `type=user`; chat has no separate report endpoint.\n- **Media.** Send text, image, voice, video or a shared post. Upload and\n  finalize an image, voice clip or video first, then pass its id as `media_id`\n  with the matching message `type`. Images and voice clips are limited to\n  20 MB; videos to 100 MB. A video may also carry a poster image in\n  `poster_media_id`. Audio and video can only be sent in chat; posts, comments,\n  stories and avatars accept images only.\n- **Shared posts.** Send a post as a message with `type: post` and `post_id`.\n  The post must be visible to both participants and not blocked from either\n  participant, otherwise the call is `422`. The message carries `post_id` and,\n  while the viewer may still open it, a compact `post` card with the author,\n  text, media and share `url`. The `post` key is always present on a live\n  message: `null` for other types, and for a post the viewer may no longer\n  open. A post that becomes private, unfollowed or blocked after sending keeps\n  its `post_id` but `post` is `null`; show it as unavailable. Editing the post,\n  changing its visibility, deleting it, blocking its author, a follow change,\n  or deleting the author's account touches the message, so an `updated_since`\n  fetch returns it again with the new card. The inbox `last_message` carries\n  the same card. Open the full post with `GET \/posts\/{post}`.\n\n## Share Links\n\nEvery post and every profile carries `url`, an HTTPS link on this host. A\nbrowser that opens it is redirected to the homepage with an `open` query, and\nthe homepage opens the target in the app through its scheme\n(`POST_LINK_SCHEME`, `travibe` by default):\n\n| Link | Redirects to | Homepage opens | Open in the app with |\n| --- | --- | --- | --- |\n| `\/p\/{id}` | `\/?open=posts\/{id}` | `travibe:\/\/posts\/{id}` | `GET \/posts\/{post}` |\n| `\/u\/{id}` | `\/?open=users\/{id}` | `travibe:\/\/users\/{id}` | `GET \/users\/{user}` |\n\nWhen the app is not installed, the visitor stays on the homepage, which links\nto the app stores. A link to a soft-deleted post, a deleted account or an\nunknown id redirects to the plain homepage instead.\n\nProfile links use the user id, not the username, so a link keeps working after\nthe user changes their username. Profile `url` is returned by\n`GET \/users\/{user}` and by every payload of the user's own account\n(`GET \/profile`, `GET \/user`, and the login and profile-update responses), so\nthe user can share their own profile.\n\nThe redirect does not check visibility or blocks because a browser has no API\ntoken: it only proves the target exists. The app applies the normal rules when\nit fetches the target, so a blocked profile comes back as `data: null`.\n\n## Limits & Pagination\n\n- **Rate limiting:** You can make a reasonable number of requests per minute. If you hit the limit, you'll get a `429` status.\n- **Offset pagination:** Most list endpoints accept `page` and `per_page` (1-100, default 15):\n  ```\n  GET \/api\/v1\/users?page=2&per_page=20\n  ```\n- **Cursor pagination:** Feeds, posts, comment lists, liker lists and\n  notifications are keyset-paginated. Send `per_page` and, for later pages,\n  the opaque `cursor` from `meta.next_cursor` (or `meta.prev_cursor`):\n  ```\n  GET \/api\/v1\/feed\/following?per_page=20&cursor=...\n  ```\n  These endpoints reject `page` with `422`. Their `meta` contains\n  `next_cursor`, `prev_cursor`, `per_page` and `path`, and `links.next` \/\n  `links.prev` contain the complete URL. There is no `total` because a keyset\n  page does not count the remaining rows."
+        "description": "# Travibe API\n\nWelcome to the Travibe API \u2014 a simple REST API for authentication, user management, and account access.\n\n## Quick Start\n\nAll API requests go to: **`\/api\/v1`**\n\nFor example: `https:\/\/travibe.com\/api\/v1\/users`\n\n## How to Authenticate\n\nWe use **token-based authentication**. Here's the flow:\n\n1. **Sign up or log in** using the auth endpoints\n2. **You'll get a token** in the response\n3. **Add the token to your requests** in the `Authorization` header\n\n```http\nGET \/api\/v1\/profile\nAuthorization: Bearer your_token_here\n```\n\n### Tokens\n\n- Each device or app gets its own token\n- Send a stable `device_name` with every auth request to label the session\n- If you request a new token with the same `device_name`, you'll replace the old one\n- Signing up or signing in before your email is verified gives a restricted\n  token: until you verify with `POST \/email\/verify-code`, the only signed-in\n  endpoint it can call is `POST \/logout`\n- Send the restricted token with `POST \/email\/verify-code`. Verifying that\n  way upgrades every restricted token on the account to full access, on every\n  device, so no device has to sign in again\n- An unverified account's password and tokens are only trusted when the person\n  who verifies the email proves they set them up, by sending a token of that\n  same account. When an account is verified any other way (`verify-code`\n  without that token, a password-reset code, or Google\/Apple sign-in), its\n  password is replaced with a random one and every existing token is revoked.\n  The owner then signs in with Google\/Apple or sets a password through\n  `POST \/forgot-password`\n- Every other signed-in endpoint requires a full-access token on a verified\n  account; a restricted token gets `403`\n- Tokens expire 30 days after they are issued; `expires_at` in the sign-in\n  response gives the exact time. After that, or once you log out, the token\n  gets `401` and the device must sign in again\n\n## What You'll Get Back\n\n### When it works\n\nSuccessful responses contain your data wrapped in a `data` field:\n\n```json\n{\n  \"data\": {\n    \"id\": \"12345\",\n    \"email\": \"user@example.com\",\n    \"name\": \"John Doe\"\n  }\n}\n```\n\nSome operations that do not return data (like deleting a conversation or a\nmessage) return `200` with a `message` confirmation.\n\n### When something's wrong\n\n**Validation errors** (status `422`):\n\n```json\n{\n  \"message\": \"Validation failed\",\n  \"errors\": {\n    \"email\": [\"Email is required\", \"Email must be valid\"]\n  }\n}\n```\n\n**Other errors** (like bad credentials, status `401`):\n\n```json\n{\n  \"message\": \"Unauthorized\"\n}\n```\n\n## Private Accounts\n\nA user can make their account private from `PATCH \/settings` with\n`is_private: true`. Switching it back to `false` approves every pending request.\n\n- A follow to a private account becomes a request. `POST \/users\/{user}\/follow`\n  returns `201` with `is_following: false` and `follow_requested: true`, and\n  sends the owner a `follow_requested` notification. A second request is a\n  `409`.\n- `GET \/follow-requests` lists incoming requests, most recent first.\n  `POST \/follow-requests\/{user}\/accept` approves one, and\n  `DELETE \/follow-requests\/{user}` declines it. `POST \/users\/{user}\/unfollow`\n  cancels your own pending request.\n- A pending request is not a follower. It does not count in `followers_count`\n  and grants no access.\n- Until the request is accepted, the account's posts and stories are not\n  visible. `GET \/users\/{user}` still returns the basic profile with\n  `is_private: true`, `follow_requested` for the caller, and\n  `can_view_content: false`. A post or story you may not see is `403`; lists\n  omit it.\n- The followers and following lists of a private account are visible to its\n  owner and accepted followers only. Anyone else gets `403`. Follower and\n  following counts stay visible.\n- Accepted followers see the account's public and followers-only posts and\n  stories. A `private` post stays visible to its author only.\n\n## Buddies\n\nBuddies endpoints help a signed-in user find people to meet. Discovery is opt-in:\n\n- A user appears only when `show_in_travel_buddy` is on and the profile is complete.\n- The viewer never sees themselves.\n- A block in either direction hides both users.\n- `city` and `country_code` are the user's current location, not a precise position.\n\nThe list endpoints accept these filters:\n\n- `gender[]`: `male` and\/or `female`.\n- `nationality[]`: ISO 3166-1 alpha-2 nationality codes.\n- `languages[]`: language slugs.\n- `interests[]`: interest slugs.\n- `travel_styles[]`: travel-style slugs.\n\nValues within one filter are OR-ed. Different filters are AND-ed. Each filter\naccepts at most 20 values.\n\n`GET \/buddies\/search` matches the current city exactly, after trimming and case\nfolding. Text after the first comma is ignored, so `Bali, Indonesia` searches\nfor `Bali`. An optional `country_code` narrows the current country. Results\nnever include trip data. Trips and Travel Matches are not part of this API.\n\n## Stories\n\nStories are 24-hour photo posts shown in the stories bar at the top of the feed.\n\n- Upload the photo through the media endpoints first (`POST \/media\/presign`, a\n  direct `PUT` to storage, then `POST \/media\/{media}\/finalize`), then send its\n  id in the `media_ids` array to `POST \/stories` together with the overlay\n  document.\n- A story holds exactly one photo. The `media_ids` array must contain that one\n  photo id. The overlay is an app-owned JSON document (positioned text,\n  stickers and drawing) that the server stores and returns verbatim, so the\n  client re-renders the finished layout. `elements` must be a JSON array (up to\n  50 items); each item's shape belongs to the client. String values under\n  `text` and `content` inside `type: text` elements are also read for\n  `@username` mentions; no other element type is inspected.\n- A user can have at most 10 active stories at a time. Expired stories do not\n  count. Creating an eleventh active story returns `422` with a `stories`\n  validation error; the top-level `message` repeats the reason.\n- The stories bar returns one entry per author, each story carrying its single\n  photo's `thumbnail_url`. The full photo and overlay come from\n  `GET \/stories\/{story}`. Each author group carries up to 10 active stories.\n  The bar is paginated by author group: `page` and `per_page` (1-100, default\n  15).\n- `visibility` is `public` or `followers`. A private account's stories are\n  visible to accepted followers only. `location_name` is an optional label\n  the app supplies; there is no server-side place lookup.\n- Stories expire 24 hours after posting and are then deleted. An expired or\n  unknown story is `404`; a story you may not see (a block in either direction,\n  or a followers-only story you do not follow) is `403`.\n- Watching a story records a single view per viewer\n  (`POST \/stories\/{story}\/view`). Repeat views refresh the timestamp but do not\n  increment the count, and only the author can list who watched\n  (`GET \/stories\/{story}\/viewers`). The viewers list omits users blocked in\n  either direction.\n- Liking a story follows the same shape as post likes: `POST \/stories\/{story}\/like` and\n  `DELETE \/stories\/{story}\/like`. The count rides on the story payload\n  (`likes_count`, plus the caller's `is_liked`); only the author can list who\n  liked it (`GET \/stories\/{story}\/likes`), and the viewers list marks each viewer\n  with `has_liked`.\n- Deleting a story is immediate and returns `200` with a `message`; stories have\n  no restore.\n\n## Mentions\n\nMentions are written as `@username` in post text, comment text, or a story's\n`text` elements. The server stores up to 10 distinct mentions per item and\nreturns them in the `mentions` array of the post, comment or story detail\nresponse. Each entry carries the lowercased `handle` exactly as written and the\n`user` it resolves to.\n\n- The client finds each `@handle` in the text case-insensitively, matches it to\n  a `mentions` entry, and renders it as a link. Everything else stays plain\n  text; there are no character offsets in the response.\n- A mention grants no access. It never changes who can see a post, comment or\n  story.\n- A notification is sent only to a mentioned user who could already view the\n  content under the normal visibility rules: any user for public content, a\n  follower for followers-only content, and nobody for private content.\n  Self-mentions are stored but never notified.\n- A comment mention notification targets the comment itself: `target_type` is\n  the comment and `target_id` is its id. Its `data` carries `post_id` and\n  `comment_id`; open the post with `data.post_id`.\n- A blocked or unknown handle is silently left as plain text. Publishing still\n  succeeds, and no mention row or notification is created for that handle.\n- Re-saving unchanged content does not re-notify mentioned users. Widening a\n  post's visibility can notify users who could not view it before.\n\n## Realtime Notifications\n\nThe REST notification endpoints are the source of truth. Polling stays the\nfallback. The WebSocket channel only delivers updates faster while the app is in\nthe foreground; it is not a background push mechanism.\n\n- **Transport:** Reverb, using the Pusher protocol. Use a Pusher-protocol client\n  (for example `pusher-websocket` or a native Pusher SDK). Laravel Echo is not\n  used.\n- **Channels:** `private-users.{id}` carries notifications. `presence-conversations.{id}`\n  carries the open chat. A user can subscribe only to their own user channel and\n  to conversations they participate in. One WebSocket connection can hold both\n  subscriptions.\n- **Authorization:** `POST \/api\/v1\/broadcasting\/auth` with the bearer token,\n  form fields `socket_id` and `channel_name`. `channel_name` is\n  `private-users.{id}` or `presence-conversations.{id}`. The response is the\n  Pusher authorization object; a presence channel also returns `channel_data`.\n  Another user's channel, or a conversation you do not participate in, is `403`.\n- **Events:**\n  - `notification.created` \u2014 the `NotificationResource` fields plus\n    `unread_count`. Sent for a new notification, and when an existing\n    notification becomes unread again. A `type: message_received` event is a\n    new chat message; its `data` carries `conversation_id`, `message_id`,\n    `message_type`, `preview` and `is_request`.\n  - The notification `preview` block is derived from the target at read time.\n    It carries `thumbnail_url` (the first image of the post or story, `null`\n    when there is none) and `excerpt` (the first 100 characters of the post or\n    comment text, `null` when there is none). A comment notification previews\n    the comment text with the parent post's image. Follow and chat\n    notifications have `preview: null`. A post, comment, or story preview is\n    also `null` when the recipient can no longer view the target, such as\n    followers-only content after unfollowing, an expired story, or a block in\n    either direction.\n    Never treat the block as stored data: it follows edits and disappears\n    with the target.\n  - Like notifications (`post_liked`, `story_liked`, `comment_liked`) target\n    the liked item. Their `data` is empty except for a comment like, whose\n    `data` carries `post_id` so the client can open the thread. Removing the\n    like deletes the notification again.\n  - Follow notifications (`user_followed`, `follow_requested`,\n    `follow_request_accepted`) target the acting user's public profile, so\n    `target_type` is `user`.\n  - `notification.read` \u2014 `notification_id` and `unread_count`.\n  - `notifications.read_all` \u2014 `marked_count` and `unread_count` (always `0`).\n  - `notifications.read_conversation` \u2014 `conversation_id`, `marked_count` and\n    `unread_count`. Sent when reading a conversation clears its\n    `message_received` notifications, so other devices can correct the badge.\n  - `message.sent` \u2014 the full `MessageResource`. Sent on the conversation\n    presence channel and on the sender's `private-users.{id}` channel so other\n    sender devices stay in sync. The client appends a message only when its id\n    is new.\n  - `typing.updated` \u2014 `conversation_id`, `user_id` and `is_typing`, on the\n    conversation presence channel. It is ephemeral and is not stored.\n  - `messages.read` \u2014 `conversation_id`, `reader_id`, `last_read_message_id`\n    and `read_at`, on the conversation presence channel. Sent when a read marks\n    at least one incoming message. It is ephemeral and is not stored.\n  - The conversation presence channel also emits the standard\n    `pusher_internal:subscription_succeeded` member list and\n    `pusher:member_added` \/ `pusher:member_removed` events. Use the members for\n    the live online indicator.\n- **Reconnect:** the socket does not replay missed events. After a reconnect,\n  call `GET \/api\/v1\/notifications` and read pages newest first until you reach\n  the last notification id you already have. Then call\n  `GET \/api\/v1\/notifications\/unread-count` to correct the badge. For the open\n  chat, call `GET \/api\/v1\/conversations\/{conversation}\/messages?updated_since=`\n  with the highest `updated_at` you already have.\n\n## Push Notifications\n\nPush is a wake-up signal, not the source of truth. The notification row and the\nREST endpoints stay authoritative; every push carries the notification id,\ntype, target and current unread count so the app can open the right screen and\nrefresh. When the target has a preview, the push also carries it, so the\nnotification shade needs no request: `preview_excerpt` and `thumbnail_url`. For\npost, comment, story and mention targets they match the in-app `preview` (up to\n100 characters, first image). A chat push has no in-app preview block, so\n`preview_excerpt` comes from the notification's `data.preview` instead (up to\n103 characters) and there is no thumbnail. For a non-text message that excerpt\nis a localized category label (`Photo`, `Voice message`, `Video`, `Shared a\npost`), not the\nmessage text. FCM `image` is set from\n`thumbnail_url` when present. Both data keys are absent when the type has no\npreview, such as a follow notification, and when a preview is withheld because\nthe recipient can no longer view the target. Each key can appear on its own: a\ntext-only post sends only `preview_excerpt`, while an image-only post or a story\nsends only `thumbnail_url`. A block between the recipient and the actor, or a\nmuted chat thread, means no push at all. Register a device with\n`POST \/api\/v1\/device-tokens` and remove it with\n`DELETE \/api\/v1\/device-tokens\/{deviceToken}`. A device that signs in to another\naccount is reassigned to that account, and each account keeps at most ten device\ntokens. The raw FCM token is never returned or logged.\n\nPush permission is the device setting. `push_notifications_enabled` is the\naccount setting; when it is off the notification row is still written and no\npush is sent.\n\nEmail delivery is outside this API. Chat uses the conversation presence channel;\nnotifications use the user channel.\n\n## Chat\n\nChat is 1:1 only. There are no group threads. The app keeps one WebSocket\nconnection. The open chat subscribes to `presence-conversations.{id}`; the user\nchannel carries notifications. REST remains the source of truth for history,\nsending, read state, and reconnect.\n\n- **Inbox.** `GET \/conversations` returns accepted conversations and pending\n  requests the caller started, newest activity first. `GET\n  \/conversations\/requests` returns only pending requests received from someone\n  else. Both accept `search`, a prefix match on the other participant's name or\n  username. Message bodies are never searched.\n- **Starting a thread.** `POST \/conversations` takes the other user's `user_id`.\n  A new thread returns `201`; an existing pair returns `200`. The thread is\n  accepted immediately when the recipient already follows the caller, and\n  otherwise waits for `POST \/conversations\/{conversation}\/accept`. A request the\n  recipient declines is deleted permanently. The recipient does not see a thread\n  in their lists until its first message arrives. If they start the same thread\n  first, it becomes theirs and they can send straight away.\n- **History and reconnect.** Fetch\n  `GET \/conversations\/{conversation}\/messages` once when the chat opens. After a\n  reconnect or foreground, pass the highest `updated_at` you have as\n  `updated_since`. That returns new messages and changes to older ones, including\n  deleted placeholders, read ticks, replies whose quoted message was deleted,\n  and shared posts whose post changed. Replace any message whose id you already\n  have. Timestamps have one-second precision and the filter is inclusive,\n  so a message you already have may come back. Previewing a pending request or\n  reading across a block sends the other user no delivery or read receipt; after\n  accepting, call `POST \/conversations\/{conversation}\/read` again to send it. `after_id` returns only newer\n  messages and misses those changes, and the two cannot be combined. To scroll\n  back, request later pages. New messages shift the pages, so an older page can\n  repeat messages you already have; match them by id. While the\n  chat is open, `message.sent` delivers new messages; the client does not poll.\n  Fetching marks the other participant's messages as delivered.\n- **Realtime.** `message.sent` arrives on `presence-conversations.{id}` with the\n  full `MessageResource`. Append it when the message id is new. The same event\n  goes to the sender's `private-users.{id}` channel for other sender devices.\n  The open chat does not need a GET per message. The `message_received`\n  notification still updates the inbox and badge.\n- **Typing.** `POST \/conversations\/{conversation}\/typing` with\n  `is_typing: true|false` broadcasts `typing.updated` on the conversation\n  presence channel. It is ephemeral and not stored. The recipient of a pending\n  request cannot type until they accept; a block in either direction is `403`.\n- **Presence.** `POST \/presence\/heartbeat` every 30-45 seconds marks the caller\n  online and updates `last_seen_at`, at most once a minute; `DELETE \/presence` and logout mark the\n  caller offline. `GET \/conversations` returns `other_user.is_online` and\n  `other_user.last_seen_at` when the other user allows `show_active_status`.\n  The conversation presence channel also reports live member joins and leaves.\n  A presence member list always shows who is in the chat: `show_active_status`\n  hides the REST fields, not the channel membership.\n- **Notifications.** Sending a message creates a `message_received`\n  notification for the recipient and broadcasts `notification.created` on\n  `private-users.{id}` over Reverb. Its `data` carries `conversation_id`,\n  `message_id`, `message_type`, `preview` and `is_request`. A muted thread\n  sends no notification. A thread the recipient hid comes back on a new\n  message from the other user, and that message notifies them. The row also\n  dispatches one FCM wake-up push, subject to the same rules as every other\n  notification: no push for a muted thread, and none when the account's\n  `push_notifications_enabled` is off or no device tokens remain. Email is\n  not used.\n- **Unread and read state.** Sending increments only the recipient's\n  `unread_count`; `POST \/conversations\/{conversation}\/read` marks incoming\n  messages read and delivered, resets the counter and moves\n  `last_read_message_id`. When at\n  least one incoming message becomes read, the endpoint broadcasts\n  `messages.read` on the conversation presence channel. Apply the event only\n  to your own messages at or below `last_read_message_id`. Reading also marks\n  the thread's `message_received` notifications read, so the notification badge\n  stays in step with the conversation. The message\n  payload still carries `delivered_at` and `read_at`, so a closed chat, another\n  device, or a reconnect gets the ticks from an `updated_since` fetch.\n- **Deleting.** Deleting a message keeps a placeholder for both participants,\n  releases its media and, if it was unread, lowers the recipient's\n  `unread_count`. Deleting a conversation hides it only for the caller and marks\n  its `message_received` notifications read;\n  when both participants hide it, the thread and its content are removed. While\n  the thread still exists, a new message restores it for both participants.\n  `POST \/conversations` restores only the caller's own hidden thread.\n- **Blocking and reporting.** A block does not delete the thread. It stays\n  visible with `is_blocked: true` and sending returns `403`. While blocked,\n  neither user sees the other's `is_online` or `last_seen_at`, and subscribing to\n  `presence-conversations.{id}` returns `403`, so do not open that channel when\n  `is_blocked` is true. The recipient of a pending request also gets `403` until\n  they accept it, so previewing a request never shows up as a member join. A subscription that was already open stays open until\n  the client disconnects. Report a user through `POST \/reports` with `type=user`; chat has no separate report endpoint.\n- **Media.** Send text, image, voice, video or a shared post. Upload and\n  finalize an image, voice clip or video first, then pass its id as `media_id`\n  with the matching message `type`. Images and voice clips are limited to\n  20 MB; videos to 100 MB. A video may also carry a poster image in\n  `poster_media_id`. Audio and video can only be sent in chat; posts, comments,\n  stories and avatars accept images only.\n- **Shared posts.** Send a post as a message with `type: post` and `post_id`.\n  The post must be visible to both participants and not blocked from either\n  participant, otherwise the call is `422`. The message carries `post_id` and,\n  while the viewer may still open it, a compact `post` card with the author,\n  text, media and share `url`. The `post` key is always present on a live\n  message: `null` for other types, and for a post the viewer may no longer\n  open. A post that becomes private, unfollowed or blocked after sending keeps\n  its `post_id` but `post` is `null`; show it as unavailable. Editing the post,\n  changing its visibility, deleting it, blocking its author, a follow change,\n  or deleting the author's account touches the message, so an `updated_since`\n  fetch returns it again with the new card. The inbox `last_message` carries\n  the same card. Open the full post with `GET \/posts\/{post}`.\n\n## Share Links\n\nEvery post and every profile carries `url`, an HTTPS link on this host. A\nbrowser that opens it is redirected to the homepage with an `open` query, and\nthe homepage opens the target in the app through its scheme\n(`POST_LINK_SCHEME`, `travibe` by default):\n\n| Link | Redirects to | Homepage opens | Open in the app with |\n| --- | --- | --- | --- |\n| `\/p\/{id}` | `\/?open=posts\/{id}` | `travibe:\/\/posts\/{id}` | `GET \/posts\/{post}` |\n| `\/u\/{id}` | `\/?open=users\/{id}` | `travibe:\/\/users\/{id}` | `GET \/users\/{user}` |\n\nWhen the app is not installed, the visitor stays on the homepage, which links\nto the app stores. A link to a soft-deleted post, a deleted account or an\nunknown id redirects to the plain homepage instead.\n\nProfile links use the user id, not the username, so a link keeps working after\nthe user changes their username. Profile `url` is returned by\n`GET \/users\/{user}` and by every payload of the user's own account\n(`GET \/profile`, `GET \/user`, and the login and profile-update responses), so\nthe user can share their own profile.\n\nThe redirect does not check visibility or blocks because a browser has no API\ntoken: it only proves the target exists. The app applies the normal rules when\nit fetches the target, so a blocked profile comes back as `data: null`.\n\n## Limits & Pagination\n\n- **Rate limiting:** You can make a reasonable number of requests per minute. If you hit the limit, you'll get a `429` status.\n- **Offset pagination:** Most list endpoints accept `page` and `per_page` (1-100, default 15):\n  ```\n  GET \/api\/v1\/users?page=2&per_page=20\n  ```\n- **Cursor pagination:** Feeds, posts, comment lists, liker lists and\n  notifications are keyset-paginated. Send `per_page` and, for later pages,\n  the opaque `cursor` from `meta.next_cursor` (or `meta.prev_cursor`):\n  ```\n  GET \/api\/v1\/feed\/following?per_page=20&cursor=...\n  ```\n  These endpoints reject `page` with `422`. Their `meta` contains\n  `next_cursor`, `prev_cursor`, `per_page` and `path`, and `links.next` \/\n  `links.prev` contain the complete URL. There is no `total` because a keyset\n  page does not count the remaining rows."
     },
     "servers": [
         {
@@ -857,7 +857,7 @@
         "\/login": {
             "post": {
                 "operationId": "login.store",
-                "description": "Authenticates the account and returns a bearer access token scoped to the\nsupplied `device_name`. Requesting a token for an existing `device_name`\nreplaces that device's previous token, so each device keeps a single active session.",
+                "description": "Authenticates the account and returns a bearer access token scoped to the\nsupplied `device_name`. Requesting a token for an existing `device_name`\nreplaces that device's previous token, so each device keeps a single active session.\n\nThe email address is matched case-insensitively. Wrong credentials return\na 422 on `email`. An account that has not verified its email still signs\nin, but receives a restricted token and `email_verification_required: true`.",
                 "summary": "Sign in with an email address and password",
                 "tags": [
                     "Auth"
@@ -893,9 +893,6 @@
                     },
                     "422": {
                         "$ref": "#\/components\/responses\/ValidationException"
-                    },
-                    "403": {
-                        "$ref": "#\/components\/responses\/AuthorizationException"
                     }
                 },
                 "security": []
@@ -920,7 +917,7 @@
                     }
                 },
                 "responses": {
-                    "200": {
+                    "201": {
                         "description": "`AuthenticationTokenResource`",
                         "content": {
                             "application\/json": {
@@ -943,6 +940,24 @@
                     }
                 },
                 "security": []
+            }
+        },
+        "\/logout": {
+            "post": {
+                "operationId": "auth.logout",
+                "description": "Revokes only the bearer token used for this request. Other device sessions\nfor the account remain active.",
+                "summary": "Sign out the current device",
+                "tags": [
+                    "Auth"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "$ref": "#\/components\/responses\/AuthenticationException"
+                    }
+                }
             }
         },
         "\/user": {
@@ -984,24 +999,6 @@
                                 }
                             }
                         }
-                    },
-                    "401": {
-                        "$ref": "#\/components\/responses\/AuthenticationException"
-                    }
-                }
-            }
-        },
-        "\/logout": {
-            "post": {
-                "operationId": "auth.logout",
-                "description": "Revokes only the bearer token used for this request. Other device sessions\nfor the account remain active.",
-                "summary": "Sign out the current device",
-                "tags": [
-                    "Auth"
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No content"
                     },
                     "401": {
                         "$ref": "#\/components\/responses\/AuthenticationException"
@@ -4037,7 +4034,7 @@
         "\/email\/change\/verify": {
             "post": {
                 "operationId": "email.change.verify",
-                "description": "On success the new address is marked verified immediately, since the\nuser just proved control of it.\n\nAvailability is checked before the code is redeemed, and reports the same\n{@see OtpService::INVALID_CODE_MESSAGE} the code check itself would. A\nregistered address therefore looks exactly like an address with no valid\ncode pending, so this endpoint \u2014 which needs no password \u2014 cannot be used\nto probe which addresses have accounts. That check and the write below\nare separate statements, so an address claimed in the window between them\nis caught from the unique index and reported the same way.\n\nOther access tokens are revoked alongside the write: the account email is\nthe password-reset delivery address, so repointing it is a credential\nchange in exactly the sense {@see PasswordController}\ntreats a password change, and must evict other sessions the same way.\n\nThe address being vacated is purged of its own credential rows, for the\nsame reason `DELETE \/account` purges them: reset tokens and OTP codes are\nkeyed by address, and a completed email change frees the old one exactly\nas a deletion does. Leaving them behind hands whoever registers the old\naddress next a live reset token for their brand-new account. The purge\nruns inside the transaction, and only after the code has been accepted,\nso a failed verification purges nothing.",
+                "description": "On success the new address is marked verified immediately, since the\nuser just proved control of it.\n\nThe code is accepted only from the account that requested it with\n`POST \/email\/change`; from any other account it fails with the same\ngeneric 422 as a wrong code. This endpoint needs no password, so a code\nany account could redeem would let a stolen token skip the password\ncheck: the attacker would request a code from their own account for an\naddress they control, then redeem it with the stolen token.\n\nAvailability is checked before the code is redeemed, and reports the same\n{@see OtpService::INVALID_CODE_MESSAGE} the code check itself would. A\nregistered address therefore looks exactly like an address with no valid\ncode pending, so this endpoint \u2014 which needs no password \u2014 cannot be used\nto probe which addresses have accounts. That check and the write below\nare separate statements, so an address claimed in the window between them\nis caught from the unique index and reported the same way.\n\nOther access tokens are revoked alongside the write: the account email is\nthe password-reset delivery address, so repointing it is a credential\nchange in exactly the sense {@see PasswordController}\ntreats a password change, and must evict other sessions the same way.\n\nThe address being vacated is purged of its own credential rows, for the\nsame reason `DELETE \/account` purges them: reset tokens and OTP codes are\nkeyed by address, and a completed email change frees the old one exactly\nas a deletion does. Leaving them behind hands whoever registers the old\naddress next a live reset token for their brand-new account. The purge\nruns inside the transaction, and only after the code has been accepted,\nso a failed verification purges nothing.",
                 "summary": "Verify the OTP and switch the account to the new email address",
                 "tags": [
                     "EmailChange"
@@ -4087,7 +4084,7 @@
         "\/email\/verify-code": {
             "post": {
                 "operationId": "verification.verifyCode",
-                "description": "Marks the account verified and grants the caller's device token full\nabilities when the token belongs to the verified account. A wrong or\nexpired code returns a 422 with one generic message, whether or not a\ncode is actually pending for the address. After five wrong attempts the\ncode is invalidated and a new one must be requested.",
+                "description": "Marks the account verified. What happens to the account's existing\ncredentials depends on who sends the code, because anyone can register an\naddress they do not own:\n\n- **With a bearer token of the same account** (the token from\n  `POST \/register` or `POST \/login`): the caller is the person who\n  registered, so every restricted `email:verify` token the account holds,\n  including the caller's, is upgraded to full access. This is the normal\n  app flow, and each device that signed in before verifying continues\n  without signing in again.\n- **Without a token, or with another account's token**: the code proves\n  control of the mailbox but not that the caller registered the account.\n  The account's password is replaced with a random one, every token is\n  revoked and pending codes are discarded. The response has\n  `data.credentials_reset: true`, and the client should send the user to\n  sign in with Google or Apple, or to `POST \/forgot-password` to set a\n  password.\n\nThe bearer token is optional: send it whenever the device holds one.\n`credentials_reset` reveals nothing a caller without the mailbox could\nlearn, because only a correct code reaches it. An account that is\nalready verified is left as it is, with `credentials_reset: false`. A wrong or expired\ncode returns a 422 with one generic message, whether or not a code is\nactually pending for the address. After five wrong attempts the code is\ninvalidated and a new one must be requested.",
                 "summary": "Verify an email address with a 4-digit OTP code",
                 "tags": [
                     "EmailVerification"
@@ -4113,10 +4110,23 @@
                                         "message": {
                                             "type": "string",
                                             "const": "Email verified successfully."
+                                        },
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "credentials_reset": {
+                                                    "type": "boolean",
+                                                    "description": "True when the account's password was replaced and every token revoked, because the request carried no bearer token of this account. Send the user to social sign-in or forgot-password."
+                                                }
+                                            },
+                                            "required": [
+                                                "credentials_reset"
+                                            ]
                                         }
                                     },
                                     "required": [
-                                        "message"
+                                        "message",
+                                        "data"
                                     ]
                                 }
                             }
@@ -4126,13 +4136,18 @@
                         "$ref": "#\/components\/responses\/ValidationException"
                     }
                 },
-                "security": []
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {}
+                ]
             }
         },
         "\/email\/resend-code": {
             "post": {
                 "operationId": "verification.resendCode",
-                "description": "Public entry point for the \"Didn't get OTP? Resend\" flow. Throttling is\nidentity-blind: a 60-second cooldown and a 20-codes-per-day cap advance\nwhether or not the address has an account (or a verified one), so the\nresponse never reveals account state. The echoed `email` is masked.",
+                "description": "Public entry point for the \"Didn't get OTP? Resend\" flow. Throttling is\nidentity-blind: a 60-second cooldown and a 20-codes-per-day cap advance\nwhether or not the address has an account (or a verified one), so the\nresponse never reveals account state. A code is only emailed to an\nunverified account, so this endpoint cannot send mail to strangers. The\nechoed `email` is masked.",
                 "summary": "Resend an email verification code",
                 "tags": [
                     "EmailVerification"
@@ -5627,7 +5642,7 @@
         "\/media\/presign": {
             "post": {
                 "operationId": "media.presign",
-                "description": "The client uploads the bytes directly to object storage, then calls\nfinalize. Send `filename`, `content_type` (must be one of the allowed\nimage, audio or video MIME types) and `size`; a size over the configured\nper-type maximum is a `422` here rather than at upload time.\n\nUpload with the returned `upload_method` (`PUT`) to `upload_url`, sending\nevery header in `upload_headers` exactly as given \u2014 they are part of the\nsignature, and a mismatch is rejected by storage. The URL expires at\n`expires_at` (10 minutes by default); after that, presign again.\n\nThe record starts at `status: pending`. The declared `content_type` is\nnot yet trusted \u2014 finalize verifies what actually landed in storage. After\nfinalize, pass the returned `media.id` to a post, comment, story or chat\nmessage request to claim it. Leave `mediable_type` and `mediable_id` null:\nmedia with a declared owner is treated as already attached and cannot be\nclaimed through `media_ids`.\n\nNo email verification required.",
+                "description": "The client uploads the bytes directly to object storage, then calls\nfinalize. Send `filename`, `content_type` (must be one of the allowed\nimage, audio or video MIME types) and `size`; a size over the configured\nper-type maximum is a `422` here rather than at upload time.\n\nUpload with the returned `upload_method` (`PUT`) to `upload_url`, sending\nevery header in `upload_headers` exactly as given \u2014 they are part of the\nsignature, and a mismatch is rejected by storage. The URL expires at\n`expires_at` (10 minutes by default); after that, presign again.\n\nThe record starts at `status: pending`. The declared `content_type` is\nnot yet trusted \u2014 finalize verifies what actually landed in storage. After\nfinalize, pass the returned `media.id` to a post, comment, story or chat\nmessage request to claim it. Leave `mediable_type` and `mediable_id` null:\nmedia with a declared owner is treated as already attached and cannot be\nclaimed through `media_ids`.\n\nRequires a bearer token with full access and a verified email address.",
                 "summary": "Request a presigned upload URL and create a pending Media record",
                 "tags": [
                     "Media"
@@ -5703,7 +5718,7 @@
         "\/media\/{media}\/finalize": {
             "post": {
                 "operationId": "media.finalize",
-                "description": "Moves the record from `pending` to `processing` and queues the async job.\nImages get derived sizes; audio and video become ready as uploaded. Poll\n`GET \/media\/{media}` for `ready` or `failed`. A presigned URL is not\nvalidation \u2014 the stored object is\nmeasured and its real content type is sniffed, so an oversized or\nunsupported upload is rejected with `422` and the record goes to `failed`.\nAn upload that never arrived is also a `422`. Calling finalize twice, or\nracing two calls, gives `409` \u2014 only the first caller dispatches the job.\n\nOnly the media's owner may finalize it; anyone else gets a `403`.\nIf object storage cannot be reached, returns `503` and leaves the media\nrecord unchanged so the client can retry. No email verification required.",
+                "description": "Moves the record from `pending` to `processing` and queues the async job.\nImages get derived sizes; audio and video become ready as uploaded. Poll\n`GET \/media\/{media}` for `ready` or `failed`. A presigned URL is not\nvalidation \u2014 the stored object is\nmeasured and its real content type is sniffed, so an oversized or\nunsupported upload is rejected with `422` and the record goes to `failed`.\nAn upload that never arrived is also a `422`. Calling finalize twice, or\nracing two calls, gives `409` \u2014 only the first caller dispatches the job.\n\nOnly the media's owner may finalize it; anyone else gets a `403`.\nIf object storage cannot be reached, returns `503` and leaves the media\nrecord unchanged so the client can retry. Requires a bearer token with\nfull access and a verified email address.",
                 "summary": "Verify the uploaded object and dispatch async processing",
                 "tags": [
                     "Media"
@@ -5775,7 +5790,7 @@
         "\/media\/{media}": {
             "get": {
                 "operationId": "media.show",
-                "description": "Returns `status` as `pending`, `processing`, `ready` or `failed`, plus the\ndeclared type, verified MIME type, byte `size`, `width`\/`height` and the\n`url` and `thumbnail_url` once processing has produced them. A failed\nrecord also carries an `error`, and `mediable_type`\/`mediable_id` show\nwhich post or comment the media has been claimed by.\n\nVisible to the owner of the media and to any authenticated user for\nownerless records; anyone else gets a `403`. No email verification\nrequired.",
+                "description": "Returns `status` as `pending`, `processing`, `ready` or `failed`, plus the\ndeclared type, verified MIME type, byte `size`, `width`\/`height` and the\n`url` and `thumbnail_url` once processing has produced them. A failed\nrecord also carries an `error`, and `mediable_type`\/`mediable_id` show\nwhich post or comment the media has been claimed by.\n\nVisible only to the user who uploaded the media; anyone else gets a\n`403`. Requires a bearer token with full access and a verified email\naddress.",
                 "summary": "Show the current media record and processing status",
                 "tags": [
                     "Media"
@@ -6449,7 +6464,7 @@
         "\/password": {
             "patch": {
                 "operationId": "password.change",
-                "description": "The current password is checked with {@see Hash::check()} rather than\nFortify's `current_password:web` rule, which does not apply to\nbearer-token (Sanctum) requests.\n\nEvery other access token is revoked afterwards, so a password change\nevicts sessions an attacker may hold (including ones registered by a\npassword reset). A bearer-token caller keeps the token that made the\nchange; see {@see RevokeOtherAccessTokens} for the session-authenticated\ncase.\n\nThe write and the revocation share one transaction. Committing the new\npassword while the delete fails would leave the caller with a 500, a\nchanged password they no longer know the current value of, and every\npre-existing token still valid \u2014 the exact state this endpoint exists to\nprevent.",
+                "description": "The current password is checked with {@see Hash::check()} rather than\nthe framework's `current_password:web` rule, which does not apply to\nbearer-token (Sanctum) requests.\n\nEvery other access token is revoked afterwards, so a password change\nevicts sessions an attacker may hold (including ones registered by a\npassword reset). A bearer-token caller keeps the token that made the\nchange; see {@see RevokeOtherAccessTokens} for the session-authenticated\ncase.\n\nThe write and the revocation share one transaction. Committing the new\npassword while the delete fails would leave the caller with a 500, a\nchanged password they no longer know the current value of, and every\npre-existing token still valid \u2014 the exact state this endpoint exists to\nprevent.",
                 "summary": "Change the authenticated user's password (Figma \"Change Password\")",
                 "tags": [
                     "Password"
@@ -6532,9 +6547,6 @@
                     },
                     "422": {
                         "$ref": "#\/components\/responses\/ValidationException"
-                    },
-                    "403": {
-                        "$ref": "#\/components\/responses\/AuthorizationException"
                     }
                 },
                 "security": []
@@ -6543,7 +6555,7 @@
         "\/email\/verify-reset-code": {
             "post": {
                 "operationId": "password.verifyCode",
-                "description": "Verifies the 4-digit code sent by the forgot-password flow and returns a\nshort-lived reset token for `POST \/reset-password`. Codes expire after\nten minutes and allow five attempts before a new one must be requested.\nA wrong or expired code returns a 422 with one generic message, whether\nor not a code is actually pending for the address.",
+                "description": "Verifies the 4-digit code sent by the forgot-password flow and returns a\nshort-lived reset token for `POST \/reset-password`. Codes expire after\nten minutes and allow five attempts before a new one must be requested.\nA wrong or expired code returns a 422 with one generic message, whether\nor not a code is actually pending for the address.\n\nA correct code proves control of the mailbox, so an unverified account is\nmarked verified. Nothing proves who registered it, so its old password\nstops working and every device session is revoked straight away, before\nthe new password is set.",
                 "summary": "Exchange a reset code for a password reset token",
                 "tags": [
                     "PasswordReset"
@@ -6602,7 +6614,7 @@
         "\/reset-password": {
             "post": {
                 "operationId": "password.update",
-                "description": "Completes the password reset with the token and email from the code\nexchange. The `password` and `password_confirmation` fields must match.\nOn success every existing device session is revoked, so all devices must\nsign in again with the new password.",
+                "description": "Completes the password reset with the token and email from the code\nexchange. The `password` and `password_confirmation` fields must match.\nOn success every existing device session is revoked, so all devices must\nsign in again with the new password.\n\nAn invalid or already-used token, or an email with no account, returns a\n422 on `email`; reusing the current password returns a 422 on `password`.",
                 "summary": "Set a new password using a reset token",
                 "tags": [
                     "PasswordReset"
@@ -7579,118 +7591,6 @@
                 "security": []
             }
         },
-        "\/reference\/languages\/request": {
-            "post": {
-                "operationId": "reference.languages.request",
-                "description": "Creates a language with `status: pending` or returns the existing match\n(then and on concurrent creation: 200 with that language; new creation:\n201). Pending languages can only be attached to a profile by the user\nwho requested them until an admin approves them to `active`.",
-                "summary": "Request a custom language for the profile-setup wizard",
-                "tags": [
-                    "Reference"
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application\/json": {
-                            "schema": {
-                                "$ref": "#\/components\/schemas\/LanguageRequest"
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "slug": {
-                                                    "type": "string"
-                                                },
-                                                "name": {
-                                                    "type": "string"
-                                                },
-                                                "name_en": {
-                                                    "type": "string"
-                                                },
-                                                "name_ar": {
-                                                    "type": "string"
-                                                },
-                                                "status": {
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "required": [
-                                                "slug",
-                                                "name",
-                                                "name_en",
-                                                "name_ar",
-                                                "status"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "data"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "200": {
-                        "description": "",
-                        "content": {
-                            "application\/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "slug": {
-                                                    "type": "string"
-                                                },
-                                                "name": {
-                                                    "type": "string"
-                                                },
-                                                "name_en": {
-                                                    "type": "string"
-                                                },
-                                                "name_ar": {
-                                                    "type": "string"
-                                                },
-                                                "status": {
-                                                    "type": "string"
-                                                }
-                                            },
-                                            "required": [
-                                                "slug",
-                                                "name",
-                                                "name_en",
-                                                "name_ar",
-                                                "status"
-                                            ]
-                                        }
-                                    },
-                                    "required": [
-                                        "data"
-                                    ]
-                                }
-                            }
-                        }
-                    },
-                    "401": {
-                        "$ref": "#\/components\/responses\/AuthenticationException"
-                    },
-                    "422": {
-                        "$ref": "#\/components\/responses\/ValidationException"
-                    }
-                }
-            }
-        },
         "\/reference\/interests": {
             "get": {
                 "operationId": "reference.interests",
@@ -7848,6 +7748,118 @@
                     }
                 },
                 "security": []
+            }
+        },
+        "\/reference\/languages\/request": {
+            "post": {
+                "operationId": "reference.languages.request",
+                "description": "Creates a language with `status: pending` or returns the existing match\n(then and on concurrent creation: 200 with that language; new creation:\n201). Pending languages can only be attached to a profile by the user\nwho requested them until an admin approves them to `active`.",
+                "summary": "Request a custom language for the profile-setup wizard",
+                "tags": [
+                    "Reference"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application\/json": {
+                            "schema": {
+                                "$ref": "#\/components\/schemas\/LanguageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "name_en": {
+                                                    "type": "string"
+                                                },
+                                                "name_ar": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "slug",
+                                                "name",
+                                                "name_en",
+                                                "name_ar",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application\/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "slug": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "name_en": {
+                                                    "type": "string"
+                                                },
+                                                "name_ar": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "slug",
+                                                "name",
+                                                "name_en",
+                                                "name_ar",
+                                                "status"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#\/components\/responses\/AuthenticationException"
+                    },
+                    "422": {
+                        "$ref": "#\/components\/responses\/ValidationException"
+                    }
+                }
             }
         },
         "\/reports": {
@@ -8593,7 +8605,7 @@
         "\/account": {
             "delete": {
                 "operationId": "account.destroy",
-                "description": "Requires the account password (see {@see DeleteAccountRequest}) so a\nstolen token cannot destroy the account on its own. Revokes all access\ntokens, purges the credential state keyed by email address, and\nhard-deletes the user. The user's stories are deleted first so their\nmedia rows and stored files are released; a plain row cascade does not\nfire Spatie's media cleanup. The user's conversations are deleted through\nthe chat service for the same reason, so chat media is released instead\nof surviving ownerless. The remaining related rows (posts, comments,\nfollows, likes, saves, hidden posts, blocks, social accounts) cascade;\nmedia attached to those rows survives with a null owner.\nStory view and like counters on other authors' stories are decremented\nfor the rows the cascade removes. Reference rows this user submitted \u2014 a\n`languages` entry \u2014 also survive, with `created_by` nulled: cascading\nthem would take every other user's `user_language` pivot for that\nlanguage with it.\n\nNotifications have no foreign key on the recipient's morph columns, so\nthe rows addressed to this user are deleted explicitly. Deleting the\nuser also removes notifications that target the user, the user's posts,\nevery comment on those posts, and the user's own comments together with\ntheir reply subtrees. Notifications this user sent cascade through\n`actor_id`.\n\nThe three writes share one transaction. The tokens and the\naddress-keyed credential rows are deleted before the user row; if the\nfinal delete failed on its own, the account would survive with every\ntoken revoked and its reset credentials purged, locking the owner out of\nan account that still exists.",
+                "description": "Requires the account password (see {@see DeleteAccountRequest}) so a\nstolen token cannot destroy the account on its own. Deletes the user\nand everything they own \u2014 posts, comments, stories, likes, story views,\nconversations, follows, saves, blocks and uploaded media \u2014 revokes all\naccess tokens and purges the credential state keyed by the email\naddress. Every media file the user uploaded is removed, so nothing they\nshared stays reachable after the account is gone. Like, comment, reply\nand view counters on other users' content drop by the rows removed.\nNotifications the user sent or received, and notifications about their\ncontent, are deleted. Submitted reference rows such as a `languages`\nentry survive for the other users who selected them.\n\nThe whole deletion is one transaction: if any step fails, nothing is\ndeleted and the account keeps its tokens. See {@see DeleteAccount} for\nthe full list of what is removed and how.",
                 "summary": "Permanently delete the authenticated account",
                 "tags": [
                     "Settings"
@@ -8640,7 +8652,7 @@
         "\/auth\/{provider}\/token": {
             "post": {
                 "operationId": "social.token",
-                "description": "Exchanges a provider identity token for a Travibe bearer token. The\nidentity token must come from the provider's native or web sign-in flow.\nApple sign-ins require the original `nonce`, which is accepted only once.\nA new token for an existing `device_name` replaces that device's previous token.",
+                "description": "Exchanges a provider identity token for a Travibe bearer token. The\nidentity token must come from the provider's native or web sign-in flow.\nApple sign-ins require the original `nonce`, which is accepted only once.\nA new token for an existing `device_name` replaces that device's previous token.\n\nWhen the provider's verified email matches an account that never verified\nits address, the identity is linked and the account becomes verified. Its\npassword is replaced with a random one, every existing token is revoked\n(restricted `email:verify` tokens on other devices are not upgraded) and\npending codes are discarded, because nothing proved who set them up. Only\nthe token returned here works afterwards. The owner can set a new password\nwith the forgot-password flow.",
                 "summary": "Exchange a Google or Apple identity token for a bearer token",
                 "tags": [
                     "SocialAuth"
@@ -9528,13 +9540,15 @@
                         }
                     },
                     "likes_count": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "How many users like the comment."
                     },
                     "is_liked": {
                         "type": "boolean"
                     },
                     "replies_count": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "How many live direct replies the comment has."
                     },
                     "created_at": {
                         "type": [
@@ -9578,6 +9592,8 @@
                     "post_id",
                     "parent_id",
                     "content",
+                    "likes_count",
+                    "replies_count",
                     "created_at",
                     "updated_at",
                     "permissions"
@@ -9709,11 +9725,12 @@
             },
             "ForgotPasswordRequest": {
                 "type": "object",
-                "description": "Body for requesting a password reset code.\n\nThe V1 contract currently matches Fortify's validated email payload, so this\nadds only a docblock over the inherited rules.",
+                "description": "Body for requesting a password reset code.",
                 "properties": {
                     "email": {
                         "type": "string",
-                        "format": "email"
+                        "format": "email",
+                        "description": "The email address to send the reset code to. The response is the\nsame whether or not an account uses it."
                     }
                 },
                 "required": [
@@ -9752,14 +9769,12 @@
                 "description": "Body for signing in with an email address and password.",
                 "properties": {
                     "email": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "The account's email address. Matched case-insensitively."
                     },
                     "password": {
-                        "type": "string"
-                    },
-                    "remember": {
-                        "type": "boolean",
-                        "description": "Kept for Fortify compatibility; API tokens do not use it."
+                        "type": "string",
+                        "description": "The account password."
                     },
                     "device_name": {
                         "type": "string",
@@ -10181,28 +10196,15 @@
                         "description": "Notification kind: `post_liked`, `story_liked`, `comment_liked`,\n`post_commented`, `comment_replied`, `user_followed`,\n`follow_requested`, `follow_request_accepted`,\n`message_received`, or `user_mentioned`."
                     },
                     "actor": {
-                        "anyOf": [
-                            {
-                                "description": "Public profile of the user whose action produced the notification.\nPresent only when the actor relation was loaded.",
-                                "$ref": "#\/components\/schemas\/PublicUserResource"
-                            },
-                            {
-                                "type": "null"
-                            }
-                        ]
+                        "description": "Public profile of the user whose action produced the notification.\nPresent only when the actor relation was loaded.",
+                        "$ref": "#\/components\/schemas\/PublicUserResource"
                     },
                     "target_type": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
+                        "type": "string",
                         "description": "Short type of the object the notification points to: `post`,\n`comment`, `story`, `user`, or `message`."
                     },
                     "target_id": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ],
+                        "type": "integer",
                         "description": "Identifier of the target object."
                     },
                     "data": {
@@ -10341,10 +10343,12 @@
                         "type": "string"
                     },
                     "likes_count": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "How many users like the post."
                     },
                     "comments_count": {
-                        "type": "integer"
+                        "type": "integer",
+                        "description": "How many live comments the post has, replies included."
                     },
                     "is_pinned": {
                         "type": "boolean"
@@ -10386,6 +10390,8 @@
                     "user_id",
                     "content",
                     "visibility",
+                    "likes_count",
+                    "comments_count",
                     "is_pinned",
                     "comments_disabled",
                     "created_at",
@@ -12230,25 +12236,6 @@
                     }
                 }
             },
-            "AuthorizationException": {
-                "description": "Authorization error",
-                "content": {
-                    "application\/json": {
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "message": {
-                                    "type": "string",
-                                    "description": "Error overview."
-                                }
-                            },
-                            "required": [
-                                "message"
-                            ]
-                        }
-                    }
-                }
-            },
             "AuthenticationException": {
                 "description": "Unauthenticated",
                 "content": {
@@ -12270,6 +12257,25 @@
             },
             "ModelNotFoundException": {
                 "description": "Not found",
+                "content": {
+                    "application\/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "AuthorizationException": {
+                "description": "Authorization error",
                 "content": {
                     "application\/json": {
                         "schema": {

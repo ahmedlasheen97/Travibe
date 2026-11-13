@@ -2,26 +2,45 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/features/follow/data/follow_errors.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
+
+/// What the follow button shows for a user.
+enum FollowRelation { follow, following, requested }
 
 class FollowState {
   FollowState({
     Map<String, bool> following = const {},
     Map<String, bool> followsYou = const {},
+    Map<String, bool> requested = const {},
     Map<String, PublicUserModel> users = const {},
     Set<String> pending = const {},
     this.revision = 0,
   }) : following = Map.unmodifiable(following),
        followsYou = Map.unmodifiable(followsYou),
+       requested = Map.unmodifiable(requested),
        users = Map.unmodifiable(users),
        pending = Set.unmodifiable(pending);
   final Map<String, bool> following;
   final Map<String, bool> followsYou;
+
+  /// Pending outgoing follow requests (private accounts).
+  final Map<String, bool> requested;
   final Map<String, PublicUserModel> users;
   final Set<String> pending;
 
   /// Advances only for confirmed mutations, allowing feed invalidation.
   final int revision;
+
+  FollowRelation relationOf(
+    String id, {
+    bool initialFollowing = false,
+    bool initialRequested = false,
+  }) {
+    if (following[id] ?? initialFollowing) return FollowRelation.following;
+    if (requested[id] ?? initialRequested) return FollowRelation.requested;
+    return FollowRelation.follow;
+  }
 }
 
 /// Scoped to Root, never a process-wide singleton or a persisted account cache.
@@ -85,16 +104,30 @@ class FollowCubit extends Cubit<FollowState> {
   /// Records server-read relationship flags (e.g. a loaded profile) so every
   /// card for this user agrees. Fills only unknown values: confirmed
   /// mutations and status checks are never overridden, and no revision bump.
-  void seed(String id, {bool? following, bool? followsYou}) {
+  void seed(String id, {bool? following, bool? followsYou, bool? requested}) {
     if (isClosed || state.pending.contains(id)) return;
     final addFollowing = following != null && state.following[id] == null;
     final addFollowsYou = followsYou != null && state.followsYou[id] == null;
-    if (!addFollowing && !addFollowsYou) return;
+    final addRequested = requested != null && state.requested[id] == null;
+    if (!addFollowing && !addFollowsYou && !addRequested) return;
     _update(
       userId: id,
       following: addFollowing ? following : null,
       followsYou: addFollowsYou ? followsYou : null,
+      requested: addRequested ? requested : null,
       pending: {...state.pending},
+    );
+  }
+
+  /// A follow request from [id] was accepted: they now follow me.
+  void markFollowsYou(String id, {PublicUserModel? user}) {
+    if (isClosed) return;
+    _update(
+      userId: id,
+      followsYou: true,
+      user: user,
+      pending: {...state.pending},
+      mutated: true,
     );
   }
 
@@ -105,6 +138,7 @@ class FollowCubit extends Cubit<FollowState> {
     required Set<String> pending,
     bool mutated = false,
     bool? followsYou,
+    bool? requested,
   }) {
     final users = {...state.users};
     if (user != null) users[user.id] = user;
@@ -118,6 +152,10 @@ class FollowCubit extends Cubit<FollowState> {
           ...state.followsYou,
           if (userId != null && followsYou != null) userId: followsYou,
         },
+        requested: {
+          ...state.requested,
+          if (userId != null && requested != null) userId: requested,
+        },
         users: users,
         pending: pending,
         revision: state.revision + (mutated ? 1 : 0),
@@ -125,9 +163,12 @@ class FollowCubit extends Cubit<FollowState> {
     );
   }
 
+  /// Follows, or — when following or requested — unfollows / cancels the
+  /// pending request. Private accounts answer a follow with a request.
   Future<ApiError?> toggle(
     String id, {
     required bool currentlyFollowing,
+    bool currentlyRequested = false,
   }) async {
     if (isClosed || state.pending.contains(id)) return null;
     if (!canInteract(id)) {
@@ -136,7 +177,12 @@ class FollowCubit extends Cubit<FollowState> {
       );
     }
     final generation = _generation;
-    final next = !(state.following[id] ?? currentlyFollowing);
+    final relation = state.relationOf(
+      id,
+      initialFollowing: currentlyFollowing,
+      initialRequested: currentlyRequested,
+    );
+    final next = relation == FollowRelation.follow;
     _update(pending: {...state.pending, id});
     try {
       final user = await repo.setFollowing(id, next);
@@ -147,6 +193,7 @@ class FollowCubit extends Cubit<FollowState> {
       _update(
         userId: id,
         following: user.isFollowing,
+        requested: !user.isFollowing && user.followRequested,
         user: user,
         pending: {...state.pending}..remove(id),
         mutated: true,
@@ -154,7 +201,7 @@ class FollowCubit extends Cubit<FollowState> {
       return null;
     } catch (e) {
       if (!_current(generation)) return null;
-      final error = _error(e);
+      final error = followError(e, following: next);
       // A conflict indicates that local state may be stale; reconcile without
       // replaying the mutation or treating the conflict as a successful action.
       if (error.statusCode == 409 && _current(generation)) {
@@ -164,6 +211,7 @@ class FollowCubit extends Cubit<FollowState> {
             _update(
               userId: id,
               following: result.isFollowing,
+              requested: !result.isFollowing && result.followRequested,
               pending: {...state.pending},
             );
           }
@@ -190,6 +238,7 @@ class FollowCubit extends Cubit<FollowState> {
         _update(
           userId: id,
           following: result.isFollowing,
+          requested: !result.isFollowing && result.followRequested,
           pending: {...state.pending}..remove(id),
         );
       }
@@ -225,7 +274,5 @@ class FollowCubit extends Cubit<FollowState> {
     }
   }
 
-  ApiError _error(Object e) => e is ApiError
-      ? e
-      : ApiError(message: 'Unable to update follow status. Please try again.');
+  ApiError _error(Object e) => followError(e);
 }

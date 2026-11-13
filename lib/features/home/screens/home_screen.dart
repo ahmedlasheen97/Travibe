@@ -1018,7 +1018,8 @@ class _HomeViewState extends State<_HomeView> {
         child: FollowActionBuilder(
           userId: post.user.id,
           initialFollowing: post.user.isFollowing,
-          builder: (context, following, pending, onToggle) =>
+          initialRequested: post.user.followRequested,
+          builder: (context, relation, pending, onToggle) =>
               BlocBuilder<HiddenPostsCubit, HiddenPostsState>(
                 bloc: _hiddenPosts,
                 builder: (context, hiddenState) =>
@@ -1089,7 +1090,8 @@ class _HomeViewState extends State<_HomeView> {
                             onShareTap: () => _openShare(post),
                             showFollowButton: true,
                             neutralFollowButton: true,
-                            isFollowing: following,
+                            isFollowing: relation.isFollowing,
+                            isFollowRequested: relation.isRequested,
                             isFollowPending: pending,
                             onFollowTap: post.user.isBlocked ? null : onToggle,
                             onMoreTap: hiddenState.pending.contains(post.id)

@@ -8,6 +8,7 @@ class PostAuthorModel {
   final String? avatarUrl;
   final bool isFollowing;
   final bool isBlocked;
+  final bool followRequested;
   final int followersCount;
   final int followingCount;
 
@@ -19,6 +20,7 @@ class PostAuthorModel {
     this.avatarUrl,
     required this.isFollowing,
     required this.isBlocked,
+    this.followRequested = false,
     required this.followersCount,
     required this.followingCount,
   });
@@ -32,6 +34,7 @@ class PostAuthorModel {
       avatarUrl: json['avatar_url']?.toString(),
       isFollowing: parseBool(json['is_following']),
       isBlocked: parseBool(json['is_blocked']),
+      followRequested: parseBool(json['follow_requested']),
       followersCount: parseInt(json['followers_count']),
       followingCount: parseInt(json['following_count']),
     );

@@ -1,5 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
+import 'package:travibe/features/follow/cubit/follow_cubit.dart';
+import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/profile/screens/settings_screen.dart';
@@ -10,6 +12,8 @@ class ProfileTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final block = context.read<BlockCubit?>();
+    final follow = context.read<FollowCubit?>();
+    final incoming = context.read<IncomingRequestsCubit?>();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: SizedBox(
@@ -37,8 +41,14 @@ class ProfileTopBar extends StatelessWidget {
                     : () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => BlocProvider.value(
-                            value: block,
+                          builder: (_) => MultiBlocProvider(
+                            providers: [
+                              BlocProvider.value(value: block),
+                              if (follow != null)
+                                BlocProvider.value(value: follow),
+                              if (incoming != null)
+                                BlocProvider.value(value: incoming),
+                            ],
                             child: const SettingsScreen(),
                           ),
                         ),
