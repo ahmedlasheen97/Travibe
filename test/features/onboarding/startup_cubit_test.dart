@@ -30,7 +30,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     await preferences.init();
     auth = StartupAuth();
-    startup = StartupCubit(auth: auth);
+    startup = StartupCubit(
+      auth: auth,
+      retryDelays: const [Duration.zero, Duration.zero],
+    );
   });
   tearDown(() async {
     await startup.close();
@@ -98,9 +101,12 @@ void main() {
       auth.handler = () async =>
           throw ApiError(message: 'Unavailable', statusCode: 503);
       await preferences.saveToken('candidate');
+      await pumpEventQueue();
+      auth.calls = 0;
       await startup.resolve();
       expect(startup.state.decision, isNull);
       expect(startup.state.error, isNotNull);
+      expect(auth.calls, 3, reason: '5xx is retried before showing an error');
       expect(await preferences.getToken(), 'candidate');
       auth.handler = () async => startupUser(locale: 'ar');
       await startup.resolve();
@@ -164,6 +170,104 @@ void main() {
       },
     );
   }
+  group('resilient session check', () {
+    setUp(() async {
+      await preferences.completeOnboarding();
+      await preferences.saveToken('candidate');
+      // saveToken notifies the cubit's session listener; start each case clean.
+      await pumpEventQueue();
+      await preferences.remove(StartupCubit.confirmedHomeKey);
+      auth.calls = 0;
+    });
+    ApiError offline() =>
+        ApiError(message: 'Connection failed', isConnectionError: true);
+
+    test('first check with unknown outcome (timeout) is retried', () async {
+      var first = true;
+      auth.handler = () async {
+        if (first) {
+          first = false;
+          throw TimeoutException('first request');
+        }
+        return startupUser();
+      };
+      final errors = <String?>[];
+      final sub = startup.stream.listen((s) => errors.add(s.error));
+      await startup.resolve();
+      await sub.cancel();
+      expect(auth.calls, 2);
+      expect(errors.whereType<String>(), isEmpty);
+      expect(startup.state.decision!.target, StartupTarget.home);
+      expect(startup.state.decision!.offline, false);
+    });
+
+    test('transient connection failure then success goes home', () async {
+      var failures = 2;
+      auth.handler = () async {
+        if (failures-- > 0) throw offline();
+        return startupUser();
+      };
+      await startup.resolve();
+      expect(auth.calls, 3);
+      expect(startup.state.decision!.target, StartupTarget.home);
+      expect(preferences.getBool(StartupCubit.confirmedHomeKey), true);
+    });
+
+    test('offline with a confirmed saved session continues to home', () async {
+      await preferences.setBool(StartupCubit.confirmedHomeKey, true);
+      auth.handler = () async => throw offline();
+      await startup.resolve();
+      expect(auth.calls, 3);
+      expect(startup.state.error, isNull);
+      expect(startup.state.decision!.target, StartupTarget.home);
+      expect(startup.state.decision!.offline, true);
+      expect(await preferences.getToken(), 'candidate');
+    });
+
+    test('offline without a confirmed home shows retry instead', () async {
+      auth.handler = () async => throw TimeoutException('offline');
+      await startup.resolve();
+      expect(startup.state.decision, isNull);
+      expect(startup.state.error, StartupCubit.errorMessage);
+      expect(preferences.hasSession, true);
+    });
+
+    test('401 is not retried and sends to login', () async {
+      await preferences.setBool(StartupCubit.confirmedHomeKey, true);
+      auth.handler = () async =>
+          throw ApiError(message: 'Unauthenticated', statusCode: 401);
+      await startup.resolve();
+      expect(auth.calls, 1);
+      expect(startup.state.decision!.target, StartupTarget.login);
+      expect(preferences.hasSession, false);
+      expect(preferences.getBool(StartupCubit.confirmedHomeKey), isNull);
+    });
+
+    test('incomplete profile clears the confirmed-home flag', () async {
+      await preferences.setBool(StartupCubit.confirmedHomeKey, true);
+      auth.handler = () async => startupUser(complete: false);
+      await startup.resolve();
+      expect(startup.state.decision!.target, StartupTarget.profileSetup);
+      expect(preferences.getBool(StartupCubit.confirmedHomeKey), isNull);
+    });
+
+    test(
+      'retrying from an error keeps the error visible while loading',
+      () async {
+        auth.handler = () async =>
+            throw ApiError(message: 'x', statusCode: 500);
+        await startup.resolve();
+        final gate = Completer<ProfileModel>();
+        auth.handler = () => gate.future;
+        final pending = startup.resolve();
+        expect(startup.state.loading, true);
+        expect(startup.state.error, isNotNull);
+        gate.complete(startupUser());
+        await pending;
+        expect(startup.state.decision!.target, StartupTarget.home);
+      },
+    );
+  });
   test(
     'AuthRepo validates documented /user identity and required routing fields',
     () async {

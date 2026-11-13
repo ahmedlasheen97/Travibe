@@ -1,9 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
-import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/features/onboarding/cubit/startup_cubit.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/onboarding/data/onboarding_repo.dart';
@@ -71,7 +71,12 @@ class _StartupScreenState extends State<StartupScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _maybeNavigate();
+    if (state != AppLifecycleState.resumed) return;
+    // A failure while launched/prewarmed in the background is retried as soon
+    // as the user actually opens the app.
+    final startup = _startup.state;
+    if (startup.error != null && !startup.loading) _startup.resolve();
+    _maybeNavigate();
   }
 
   @override
@@ -96,14 +101,78 @@ class _StartupScreenState extends State<StartupScreen>
               },
             ),
             if (_animationDone && state.error != null)
-              ColoredBox(
-                color: DarkColors.primaryColor,
-                child: ErrorRetryView(
-                  message: state.error!,
-                  onRetry: _startup.resolve,
-                ),
+              _StartupErrorView(
+                message: state.error!,
+                retrying: state.loading,
+                onRetry: _startup.resolve,
               ),
           ],
         ),
       );
+}
+
+// Fixed sizes: the splash renders before/without ScreenUtil-dependent styles.
+const _startupText = TextStyle(
+  fontFamily: 'Plus Jakarta Sans',
+  fontSize: 16,
+  fontWeight: FontWeight.w600,
+  color: DarkColors.whiteColor,
+);
+
+class _StartupErrorView extends StatelessWidget {
+  const _StartupErrorView({
+    required this.message,
+    required this.retrying,
+    required this.onRetry,
+  });
+  final String message;
+  final bool retrying;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: DarkColors.primaryColor,
+    body: SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message,
+                key: const ValueKey('startup-error'),
+                textAlign: TextAlign.center,
+                style: _startupText,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 48,
+                width: 160,
+                child: OutlinedButton(
+                  key: const ValueKey('startup-retry'),
+                  onPressed: retrying ? null : onRetry,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: DarkColors.whiteColor,
+                    disabledForegroundColor: DarkColors.whiteColor,
+                    side: const BorderSide(
+                      color: DarkColors.whiteColor,
+                      width: 1.5,
+                    ),
+                    shape: const StadiumBorder(),
+                  ),
+                  child: retrying
+                      ? const CupertinoActivityIndicator(
+                          key: ValueKey('startup-retrying'),
+                          color: DarkColors.whiteColor,
+                        )
+                      : const Text('Retry', style: _startupText),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
 }

@@ -72,7 +72,9 @@ class StartupAuth extends AuthRepo {
   int calls = 0;
   Future<ProfileModel> Function() handler = () async => startupUser();
   @override
-  Future<ProfileModel> currentUser() {
+  Future<ProfileModel> currentUser({
+    Duration timeout = const Duration(seconds: 12),
+  }) {
     calls++;
     return handler();
   }

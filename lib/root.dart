@@ -37,6 +37,8 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
+import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
+import 'package:travibe/features/profile/screens/session_exit.dart';
 
 class Root extends StatefulWidget {
   const Root({
@@ -51,6 +53,8 @@ class Root extends StatefulWidget {
     this.postImagePicker,
     this.storiesRepo,
     this.followRequestsRepo,
+    this.revalidateSession = false,
+    this.sessionRevalidator,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
@@ -63,6 +67,10 @@ class Root extends StatefulWidget {
   final StoriesRepo? storiesRepo;
   final FollowRequestsRepo? followRequestsRepo;
 
+  /// Startup entered Home offline; confirm the session once reachable.
+  final bool revalidateSession;
+  final SessionRevalidator? sessionRevalidator;
+
   @override
   State<Root> createState() => _RootState();
 }
@@ -73,10 +81,22 @@ class _RootState extends State<Root> {
   ChatReverbService? _reverb;
   ChatUnreadCubit? _chatUnread;
   StreamSubscription<BlockState>? _reverbBlocks;
+  SessionRevalidator? _revalidator;
+  AppLifecycleListener? _lifecycle;
 
   @override
   void initState() {
     super.initState();
+    if (widget.revalidateSession) {
+      final revalidator = _revalidator =
+          widget.sessionRevalidator ?? SessionRevalidator();
+      _lifecycle = AppLifecycleListener(onResume: revalidator.retryNow);
+      revalidator.start(
+        onSignedOut: () {
+          if (mounted) openSignedOutScreen(context);
+        },
+      );
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_incoming.sync());
     });
@@ -172,6 +192,8 @@ class _RootState extends State<Root> {
 
   @override
   void dispose() {
+    _lifecycle?.dispose();
+    _revalidator?.dispose();
     _push?.detach(this);
     _deepLinks?.detach(this);
     _reverb?.detach(this);

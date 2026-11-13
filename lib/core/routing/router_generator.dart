@@ -8,6 +8,7 @@ import 'package:travibe/features/onboarding/data/onboarding_repo.dart';
 import 'package:travibe/features/onboarding/screens/onboarding_screen.dart';
 import 'package:travibe/features/onboarding/screens/startup_screen.dart';
 import 'package:travibe/features/onboarding/cubit/startup_cubit.dart';
+import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 import 'package:travibe/root.dart';
 
@@ -35,7 +36,7 @@ class RouterGenerator {
                 path: AppRoutes.otpVerification,
                 queryParameters: {'email': decision.email!},
               ).toString(),
-            }),
+            }, extra: decision.offline ? const OfflineStartup() : null),
           ),
         ),
       ),
@@ -59,7 +60,8 @@ class RouterGenerator {
       GoRoute(
         path: AppRoutes.root,
         name: AppRoutes.root,
-        builder: (context, state) => const Root(),
+        builder: (context, state) =>
+            Root(revalidateSession: state.extra is OfflineStartup),
       ),
       GoRoute(
         path: AppRoutes.otpVerification,

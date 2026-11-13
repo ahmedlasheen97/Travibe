@@ -11,13 +11,20 @@ class ApiExceptions {
         return ApiError(
           message: 'Connection timeout with API server',
           isConnectionError: true,
+          isTimeout: true,
         );
 
       case DioExceptionType.sendTimeout:
-        return ApiError(message: 'Send timeout in connection with API server');
+        return ApiError(
+          message: 'Send timeout in connection with API server',
+          isTimeout: true,
+        );
 
       case DioExceptionType.receiveTimeout:
-        return ApiError(message: 'Receive timeout with API server');
+        return ApiError(
+          message: 'Receive timeout with API server',
+          isTimeout: true,
+        );
 
       case DioExceptionType.transformTimeout:
         return ApiError(message: 'Response transformation timeout');
