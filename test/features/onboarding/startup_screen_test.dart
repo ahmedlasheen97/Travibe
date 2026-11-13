@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -96,17 +97,57 @@ void main() {
       await show(tester, auth, exits);
       await tester.pump(const Duration(milliseconds: 1501));
       await tester.pump();
+      expect(find.text('Retry'), findsNothing, reason: 'still retrying');
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 1200));
+      await tester.pump();
+      expect(auth.calls, 3);
       expect(exits, isEmpty);
       expect(preferences.hasSession, true);
+      final message = find.byKey(const ValueKey('startup-error'));
+      expect(message, findsOneWidget);
+      // A Material ancestor: no yellow debug underlines.
+      expect(
+        find.ancestor(of: message, matching: find.byType(Scaffold)),
+        findsOneWidget,
+      );
+      expect(tester.widget<Text>(message).style?.color, Colors.white);
+      expect(find.byKey(const ValueKey('startup-retry')), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
-      auth.handler = () async => startupUser();
-      await tester.tap(find.text('Retry'));
+      final gate = Completer<ProfileModel>();
+      auth.handler = () => gate.future;
+      await tester.tap(find.byKey(const ValueKey('startup-retry')));
+      await tester.pump();
+      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+      expect(find.text('Retry'), findsNothing);
+      gate.complete(startupUser());
       await tester.pump();
       await tester.pump();
       expect(exits, [StartupTarget.home]);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('a failure while backgrounded is retried on resume', (
+    tester,
+  ) async {
+    final auth = StartupAuth()
+      ..handler = () async => throw ApiError(message: 'Offline');
+    final exits = <StartupTarget>[];
+    await show(tester, auth, exits);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump();
+    expect(auth.calls, 3);
+    auth.handler = () async => startupUser();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(auth.calls, 4);
+    // The splash motion paused with the app; it finishes before navigating.
+    await tester.pump(const Duration(milliseconds: 1600));
+    await tester.pump();
+    expect(exits, [StartupTarget.home]);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'startup readiness while backgrounded waits for resume and remaining motion',
     (tester) async {

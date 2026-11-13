@@ -17,10 +17,10 @@ class AuthRepo {
 
   /// A persisted bearer token is only a candidate session. The existing /user
   /// resource confirms identity, verification and profile setup at startup.
-  Future<ProfileModel> currentUser() async {
-    final response = await _apiService
-        .get('user')
-        .timeout(const Duration(seconds: 12));
+  Future<ProfileModel> currentUser({
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    final response = await _apiService.get('user').timeout(timeout);
     final data = response is Map ? response['data'] : null;
     if (data is! Map<String, dynamic> ||
         !data.containsKey('email_verified_at') ||
