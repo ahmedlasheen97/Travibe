@@ -1,6 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/app_styles.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+
+/// Show/hide-password icons shared by every password field.
+abstract final class PasswordEye {
+  /// Shown while the password is visible.
+  static const visible = 'assets/images/icons/eye.svg';
+
+  /// Shown while the password is hidden.
+  static const hidden = 'assets/images/icons/eye_slash.svg';
+
+  static Widget icon({required bool obscured, double size = 24}) =>
+      SvgPicture.asset(obscured ? hidden : visible, width: size, height: size);
+}
 
 class CustomTextField extends StatefulWidget {
   const CustomTextField({
@@ -24,7 +37,11 @@ class CustomTextField extends StatefulWidget {
     this.autofocus = false,
     this.passwordVisibilityToggle = false,
     this.focusNode,
+    this.errorText,
   });
+
+  /// Server-side error shown under the field (e.g. a 422 on the password).
+  final String? errorText;
 
   final bool passwordVisibilityToggle;
   final FocusNode? focusNode;
@@ -92,9 +109,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
             child: SizedBox.square(
               dimension: 24,
               child: SvgPicture.asset(
-                _visible
-                    ? 'assets/images/interactions/eye.svg'
-                    : 'assets/images/onboarding/eye-slash.svg',
+                _visible ? PasswordEye.visible : PasswordEye.hidden,
                 width: 24,
                 height: 24,
               ),
@@ -110,9 +125,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.title, style: AppStyles.smallSubtitlesStyles),
-
-        const SizedBox(height: 8),
+        if (widget.title.isNotEmpty) ...[
+          Text(widget.title, style: AppStyles.smallSubtitlesStyles),
+          const SizedBox(height: 8),
+        ],
 
         TextFormField(
           controller: widget.controller,
@@ -136,6 +152,9 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
           decoration: InputDecoration(
             hintText: widget.hintText,
+            errorText: widget.errorText,
+            errorMaxLines: 3,
+            errorStyle: const TextStyle(color: DarkColors.dangerColor),
 
             hintStyle: TextStyle(
               color: Colors.white.withValues(alpha: 0.55),

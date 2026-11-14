@@ -2,6 +2,7 @@ import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
@@ -190,6 +191,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       obscureText: obscure,
       style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       validator: validator,
+      cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
@@ -198,10 +200,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           color: Colors.white54,
         ),
         suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.white54,
-          ),
+          tooltip: obscure ? 'Show password' : 'Hide password',
+          icon: PasswordEye.icon(obscured: obscure),
           onPressed: onToggle,
         ),
         filled: true,
@@ -235,7 +235,10 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             ? SizedBox(
                 width: AppSizes.w22,
                 height: AppSizes.h22,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
               )
             : const Text('Update Password', style: ActionButtonStyle.label),
       ),

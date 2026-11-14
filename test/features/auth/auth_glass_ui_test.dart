@@ -119,7 +119,7 @@ void main() {
       expect(field(tester, 'Password').obscureText, true);
       expect(
         passwordAsset(tester, 'Password'),
-        'assets/images/onboarding/eye-slash.svg',
+        'assets/images/icons/eye_slash.svg',
       );
       expect(find.byTooltip('Show password'), findsOneWidget);
       expect(find.bySemanticsLabel('Show password'), findsOneWidget);
@@ -145,13 +145,13 @@ void main() {
             ),
           )
           .map((svg) => (svg.bytesLoader as SvgAssetLoader).assetName);
-      expect(assets, ['assets/images/interactions/eye.svg']);
+      expect(assets, ['assets/images/icons/eye.svg']);
       await tester.tap(eye('Password'));
       await tester.pump();
       expect(field(tester, 'Password').obscureText, true);
       expect(
         passwordAsset(tester, 'Password'),
-        'assets/images/onboarding/eye-slash.svg',
+        'assets/images/icons/eye_slash.svg',
       );
       expect(controller.text, 'Password1');
       expect(find.byTooltip('Show password'), findsOneWidget);
@@ -168,12 +168,12 @@ void main() {
       expect(field(tester, 'Password').obscureText, true);
       expect(
         passwordAsset(tester, 'Password'),
-        'assets/images/onboarding/eye-slash.svg',
+        'assets/images/icons/eye_slash.svg',
       );
       expect(field(tester, 'Confirm Password').obscureText, true);
       expect(
         passwordAsset(tester, 'Confirm Password'),
-        'assets/images/onboarding/eye-slash.svg',
+        'assets/images/icons/eye_slash.svg',
       );
       await tester.tap(eye('Password'));
       await tester.pump();
@@ -181,14 +181,14 @@ void main() {
       expect(field(tester, 'Confirm Password').obscureText, true);
       expect(
         passwordAsset(tester, 'Confirm Password'),
-        'assets/images/onboarding/eye-slash.svg',
+        'assets/images/icons/eye_slash.svg',
       );
       await tester.tap(eye('Confirm Password'));
       await tester.pump();
       expect(field(tester, 'Confirm Password').obscureText, false);
       expect(
         passwordAsset(tester, 'Confirm Password'),
-        'assets/images/interactions/eye.svg',
+        'assets/images/icons/eye.svg',
       );
       expect(field(tester, 'Password').controller!.text, 'Password1');
       expect(field(tester, 'Confirm Password').controller!.text, 'Different2');
