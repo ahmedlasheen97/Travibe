@@ -1,3 +1,4 @@
+import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
@@ -9,7 +10,6 @@ import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
-import 'package:travibe/features/stories/screens/story_viewer_screen.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
@@ -149,7 +149,6 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
-  bool _openingStoryViewer = false;
   late final HiddenPostsCubit _hiddenPosts;
   late final HomeAccountCubit _account;
   late final FollowUsersCubit _suggestions;
@@ -282,6 +281,7 @@ class _HomeViewState extends State<_HomeView> {
 
   late final StoriesCubit _stories;
   late final StoryLikesCubit _storyLikes;
+  late final bool _ownsStories, _ownsStoryLikes;
   final _storySession = PreferencesManager();
   late int _storyOwnerSession;
 
@@ -346,8 +346,15 @@ class _HomeViewState extends State<_HomeView> {
         ? _storySession.sessionRevision
         : -1;
     _storySession.addListener(_onStorySession);
-    _stories = StoriesCubit(repo: widget.storiesRepo, blocks: blocks)..load();
-    _storyLikes = StoryLikesCubit(repo: _stories.repo);
+    // Root shares one Stories source with Profile; standalone Home owns one.
+    final sharedStories = context.read<StoriesCubit?>();
+    _ownsStories = sharedStories == null;
+    _stories =
+        sharedStories ?? StoriesCubit(repo: widget.storiesRepo, blocks: blocks);
+    unawaited(_stories.load());
+    final sharedLikes = context.read<StoryLikesCubit?>();
+    _ownsStoryLikes = sharedLikes == null;
+    _storyLikes = sharedLikes ?? StoryLikesCubit(repo: _stories.repo);
     _unblockRevision = blocks.state.unblockRevision;
     for (final feed in _feeds) {
       feed.setBlockedUsers(blocks.state.blockedIds);
@@ -384,54 +391,18 @@ class _HomeViewState extends State<_HomeView> {
     _scrollController.addListener(_onScroll);
   }
 
-  Future<void> _openStoryViewer(List<StoryGroup> groups, int authorId) async {
-    if (_openingStoryViewer || !_storySession.hasSession) return;
-    _openingStoryViewer = true;
-    final blocks = context.read<BlockCubit>();
-    final follow = context.read<FollowCubit>();
+  Future<void> _openStoryViewer(List<StoryGroup> groups, int authorId) {
     final revision = _storySession.sessionRevision;
-    var viewed = false;
-    var viewerClosed = false;
-    final currentUserId = _storyOwnerSession == revision
-        ? int.tryParse(_account.state.account?.id ?? '')
-        : null;
-    try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => StoryViewerScreen(
-            groups: List.unmodifiable(groups),
-            initialAuthorId: authorId,
-            repo: _stories.repo,
-            likes: _storyLikes,
-            blocks: blocks,
-            follow: follow,
-            currentUserId: currentUserId,
-            onViewed: (id, count) {
-              if (mounted && _storySession.sessionRevision == revision) {
-                if (viewerClosed) {
-                  unawaited(_stories.refresh());
-                  return;
-                }
-                viewed = true;
-                _stories.confirmedView(id, count);
-              }
-            },
-            onDeleted: (id) {
-              if (mounted && _storySession.sessionRevision == revision) {
-                _stories.confirmedDelete(id);
-              }
-            },
-          ),
-        ),
-      );
-    } finally {
-      viewerClosed = true;
-      _openingStoryViewer = false;
-      if (viewed && mounted && _storySession.sessionRevision == revision) {
-        unawaited(_stories.refresh());
-      }
-    }
+    return openStoryViewer(
+      context,
+      groups: groups,
+      authorId: authorId,
+      stories: _stories,
+      likes: _storyLikes,
+      currentUserId: _storyOwnerSession == revision
+          ? int.tryParse(_account.state.account?.id ?? '')
+          : null,
+    );
   }
 
   /// Runs before the editor pops, so the toast is timed to the refresh end.
@@ -493,8 +464,8 @@ class _HomeViewState extends State<_HomeView> {
   @override
   void dispose() {
     _storySession.removeListener(_onStorySession);
-    _stories.close();
-    _storyLikes.close();
+    if (_ownsStories) _stories.close();
+    if (_ownsStoryLikes) _storyLikes.close();
     widget.publicationSignal?.removeListener(_onPostPublished);
     widget.storyPublicationSignal?.removeListener(_onStoryUploaded);
     widget.refreshSignal?.removeListener(_onHomeRetap);

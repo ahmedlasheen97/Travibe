@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
@@ -202,10 +203,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     showCountryPicker(
       context: context,
       showPhoneCode: false,
-      exclude: const ['AC', 'XK'],
+      exclude: ['AC', 'XK'],
       countryListTheme: CountryListThemeData(
         backgroundColor: const Color(0xFF141414),
-        textStyle: const TextStyle(color: Colors.white, fontSize: 14),
+        textStyle: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
         searchTextStyle: const TextStyle(color: Colors.white),
         bottomSheetHeight: MediaQuery.of(context).size.height * 0.75,
         inputDecoration: InputDecoration(
@@ -215,7 +216,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           fillColor: const Color(0xFF1C1C1C),
           prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppSizes.r28),
             borderSide: BorderSide.none,
           ),
         ),
@@ -379,10 +380,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             content: Text(failure.message),
             behavior: SnackBarBehavior.floating,
             margin: EdgeInsets.fromLTRB(
-              20,
+              AppSizes.pw20,
               0,
-              20,
-              100 + MediaQuery.paddingOf(context).bottom,
+              AppSizes.pw20,
+              AppSizes.ph100 + MediaQuery.paddingOf(context).bottom,
             ),
           ),
         );
@@ -435,13 +436,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 children: [
                   if (_selecting || _pickingAvatar)
                     const LinearProgressIndicator(),
-                  const SizedBox(height: 8),
+                  SizedBox(height: AppSizes.h8),
                   _buildTopBar(),
                   Expanded(
                     child: ListView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
                       children: [
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         Center(child: _buildAvatar()),
                         if (_pickingAvatar)
                           const Text(
@@ -449,7 +450,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             textAlign: TextAlign.center,
                           ),
                         if (_editor.state.avatar != null) ...[
-                          const SizedBox(height: 8),
+                          SizedBox(height: AppSizes.h8),
                           Text(
                             switch (_editor.state.uploadStage) {
                               MediaUploadStage.uploading => 'Uploading photo…',
@@ -462,9 +463,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     : 'Photo selected. Save Changes to upload.',
                             },
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
+                            style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 12,
+                              fontSize: AppSizes.sp12,
                             ),
                           ),
                           TextButton(
@@ -480,20 +481,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             textAlign: TextAlign.center,
                             style: const TextStyle(color: Colors.redAccent),
                           ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: AppSizes.h24),
                         _buildLabel('Full Name', required: true),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         _buildTextField(
                           _fullNameController,
                           hint: 'Enter your full name',
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildLabel('User Name'),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         _buildUsernameField(),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildLabel('Nationality'),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         _buildCountryField(
                           selected: _nationalityCountry,
                           displayLabel: _nationalityCountry != null
@@ -511,9 +512,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   _change('nationality_code', null);
                                 },
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildLabel('Current City'),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         _buildCountryField(
                           selected: null,
                           displayLabel: _draft.currentLocation,
@@ -524,13 +525,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               : _clearCurrentCity,
                           field: 'current_location',
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildLabel('Bio'),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         _buildBioField(),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildLabel('Gender'),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSizes.h8),
                         DropdownButtonFormField<String>(
                           key: const ValueKey('edit-profile-gender'),
                           initialValue: _gender,
@@ -539,22 +540,22 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           // DropdownButton replaces the fill with focusColor
                           // while focused; the global input theme is light.
                           focusColor: DarkColors.darkgreyColor,
-                          borderRadius: BorderRadius.circular(28),
-                          icon: const Icon(
+                          borderRadius: BorderRadius.circular(AppSizes.r28),
+                          icon: Icon(
                             Icons.keyboard_arrow_down_rounded,
                             color: DarkColors.greyColor,
-                            size: 20,
+                            size: AppSizes.w20,
                           ),
-                          hint: const Text(
+                          hint: Text(
                             'Not specified',
                             style: TextStyle(
                               color: DarkColors.greyColor,
-                              fontSize: 14,
+                              fontSize: AppSizes.sp14,
                             ),
                           ),
-                          style: const TextStyle(
+                          style: TextStyle(
                             color: Colors.white,
-                            fontSize: 14,
+                            fontSize: AppSizes.sp14,
                           ),
                           decoration: InputDecoration(
                             errorText: _error('gender'),
@@ -562,25 +563,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             fillColor: DarkColors.darkgreyColor,
                             focusColor: DarkColors.darkgreyColor,
                             hoverColor: Colors.transparent,
-                            constraints: const BoxConstraints(minHeight: 52),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 14,
+                            constraints: BoxConstraints(
+                              minHeight: AppSizes.h52,
+                            ),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: AppSizes.pw20,
+                              vertical: AppSizes.ph14,
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(AppSizes.r28),
                               borderSide: BorderSide.none,
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(AppSizes.r28),
                               borderSide: BorderSide.none,
                             ),
                             disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(AppSizes.r28),
                               borderSide: BorderSide.none,
                             ),
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(28),
+                              borderRadius: BorderRadius.circular(AppSizes.r28),
                               borderSide: BorderSide.none,
                             ),
                           ),
@@ -603,33 +606,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             _change('gender', value);
                           },
                         ),
-                        const SizedBox(height: 24),
+                        SizedBox(height: AppSizes.h24),
                         _buildChipSection(
                           'Languages',
                           _languages,
                           _editLanguages,
                           'languages_spoken',
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildChipSection(
                           'Interests',
                           _interests,
                           _editInterests,
                           'interests',
                         ),
-                        const SizedBox(height: 20),
+                        SizedBox(height: AppSizes.h20),
                         _buildChipSection(
                           'Travel Style',
                           _travelStyles,
                           _editTravelStyle,
                           'travel_styles',
                         ),
-                        const SizedBox(height: 12),
+                        SizedBox(height: AppSizes.h12),
                       ],
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                    padding: EdgeInsets.fromLTRB(
+                      AppSizes.pw20,
+                      AppSizes.ph12,
+                      AppSizes.pw20,
+                      AppSizes.ph20,
+                    ),
                     child: _buildSaveButton(),
                   ),
                 ],
@@ -643,23 +651,27 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildTopBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       child: SizedBox(
-        height: 40,
+        height: AppSizes.h40,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            const Text(
+            Text(
               'Edit Profile',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 17,
+                fontSize: AppSizes.sp17,
                 fontWeight: FontWeight.w700,
               ),
             ),
             Align(
               alignment: Alignment.centerLeft,
-              child: BackButtonWidget(onTap: _leave, size: 36, iconSize: 16),
+              child: BackButtonWidget(
+                onTap: _leave,
+                size: AppSizes.w36,
+                iconSize: AppSizes.w16,
+              ),
             ),
           ],
         ),
@@ -678,12 +690,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       children: [
         CircleAvatar(
           key: const ValueKey('edit-profile-avatar'),
-          radius: 48,
+          radius: AppSizes.r48,
           backgroundColor: const Color(0xFF1C1C1C),
           backgroundImage: image,
           child: image != null
               ? null
-              : const Icon(Icons.person, size: 48, color: Colors.white54),
+              : Icon(Icons.person, size: AppSizes.w48, color: Colors.white54),
         ),
         Positioned(
           bottom: 0,
@@ -695,20 +707,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               key: const ValueKey('pick-profile-avatar'),
               onTap: _pickAvatar,
               child: Container(
-                width: 32,
-                height: 32,
+                width: AppSizes.w32,
+                height: AppSizes.h32,
                 decoration: BoxDecoration(
                   color: DarkColors.primaryColor,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: DarkColors.backgroundColor,
-                    width: 3,
+                    width: AppSizes.w3,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.add_rounded,
                   color: Colors.white,
-                  size: 18,
+                  size: AppSizes.w18,
                 ),
               ),
             ),
@@ -721,9 +733,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildLabel(String text, {bool required = false}) {
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
-          fontSize: 14,
+          fontSize: AppSizes.sp14,
           fontWeight: FontWeight.w600,
         ),
         children: [
@@ -745,7 +757,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return TextFormField(
       readOnly: _isSaving,
       controller: controller,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       onChanged: (value) => _change('full_name', value.trim()),
       validator: (_) => _error('full_name'),
       key: const ValueKey('full_name'),
@@ -754,12 +766,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
         filled: true,
         fillColor: const Color(0xFF1C1C1C),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 20,
+        contentPadding: EdgeInsets.symmetric(
+          vertical: AppSizes.ph14,
+          horizontal: AppSizes.pw20,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
           borderSide: BorderSide.none,
         ),
       ),
@@ -770,7 +782,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return TextFormField(
       readOnly: _isSaving,
       controller: _usernameController,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       onChanged: (value) => _change('username', _nullable(value)),
       validator: (_) => _error('username'),
       key: const ValueKey('username'),
@@ -780,12 +792,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
         filled: true,
         fillColor: const Color(0xFF1C1C1C),
-        contentPadding: const EdgeInsets.symmetric(
-          vertical: 14,
-          horizontal: 20,
+        contentPadding: EdgeInsets.symmetric(
+          vertical: AppSizes.ph14,
+          horizontal: AppSizes.pw20,
         ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
           borderSide: BorderSide.none,
         ),
       ),
@@ -809,23 +821,31 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         InkWell(
           key: ValueKey('edit-profile-$field'),
           onTap: enabled ? onTap : null,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.r28),
           child: Container(
             padding: cityField
-                ? const EdgeInsets.fromLTRB(20, 4, 8, 4)
-                : const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                ? EdgeInsets.fromLTRB(
+                    AppSizes.pw20,
+                    AppSizes.ph4,
+                    AppSizes.pw8,
+                    AppSizes.ph4,
+                  )
+                : EdgeInsets.symmetric(
+                    horizontal: AppSizes.pw20,
+                    vertical: AppSizes.ph14,
+                  ),
             decoration: BoxDecoration(
               color: const Color(0xFF1C1C1C),
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(AppSizes.r28),
             ),
             child: Row(
               children: [
                 if (selected != null) ...[
                   Text(
                     selected.flagEmoji,
-                    style: const TextStyle(fontSize: 18),
+                    style: TextStyle(fontSize: AppSizes.sp18),
                   ),
-                  const SizedBox(width: 10),
+                  SizedBox(width: AppSizes.w10),
                 ],
                 Expanded(
                   child: Text(
@@ -834,7 +854,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       color: displayLabel?.isNotEmpty == true
                           ? Colors.white
                           : Colors.white.withValues(alpha: 0.4),
-                      fontSize: 14,
+                      fontSize: AppSizes.sp14,
                     ),
                   ),
                 ),
@@ -847,7 +867,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           )
                         : null,
                     constraints: cityField
-                        ? const BoxConstraints.tightFor(width: 44, height: 44)
+                        ? BoxConstraints.tightFor(
+                            width: AppSizes.w44,
+                            height: AppSizes.h44,
+                          )
                         : null,
                     icon: const Icon(Icons.close, color: Colors.white54),
                     onPressed: enabled ? onClear : null,
@@ -858,9 +881,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     style: IconButton.styleFrom(
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    constraints: const BoxConstraints.tightFor(
-                      width: 44,
-                      height: 44,
+                    constraints: BoxConstraints.tightFor(
+                      width: AppSizes.w44,
+                      height: AppSizes.h44,
                     ),
                     icon: const Icon(
                       Icons.keyboard_arrow_down_rounded,
@@ -891,16 +914,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       validator: (_) => _error('bio'),
       maxLength: _bioMaxLength,
       maxLines: 4,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
       onChanged: (value) => _change('bio', _nullable(value)),
       decoration: InputDecoration(
         filled: true,
         fillColor: const Color(0xFF1C1C1C),
         counterText: '${_bioController.text.length}/$_bioMaxLength',
         counterStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        contentPadding: const EdgeInsets.all(16),
+        contentPadding: EdgeInsets.all(AppSizes.pw16),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppSizes.r20),
           borderSide: BorderSide.none,
         ),
       ),
@@ -921,9 +944,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
-                  fontSize: 15,
+                  fontSize: AppSizes.sp15,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -934,7 +957,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 'Edit',
                 style: TextStyle(
                   color: DarkColors.primaryColor,
-                  fontSize: 13,
+                  fontSize: AppSizes.sp13,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -943,20 +966,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ),
         if (_error(field) != null)
           Text(_error(field)!, style: const TextStyle(color: Colors.redAccent)),
-        const SizedBox(height: 10),
+        SizedBox(height: AppSizes.h10),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSizes.w8,
+          runSpacing: AppSizes.h8,
           children: values.map((v) {
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSizes.pw14,
+                vertical: AppSizes.ph8,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFF2B1E3D),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppSizes.r20),
               ),
               child: Text(
                 v.name,
-                style: const TextStyle(color: Color(0xFFC9A9E9), fontSize: 13),
+                style: TextStyle(
+                  color: const Color(0xFFC9A9E9),
+                  fontSize: AppSizes.sp13,
+                ),
               ),
             );
           }).toList(),
@@ -968,7 +997,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildSaveButton() {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: AppSizes.h56,
       child: ElevatedButton(
         onPressed: _canSave ? _saveChanges : null,
         style: ElevatedButton.styleFrom(
@@ -982,7 +1011,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: _isSaving
             ? Semantics(
                 label: 'Saving profile',
-                child: const AppActivityIndicator(radius: 11),
+                child: AppActivityIndicator(radius: AppSizes.r11),
               )
             : const Text('Save Changes', style: ActionButtonStyle.label),
       ),

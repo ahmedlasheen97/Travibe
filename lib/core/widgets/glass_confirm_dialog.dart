@@ -63,8 +63,11 @@ class GlassConfirmDialog extends StatelessWidget {
   final VoidCallback? onCancel;
   final Key? surfaceKey;
 
+  /// Figma (Remove follower / Log Out): both actions 18; confirm is
+  /// [DarkColors.dangerColor] (#DD312A) when destructive, Cancel white.
+  static const buttonFontSize = 18.0;
   static const _buttonText = TextStyle(
-    fontSize: 14,
+    fontSize: buttonFontSize,
     fontWeight: FontWeight.w500,
   );
 

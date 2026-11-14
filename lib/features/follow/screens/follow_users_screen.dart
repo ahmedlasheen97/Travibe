@@ -1,3 +1,8 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
+import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -127,6 +132,30 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
     });
   }
 
+  /// Only my own Followers list can remove people.
+  bool get _canRemove => isViewer(context, widget.userId);
+
+  Future<void> _removeFollower(PublicUserModel user) async {
+    final follow = context.read<FollowCubit>();
+    final list = _lists[FollowListType.followers];
+    if (list == null || follow.state.pending.contains(user.id)) return;
+    final confirmed = await showGlassConfirmDialog(
+      context,
+      title: 'Remove follower?',
+      message: 'Remove ${user.name} from your followers?',
+      confirmLabel: 'Remove',
+    );
+    if (!mounted || !confirmed) return;
+    final restore = list.removeLocally(user.id);
+    final error = await follow.removeFollower(user.id);
+    if (error == null) return;
+    // On success the follow revision reloads both lists and profile counts.
+    restore();
+    if (mounted) {
+      TravibeToast.show(context, TravibeToastData.error(error.message));
+    }
+  }
+
   void _explore() {
     if (widget.onExplorePeople != null) {
       widget.onExplorePeople!();
@@ -189,7 +218,11 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
         centerTitle: true,
         title: Text(
           title,
-          style: const TextStyle(color: Colors.white, fontSize: 17),
+          style: TextStyle(
+            color: DarkColors.whiteColor,
+            fontSize: AppSizes.sp18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
       body: SafeArea(
@@ -197,45 +230,22 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
         child: Column(
           children: [
             if (widget.type != FollowListType.suggested)
-              Row(
-                children: [
-                  for (final type in [
-                    FollowListType.followers,
-                    FollowListType.following,
-                  ])
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selected = type),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
-                          child: Column(
-                            children: [
-                              Text(
-                                _tabLabel(type),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: _selected == type
-                                      ? DarkColors.whiteColor
-                                      : DarkColors.greyColor,
-                                  fontWeight: _selected == type
-                                      ? FontWeight.w600
-                                      : FontWeight.w400,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              Container(
-                                height: 2,
-                                color: _selected == type
-                                    ? DarkColors.whiteColor
-                                    : Colors.transparent,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.pw20,
+                  AppSizes.ph16,
+                  AppSizes.pw20,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    for (final type in [
+                      FollowListType.followers,
+                      FollowListType.following,
+                    ])
+                      Flexible(child: _tab(type)),
+                  ],
+                ),
               ),
             Expanded(
               child: IndexedStack(
@@ -282,6 +292,7 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
                   )
                   .toList();
               final refreshing = _refreshes.containsKey(type);
+              final canRemove = _canRemove;
               return Stack(
                 children: [
                   RefreshIndicator.noSpinner(
@@ -310,22 +321,33 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
                               child: _empty(type),
                             ),
                           SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                            padding: EdgeInsets.fromLTRB(
+                              AppSizes.pw20,
+                              AppSizes.ph14,
+                              AppSizes.pw20,
+                              0,
+                            ),
                             sliver: SliverList.builder(
                               itemCount: users.length,
                               itemBuilder: (_, index) => FollowUserTile(
                                 key: ValueKey(users[index].id),
                                 user: users[index],
+                                listType: type,
+                                onRemove:
+                                    type == FollowListType.followers &&
+                                        canRemove
+                                    ? () => _removeFollower(users[index])
+                                    : null,
                               ),
                             ),
                           ),
                           SliverToBoxAdapter(
                             child: Padding(
-                              padding: const EdgeInsets.only(bottom: 24),
+                              padding: EdgeInsets.only(bottom: AppSizes.ph24),
                               child: Column(
                                 children: [
                                   if (state.loadingMore && !refreshing)
-                                    const TravibeLoadingIndicator(size: 30),
+                                    TravibeLoadingIndicator(size: AppSizes.w30),
                                   if (state.paginationError != null)
                                     ErrorRetryView(
                                       message: state.paginationError!.message,
@@ -348,14 +370,14 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
                     ),
                   ),
                   if (refreshing)
-                    const Positioned(
+                    Positioned(
                       top: 0,
                       left: 0,
                       right: 0,
                       child: IgnorePointer(
                         child: Center(
                           child: TravibeLoadingIndicator(
-                            size: 30,
+                            size: AppSizes.w30,
                             semanticsLabel: 'Refreshing people',
                           ),
                         ),
@@ -369,6 +391,46 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
       },
     ),
   );
+
+  Widget _tab(FollowListType type) {
+    final selected = _selected == type;
+    final label = _tabLabel(type);
+    return Padding(
+      padding: EdgeInsetsDirectional.only(end: AppSizes.pw24),
+      child: InkWell(
+        key: ValueKey('follow-tab-${type.name}'),
+        onTap: () => setState(() => _selected = type),
+        child: IntrinsicWidth(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppSizes.pw12),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: AppSizes.sp16,
+                    color: selected
+                        ? DarkColors.whiteColor
+                        : DarkColors.greyColor,
+                    fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+                  ),
+                ),
+              ),
+              SizedBox(height: AppSizes.h10),
+              Container(
+                height: AppSizes.h2,
+                color: selected ? DarkColors.whiteColor : Colors.transparent,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   String _tabLabel(FollowListType type) {
     final label = type == FollowListType.followers ? 'Followers' : 'Following';

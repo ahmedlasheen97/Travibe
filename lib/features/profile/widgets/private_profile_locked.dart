@@ -1,3 +1,4 @@
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -18,18 +19,18 @@ class PrivateProfileLocked extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
+        // The asset draws its own ring, so it replaces the bordered circle
+        // at the same 72 size.
+        SvgPicture.asset(
+          'assets/images/icons/lock-circle.svg',
+          key: const ValueKey('private-profile-lock'),
           width: AppSizes.w72,
           height: AppSizes.w72,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: DarkColors.whiteColor, width: 1.5),
+          colorFilter: const ColorFilter.mode(
+            DarkColors.whiteColor,
+            BlendMode.srcIn,
           ),
-          child: Icon(
-            Icons.lock_outline_rounded,
-            color: DarkColors.whiteColor,
-            size: AppSizes.w32,
-          ),
+          excludeFromSemantics: true,
         ),
         SizedBox(height: AppSizes.h16),
         Text(

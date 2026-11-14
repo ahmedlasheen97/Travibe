@@ -38,15 +38,15 @@ class ProfileTabs extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: AppSizes.sp14,
               fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
               color: isSelected ? Colors.white : Colors.white54,
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: AppSizes.h8),
           Container(
-            width: 40,
-            height: 2,
+            width: AppSizes.w40,
+            height: AppSizes.h2,
             color: isSelected ? Colors.white : Colors.transparent,
           ),
         ],

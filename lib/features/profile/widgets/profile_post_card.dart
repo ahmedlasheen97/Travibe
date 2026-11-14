@@ -30,35 +30,38 @@ class ProfilePostCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(AppSizes.pw16),
       decoration: BoxDecoration(
         color: const Color(0xFF141414),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppSizes.r20),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              CircleAvatar(radius: 20, backgroundImage: AssetImage(avatar)),
-              const SizedBox(width: 10),
+              CircleAvatar(
+                radius: AppSizes.r20,
+                backgroundImage: AssetImage(avatar),
+              ),
+              SizedBox(width: AppSizes.w10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       name,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w600,
-                        fontSize: 14,
+                        fontSize: AppSizes.sp14,
                       ),
                     ),
                     Text(
                       time,
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: Colors.white54,
-                        fontSize: 12,
+                        fontSize: AppSizes.sp12,
                       ),
                     ),
                   ],
@@ -67,48 +70,51 @@ class ProfilePostCard extends StatelessWidget {
               Container(
                 width: AppSizes.w38,
                 height: AppSizes.h38,
-                // padding: const EdgeInsets.all(8),
+                // padding: EdgeInsets.all(AppSizes.pw8),
                 decoration: BoxDecoration(
                   border: Border.all(color: const Color(0xFF2E2E2E)),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppSizes.r20),
                 ),
-                child: Center(
+                child: const Center(
                   child: Icon(Icons.more_vert, color: DarkColors.whiteColor),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: AppSizes.h12),
           Text(
             text,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: AppSizes.sp14,
               height: 1.4,
             ),
           ),
           if (location != null) ...[
-            const SizedBox(height: 10),
+            SizedBox(height: AppSizes.h10),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSizes.pw10,
+                vertical: AppSizes.ph6,
+              ),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppSizes.r20),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.location_on_outlined,
                     color: Colors.white70,
-                    size: 14,
+                    size: AppSizes.w14,
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: AppSizes.w4),
                   Text(
                     location!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       color: DarkColors.whiteColor,
-                      fontSize: 12,
+                      fontSize: AppSizes.sp12,
                     ),
                   ),
                 ],
@@ -116,18 +122,18 @@ class ProfilePostCard extends StatelessWidget {
             ),
           ],
           if (image != null) ...[
-            const SizedBox(height: 12),
+            SizedBox(height: AppSizes.h12),
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppSizes.r16),
               child: Image.asset(
                 image!,
-                height: 220,
+                height: AppSizes.h220,
                 width: double.infinity,
                 fit: BoxFit.cover,
               ),
             ),
           ],
-          const SizedBox(height: 12),
+          SizedBox(height: AppSizes.h12),
           Row(
             children: [
               _actionIcon('assets/images/interactions/heart.svg', likes),
@@ -138,8 +144,8 @@ class ProfilePostCard extends StatelessWidget {
               const Spacer(),
               SvgPicture.asset(
                 'assets/images/interactions/archive 2.svg',
-                width: 20,
-                height: 20,
+                width: AppSizes.w20,
+                height: AppSizes.h20,
                 colorFilter: const ColorFilter.mode(
                   DarkColors.whiteColor,
                   BlendMode.srcIn,
@@ -166,17 +172,20 @@ class ProfilePostCard extends StatelessWidget {
         children: [
           SvgPicture.asset(
             iconPath,
-            width: 18,
-            height: 18,
+            width: AppSizes.w18,
+            height: AppSizes.h18,
             colorFilter: const ColorFilter.mode(
               DarkColors.whiteColor,
               BlendMode.srcIn,
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: AppSizes.w6),
           Text(
             count,
-            style: const TextStyle(color: DarkColors.whiteColor, fontSize: 13),
+            style: TextStyle(
+              color: DarkColors.whiteColor,
+              fontSize: AppSizes.sp13,
+            ),
           ),
         ],
       ),

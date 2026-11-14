@@ -51,7 +51,7 @@ Map<String, dynamic> storyDetail({
   'is_mine': true,
   'has_seen': false,
   'created_at': '2026-10-21T10:00:00Z',
-  'expires_at': '2026-10-22T10:00:00Z',
+  'expires_at': '2099-10-22T10:00:00Z',
 };
 Map<String, dynamic> groupJson(int userId, {int? storyId}) => {
   'user': {'id': userId, 'name': 'Traveler $userId', 'avatar_url': null},
@@ -61,7 +61,7 @@ Map<String, dynamic> groupJson(int userId, {int? storyId}) => {
       'id': storyId ?? userId,
       'thumbnail_url': null,
       'created_at': null,
-      'expires_at': '2026-10-22T10:00:00Z',
+      'expires_at': '2099-10-22T10:00:00Z',
       'views_count': 0,
       'has_seen': false,
     },

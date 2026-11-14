@@ -151,4 +151,46 @@ void main() {
     await request;
     expect(cubit.state.status, FollowUsersStatus.loading);
   });
+
+  group('removeLocally', () {
+    Future<void> loadIds(List<int> ids) async {
+      final request = cubit.load();
+      repo.calls.last.result.complete(page(1, ids));
+      await request;
+    }
+
+    test('drops the row and one from the total', () async {
+      await loadIds([1, 2, 3]);
+      cubit.removeLocally('2');
+      expect(cubit.state.users.map((u) => u.id), ['1', '3']);
+      expect(cubit.state.total, 29);
+      expect(cubit.state.status, FollowUsersStatus.loaded);
+    });
+
+    test('restore puts the row back at its index with the old total', () async {
+      await loadIds([1, 2, 3]);
+      final restore = cubit.removeLocally('2');
+      restore();
+      expect(cubit.state.users.map((u) => u.id), ['1', '2', '3']);
+      expect(cubit.state.total, 30);
+      restore();
+      expect(cubit.state.users.map((u) => u.id), ['1', '2', '3']);
+    });
+
+    test('restore is a no-op once a newer load replaced the list', () async {
+      await loadIds([1, 2, 3]);
+      final restore = cubit.removeLocally('2');
+      await loadIds([1, 3]);
+      restore();
+      expect(cubit.state.users.map((u) => u.id), ['1', '3']);
+      expect(cubit.state.total, 30);
+    });
+
+    test('unknown id changes nothing', () async {
+      await loadIds([1]);
+      cubit.removeLocally('9')();
+      expect(cubit.state.users.map((u) => u.id), ['1']);
+      expect(cubit.state.total, 30);
+    });
+  });
 }

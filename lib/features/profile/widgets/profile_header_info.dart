@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
 class ProfileHeaderInfo extends StatelessWidget {
@@ -16,45 +17,48 @@ class ProfileHeaderInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             name,
+            key: const ValueKey('profile-name'),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 18,
+            style: TextStyle(
+              color: DarkColors.whiteColor,
+              fontSize: AppSizes.sp20,
               fontWeight: FontWeight.w700,
             ),
           ),
           if (username.isNotEmpty) ...[
-            const SizedBox(height: 2),
+            SizedBox(height: AppSizes.h2),
             Text(
               username,
+              key: const ValueKey('profile-username'),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 13,
+                color: DarkColors.greyColor,
+                fontSize: AppSizes.sp14,
               ),
             ),
           ],
           if (bio.trim().isNotEmpty) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: AppSizes.h8),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: AppSizes.pw8),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 290),
+                constraints: BoxConstraints(maxWidth: AppSizes.w290),
                 child: Text(
                   bio,
+                  key: const ValueKey('profile-bio'),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   softWrap: true,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: DarkColors.whiteColor,
-                    fontSize: 16,
+                    fontSize: AppSizes.sp16,
                     fontFamily: 'Plus Jakarta Sans',
                     fontWeight: FontWeight.w400,
                     height: 1.4,

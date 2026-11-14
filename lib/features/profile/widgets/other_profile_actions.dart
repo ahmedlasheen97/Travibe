@@ -339,7 +339,7 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: AppSizes.w12),
             Expanded(
               child: FilledButton(
                 style: _style(
@@ -365,9 +365,11 @@ class _OtherProfileActionsState extends State<OtherProfileActions> {
             ? DarkColors.primaryColor
             : DarkColors.darkgreyColor,
         foregroundColor: muted ? requestedFollowColor : Colors.white,
-        minimumSize: const Size(0, 44),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        minimumSize: Size(0, AppSizes.h44),
+        fixedSize: Size.fromHeight(AppSizes.h44),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        padding: EdgeInsets.symmetric(horizontal: AppSizes.pw12),
         shape: ActionButtonStyle.shape,
-        textStyle: ActionButtonStyle.label,
+        textStyle: ActionButtonStyle.label.copyWith(fontSize: AppSizes.sp18),
       );
 }

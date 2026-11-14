@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
+import 'package:travibe/features/stories/data/story_model.dart';
+import 'package:travibe/features/stories/data/stories_repo.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/home/widgets/home_stories.dart';
@@ -8,6 +13,7 @@ import 'package:travibe/features/stories/widgets/post_story_sheet.dart';
 import 'package:travibe/root.dart';
 
 import '../home/home_experience_fixtures.dart';
+import '../profile/fixtures.dart' as profile;
 
 void main() {
   testWidgets(
@@ -46,4 +52,108 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Profile "+" opens the Story sheet over Profile, no tab switch', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await SharedPreferences.getInstance();
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final account = AccountRepo();
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: darkTheme,
+          home: Root(
+            postsRepo: EmptyPostsRepo(),
+            homeAccountRepo: account,
+            followRepo: PeopleRepo(account),
+            profileRepo: profile.MemoryProfileRepo(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    BottomNavigationBar bar() =>
+        tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar));
+    bar().onTap!(4);
+    await tester.pumpAndSettle();
+    expect(bar().currentIndex, 4);
+    await tester.tap(find.byKey(const ValueKey('profile-add-story')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostStorySheet), findsOneWidget);
+    expect(bar().currentIndex, 4);
+    await tester.tapAt(const Offset(10, 200));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostStorySheet), findsNothing);
+    expect(bar().currentIndex, 4);
+    expect(find.byKey(const ValueKey('profile-add-story')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a published Story refreshes Home stories and my profile', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await SharedPreferences.getInstance();
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await PreferencesManager().init();
+    await PreferencesManager().saveToken('story-refresh');
+    addTearDown(PreferencesManager().clear);
+    final account = AccountRepo();
+    final stories = _CountingStories();
+    final profiles = profile.MemoryProfileRepo();
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: darkTheme,
+          home: Root(
+            postsRepo: EmptyPostsRepo(),
+            homeAccountRepo: account,
+            followRepo: PeopleRepo(account),
+            profileRepo: profiles,
+            storiesRepo: stories,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    BottomNavigationBar bar() =>
+        tester.widget<BottomNavigationBar>(find.byType(BottomNavigationBar));
+    bar().onTap!(4);
+    await tester.pumpAndSettle();
+    final storyReads = stories.reads;
+    final profileReads = profiles.reads.length;
+    final uploads = tester
+        .element(find.byType(BottomNavigationBar))
+        .read<StoryUploadCubit>();
+    // ignore: invalid_use_of_protected_member
+    uploads.emit(const StoryUploadDone(null));
+    await tester.pumpAndSettle();
+    expect(stories.reads, greaterThan(storyReads));
+    expect(profiles.reads.length, greaterThan(profileReads));
+    expect(bar().currentIndex, 4);
+    expect(find.text('Story published successfully'), findsOneWidget);
+  });
+}
+
+class _CountingStories extends StoriesRepo {
+  int reads = 0;
+  @override
+  Future<StoriesPage> getStories({int page = 1}) async {
+    reads++;
+    return StoriesPage.fromJson({
+      'data': [],
+      'meta': {'current_page': 1, 'last_page': 1, 'per_page': 15, 'total': 0},
+      'links': {'next': null},
+    });
+  }
 }

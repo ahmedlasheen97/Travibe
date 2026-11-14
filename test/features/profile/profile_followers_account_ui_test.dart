@@ -244,7 +244,8 @@ void main() {
       expect(find.text('Block'), findsNothing);
       expect(find.text('7 followers'), findsNothing);
       expect(find.text('8 following'), findsNothing);
-      expect(find.byTooltip('User options'), findsOneWidget);
+      // Followers/Following rows have no ⋮ menu (suggested rows keep it).
+      expect(find.byTooltip('User options'), findsNothing);
       expect(tester.getSize(find.byType(FollowUserTile)).height, lessThan(100));
       expect(
         tester.widget<PersonResultTile>(find.byType(PersonResultTile)).onTap,
@@ -300,17 +301,13 @@ void main() {
     },
   );
 
-  testWidgets('overflow retains Block confirmation and filtering', (
+  testWidgets('a block elsewhere still filters the row out of the list', (
     tester,
   ) async {
     await show(tester);
-    await tester.tap(find.byTooltip('User options'));
-    await tester.pumpAndSettle();
-    expect(find.text('7 followers'), findsOneWidget);
-    await tester.tap(find.text('Block'));
-    await tester.pumpAndSettle();
-    expect(find.text('Block user?'), findsOneWidget);
-    await tester.tap(find.text('Block').last);
+    expect(find.byTooltip('User options'), findsNothing);
+    expect(find.text('Traveler 11'), findsOneWidget);
+    await block.setBlocked('11', true);
     await tester.pumpAndSettle();
     expect(blocks.calls, [('11', true)]);
     expect(find.text('Traveler 11'), findsNothing);

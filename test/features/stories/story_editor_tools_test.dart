@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/screen_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
@@ -227,9 +229,11 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData.dark(useMaterial3: true),
-          home: StoryEditorScreen(draft: draft(), searchRepo: search),
+        withScreenUtil(
+          MaterialApp(
+            theme: ThemeData.dark(useMaterial3: true),
+            home: StoryEditorScreen(draft: draft(), searchRepo: search),
+          ),
         ),
       );
       await tester.pumpAndSettle();

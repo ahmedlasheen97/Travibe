@@ -8,9 +8,10 @@ import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/data/story_photo_repo.dart';
 import 'package:travibe/features/stories/screens/story_editor_screen.dart';
-import 'package:travibe/features/stories/widgets/post_story_sheet.dart';
+import 'package:travibe/features/stories/widgets/start_add_story.dart';
 
-/// Owns the local selection flow without changing Home's feed or navigation.
+/// Home's "You" bubble entry: keeps a picker for Android activity recovery
+/// and starts the shared [startAddStory] flow.
 class StoryEntry extends StatefulWidget {
   const StoryEntry({
     super.key,
@@ -69,25 +70,27 @@ class _StoryEntryState extends State<StoryEntry> {
     if (_opening) return;
     _opening = true;
     try {
-      final draft = await PostStorySheet.show(context, _picker);
-      if (mounted && draft != null) await _openEditor(draft);
+      await startAddStory(
+        context,
+        picker: _picker,
+        avatarUrl: widget.avatarUrl,
+        storiesRepo: widget.storiesRepo,
+        onPublished: widget.onPublished,
+        onSubmit: widget.onSubmit,
+      );
     } finally {
       _opening = false;
     }
   }
 
-  Future<void> _openEditor(StoryEditorDraft draft) =>
-      Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => StoryEditorScreen(
-            draft: draft,
-            avatarUrl: widget.avatarUrl,
-            storiesRepo: widget.storiesRepo,
-            onPublished: widget.onPublished,
-            onSubmit: widget.onSubmit,
-          ),
-        ),
-      );
+  Future<void> _openEditor(StoryEditorDraft draft) => openStoryEditor(
+    context,
+    draft,
+    avatarUrl: widget.avatarUrl,
+    storiesRepo: widget.storiesRepo,
+    onPublished: widget.onPublished,
+    onSubmit: widget.onSubmit,
+  );
 
   @override
   void dispose() {

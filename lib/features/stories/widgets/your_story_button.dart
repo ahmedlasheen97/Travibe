@@ -39,9 +39,7 @@ class _YourStoryButtonState extends State<YourStoryButton> {
       _acceptedSession == _session.sessionRevision &&
       widget.currentUserId != null &&
       widget.group?.user.id == widget.currentUserId &&
-      widget.group!.stories.any(
-        (story) => story.expiresAt?.isAfter(_now) == true,
-      );
+      widget.group!.hasActiveStoryAt(_now);
 
   @override
   void initState() {

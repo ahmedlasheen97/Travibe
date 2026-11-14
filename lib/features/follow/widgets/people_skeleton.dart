@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -15,12 +16,17 @@ class PeopleSkeleton extends StatelessWidget {
         children: [
           for (var i = 0; i < 4; i++)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              padding: EdgeInsets.fromLTRB(
+                AppSizes.pw20,
+                AppSizes.ph14,
+                AppSizes.pw20,
+                0,
+              ),
               child: Container(
-                height: 76,
+                height: AppSizes.h76,
                 decoration: BoxDecoration(
                   color: DarkColors.darkgreyColor,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(AppSizes.r20),
                 ),
               ),
             ),

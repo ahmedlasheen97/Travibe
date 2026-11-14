@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/screen_util.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/core/datasource/remotedata/dio_client.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
@@ -143,23 +145,25 @@ void main() {
         dio.close(force: true);
       });
       await tester.pumpWidget(
-        MaterialApp(
-          theme: ThemeData.dark(),
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (_) => EditProfileScreen(
-                      profile: initial,
-                      owner: owner,
-                      avatarRepo: photos,
-                      mediaUpload: service,
+        withScreenUtil(
+          MaterialApp(
+            theme: ThemeData.dark(),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (_) => EditProfileScreen(
+                        profile: initial,
+                        owner: owner,
+                        avatarRepo: photos,
+                        mediaUpload: service,
+                      ),
                     ),
                   ),
+                  child: const Text('Open editor'),
                 ),
-                child: const Text('Open editor'),
               ),
             ),
           ),
