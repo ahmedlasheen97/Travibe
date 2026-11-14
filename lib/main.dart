@@ -18,26 +18,6 @@ void main() async {
   //await GoogleAuthService().initialize();
 
   await PreferencesManager().init();
-  // final dio = Dio();
-
-  // try {
-  //   final response = await dio.post(
-  //     'https://travibeapp.com/api/v1/email/resend-code', // guessed path — swap if docs show different
-  //     data: {
-  //       'email': 'your-real-test-email@example.com', // use an inbox you can actually check
-  //     },
-  //     options: Options(
-  //       headers: {'Content-Type': 'application/json'},
-  //     ),
-  //   );
-
-  //   print('Status: ${response.statusCode}');
-  //   print('Body: ${response.data}');
-  // } on DioException catch (e) {
-  //   print('DioException: ${e.response?.statusCode}');
-  //   print('Response data: ${e.response?.data}');
-  //   print('Message: ${e.message}');
-  // }
 
   // Subscribe early so a cold-start `travibe://posts/{id}` link is caught.
   runApp(

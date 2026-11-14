@@ -136,9 +136,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       if (widget.onResend case final resend?) {
         await resend();
       } else {
-        await _authRepo.forgotPassword(
-          email: widget.email,
-        ); // same endpoint sends a fresh code
+        await _authRepo.resendVerificationCode(email: widget.email);
       }
       _pinController.clear();
       _startTimer();

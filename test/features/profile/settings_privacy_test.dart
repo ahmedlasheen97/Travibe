@@ -595,6 +595,10 @@ void main() {
       expect(find.text('AED'), findsNothing);
       await tester.scrollUntilVisible(find.text('Log Out'), 160);
       expect(find.text('Currency'), findsNothing);
+      // Report a Problem returns with POST /support/problems.
+      expect(kShowReportProblem, isFalse);
+      expect(find.text('Report a Problem'), findsNothing);
+      expect(find.text('Terms of Service'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
   );

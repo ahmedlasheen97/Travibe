@@ -119,14 +119,15 @@ Settings → Report a Problem has no endpoint. `POST /reports` only accepts
 - Responses: 201 `{data: {id, status, created_at}}`, 401, and 422 with
   per-field errors.
 
-**Client today:** `SupportRepo.reportProblem` already posts this body to
-`support/problems`. Until the endpoint exists, Submit shows the server error
-as a toast. Screenshots are uploaded before the report and never re-uploaded
-on retry.
+**Client today:** the Settings row is hidden behind `kShowReportProblem`
+(`lib/core/constants/feature_flags.dart`), so users can't send reports into a
+failing request. The screen is kept: `SupportRepo.reportProblem` already
+posts this body to `support/problems`, and screenshots are uploaded before
+the report and never re-uploaded on retry.
 
-**Client after:** nothing to do if the contract matches. Otherwise we update
-the path, field names and limits (`SupportRepo.categories`, `maxDescription`,
-`maxScreenshots`).
+**Client after:** set `kShowReportProblem` to `true`. Nothing else is needed
+if the contract matches. Otherwise we update the path, field names and limits
+(`SupportRepo.categories`, `maxDescription`, `maxScreenshots`).
 
 ## Email change: resend, limits and pending state
 
@@ -135,9 +136,16 @@ the flow are not specified.
 
 **Ask:**
 
-1. **Resend.** `/email/resend-code` only works for unverified accounts.
-   Please add `POST /email/change/resend` (no password needed), or document
-   that sending `POST /email/change` again is the way to resend.
+1. **Resend (needed).** Please add `POST /email/change/resend`: bearer token,
+   no password, empty body. It re-sends a fresh code to the account's pending
+   address, with the same cooldown, daily cap and 429 responses as the first
+   send, and returns 422 when no change is pending.
+   `/email/resend-code` doesn't cover this because it only mails unverified
+   accounts. **Why it matters:** without this endpoint, the only way to
+   resend is to post `POST /email/change` again, which needs
+   `current_password`. So `EmailChangeCubit` keeps the user's password in
+   memory for the whole OTP step, only so Resend can work. A dedicated
+   endpoint lets the app drop the password right after the first request.
 2. **Limits.** Please document the code length (the signup code is 4 digits),
    expiry, attempt limit, resend cooldown and daily cap, plus their 429
    responses.

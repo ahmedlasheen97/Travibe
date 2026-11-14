@@ -301,19 +301,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 SizedBox(height: AppSizes.h24),
                 _sectionTitle('Help & Legal'),
                 _card([
-                  _settingsTile(
-                    icon: _svgIcon('flag.svg'),
-                    title: 'Report a Problem',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ReportProblemScreen(),
-                        ),
-                      );
-                    },
-                  ),
-                  _divider(),
+                  if (kShowReportProblem) ...[
+                    _settingsTile(
+                      icon: _svgIcon('flag.svg'),
+                      title: 'Report a Problem',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ReportProblemScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    _divider(),
+                  ],
                   _settingsTile(
                     icon: _svgIcon('document-text.svg'),
                     title: 'Terms of Service',
