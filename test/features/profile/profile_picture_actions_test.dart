@@ -44,8 +44,10 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 final _avatar = find.byKey(const ValueKey('profile-open-stories'));
-final _viewStory = find.byKey(const ValueKey('profile-view-story'));
-final _viewPicture = find.byKey(const ValueKey('profile-view-picture'));
+final _myPicture = find.byKey(const ValueKey('profile-avatar'));
+final _viewStory = find.byKey(const ValueKey('view-my-story'));
+final _addStory = find.byKey(const ValueKey('add-new-story'));
+final _viewPicture = find.byKey(const ValueKey('view-profile-picture'));
 
 void main() {
   setUp(() async {
@@ -92,16 +94,38 @@ void main() {
       return () => bar().currentIndex;
     }
 
-    testWidgets('with a story → sheet; "View story" opens my story', (
+    testWidgets('with a story → Home\'s "You" menu, no bottom sheet', (
       tester,
     ) async {
       await withFakeNetworkImages(() async {
         await showMine(tester, story: true);
-        await tester.tap(_avatar);
+        await tester.tap(_myPicture);
         await _settle(tester);
-        expect(_viewStory, findsOneWidget);
-        expect(_viewPicture, findsOneWidget);
+        // The same MenuAnchor popup Home's "You" bubble uses.
+        final menu = find.byKey(const ValueKey('profile-story-menu'));
+        expect(menu, findsOneWidget);
+        expect(
+          find.descendant(of: menu, matching: find.byType(MenuAnchor)),
+          findsOneWidget,
+        );
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.byType(MenuItemButton), findsNWidgets(3));
+        expect(find.text('View my Story'), findsOneWidget);
+        expect(find.text('Add New Story'), findsOneWidget);
         expect(find.text('View profile picture'), findsOneWidget);
+        // Anchored under the picture.
+        expect(
+          tester.getTopLeft(_viewStory).dy,
+          greaterThan(tester.getBottomLeft(_myPicture).dy),
+        );
+      });
+    });
+
+    testWidgets('"View my Story" opens my story', (tester) async {
+      await withFakeNetworkImages(() async {
+        await showMine(tester, story: true);
+        await tester.tap(_myPicture);
+        await _settle(tester);
         await tester.tap(_viewStory);
         await _settle(tester);
         expect(_viewStory, findsNothing);
@@ -114,12 +138,25 @@ void main() {
       });
     });
 
-    testWidgets('with a story → "View profile picture" opens the viewer', (
+    testWidgets('"Add New Story" opens the add-story sheet on Profile', (
       tester,
     ) async {
       await withFakeNetworkImages(() async {
+        final tab = await showMine(tester, story: true);
+        await tester.tap(_myPicture);
+        await _settle(tester);
+        await tester.tap(_addStory);
+        await _settle(tester);
+        expect(_addStory, findsNothing);
+        expect(find.byType(PostStorySheet), findsOneWidget);
+        expect(tab(), 4);
+      });
+    });
+
+    testWidgets('"View profile picture" opens the viewer', (tester) async {
+      await withFakeNetworkImages(() async {
         await showMine(tester, story: true);
-        await tester.tap(_avatar);
+        await tester.tap(_myPicture);
         await _settle(tester);
         await tester.tap(_viewPicture);
         await _settle(tester);
@@ -134,12 +171,27 @@ void main() {
       });
     });
 
+    testWidgets('tapping outside closes the menu', (tester) async {
+      await withFakeNetworkImages(() async {
+        await showMine(tester, story: true);
+        await tester.tap(_myPicture);
+        await _settle(tester);
+        expect(_viewStory, findsOneWidget);
+        await tester.tapAt(const Offset(10, 820));
+        await _settle(tester);
+        expect(_viewStory, findsNothing);
+        expect(find.byType(StoryViewerScreen), findsNothing);
+        expect(find.byType(ProfilePictureViewer), findsNothing);
+      });
+    });
+
     testWidgets('without a story → the viewer opens directly', (tester) async {
       await withFakeNetworkImages(() async {
         await showMine(tester, story: false);
-        await tester.tap(_avatar);
+        await tester.tap(_myPicture);
         await _settle(tester);
         expect(_viewStory, findsNothing);
+        expect(find.byKey(const ValueKey('profile-story-menu')), findsNothing);
         expect(find.byType(ProfilePictureViewer), findsOneWidget);
       });
     });

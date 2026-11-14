@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,20 +106,34 @@ void main() {
       // Profile (no restart) and Home's row share the same source.
       expect(ring, findsOneWidget);
       expect(tester.widget<StoryRing>(ring).stories.map((s) => s.id), [1]);
+      // Home's 2 px-on-64 px ring, scaled to the 128 px picture.
+      expect(tester.widget<StoryRing>(ring).strokeWidth, 4);
+      final painter =
+          tester
+                  .widget<CustomPaint>(
+                    find.descendant(
+                      of: ring,
+                      matching: find.byType(CustomPaint),
+                    ),
+                  )
+                  .foregroundPainter!
+              as StoryRingPainter;
+      expect(painter.width, 4);
+      expect(painter.colors, [DarkColors.primaryColor]);
       expect(
         find.byKey(const ValueKey('story-segments-7'), skipOffstage: false),
         findsOneWidget,
       );
 
-      // "+" still adds a Story; the picture's sheet opens my Story.
+      // "+" still adds a Story; the picture's menu opens my Story.
       await tester.tap(find.byKey(const ValueKey('profile-add-story')));
       await tester.pumpAndSettle();
       expect(find.byType(PostStorySheet), findsOneWidget);
       await tester.tapAt(const Offset(10, 100));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('profile-open-stories')));
+      await tester.tap(find.byKey(const ValueKey('profile-avatar')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('profile-view-story')));
+      await tester.tap(find.byKey(const ValueKey('view-my-story')));
       await tester.pumpAndSettle();
       expect(find.byType(StoryViewerScreen), findsOneWidget);
       expect(

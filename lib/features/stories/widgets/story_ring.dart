@@ -6,15 +6,19 @@ import 'package:travibe/features/stories/data/story_model.dart';
 
 /// Paints over the avatar edge, so gaps show the actual photo beneath it.
 /// The surrounding Home story cell retains its existing layout dimensions.
+/// Larger pictures (my Profile) pass a proportionally wider [strokeWidth] so
+/// the ring reads the same as Home's.
 class StoryRing extends StatelessWidget {
   const StoryRing({
     super.key,
     required this.stories,
     required this.child,
+    this.strokeWidth = StoryRingPainter.strokeWidth,
     this.now,
   });
   final List<StorySummary> stories;
   final Widget child;
+  final double strokeWidth;
   final DateTime Function()? now;
 
   @override
@@ -27,28 +31,31 @@ class StoryRing extends StatelessWidget {
           story.hasSeen ? Colors.white24 : DarkColors.primaryColor,
     ];
     return CustomPaint(
-      foregroundPainter: StoryRingPainter(colors: colors),
+      foregroundPainter: StoryRingPainter(colors: colors, width: strokeWidth),
       child: child,
     );
   }
 }
 
 class StoryRingPainter extends CustomPainter {
-  StoryRingPainter({required List<Color> colors})
+  StoryRingPainter({required List<Color> colors, this.width = strokeWidth})
     : colors = List.unmodifiable(colors);
 
   final List<Color> colors;
+  final double width;
+
+  /// Home's ring width.
   static const strokeWidth = 2.0;
   static const gapRadians = 3 * math.pi / 180;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (colors.isEmpty || size.shortestSide <= strokeWidth) return;
+    if (colors.isEmpty || size.shortestSide <= width) return;
     final center = size.center(Offset.zero);
-    final radius = (size.shortestSide - strokeWidth) / 2;
+    final radius = (size.shortestSide - width) / 2;
     final paint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = width
       ..strokeCap = StrokeCap.butt
       ..isAntiAlias = true;
     if (colors.length == 1) {
@@ -72,5 +79,5 @@ class StoryRingPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(StoryRingPainter oldDelegate) =>
-      !listEquals(colors, oldDelegate.colors);
+      width != oldDelegate.width || !listEquals(colors, oldDelegate.colors);
 }
