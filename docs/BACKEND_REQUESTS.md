@@ -119,14 +119,15 @@ Settings → Report a Problem has no endpoint. `POST /reports` only accepts
 - Responses: 201 `{data: {id, status, created_at}}`, 401, and 422 with
   per-field errors.
 
-**Client today:** `SupportRepo.reportProblem` already posts this body to
-`support/problems`. Until the endpoint exists, Submit shows the server error
-as a toast. Screenshots are uploaded before the report and never re-uploaded
-on retry.
+**Client today:** the Settings row is hidden behind `kShowReportProblem`
+(`lib/core/constants/feature_flags.dart`), so users can't send reports into a
+failing request. The screen is kept: `SupportRepo.reportProblem` already
+posts this body to `support/problems`, and screenshots are uploaded before
+the report and never re-uploaded on retry.
 
-**Client after:** nothing to do if the contract matches. Otherwise we update
-the path, field names and limits (`SupportRepo.categories`, `maxDescription`,
-`maxScreenshots`).
+**Client after:** set `kShowReportProblem` to `true`. Nothing else is needed
+if the contract matches. Otherwise we update the path, field names and limits
+(`SupportRepo.categories`, `maxDescription`, `maxScreenshots`).
 
 ## Email change: resend, limits and pending state
 
