@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 
 class PersonResultTile extends StatelessWidget {
@@ -26,8 +28,12 @@ class PersonResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The signed-in user's own row never offers Follow/Requested, "Follows
+    // you" or ⋮ user actions, and opens their Profile tab.
+    final own = isViewer(context, user.id);
     return InkWell(
-      onTap: onTap,
+      key: own ? const ValueKey('own-user-row') : null,
+      onTap: own ? () => openUserProfile(context, user.id) : onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -44,7 +50,7 @@ class PersonResultTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (followsYou) ...[
+                    if (followsYou && !own) ...[
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -84,7 +90,7 @@ class PersonResultTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (showFollow) ...[
+              if (showFollow && !own) ...[
                 const SizedBox(width: 12),
                 ConstrainedBox(
                   constraints: BoxConstraints(
@@ -131,7 +137,7 @@ class PersonResultTile extends StatelessWidget {
                   ),
                 ),
               ],
-              ?trailing,
+              if (!own) ?trailing,
             ],
           ),
         ),

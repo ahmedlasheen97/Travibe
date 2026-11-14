@@ -1,3 +1,4 @@
+import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
@@ -89,7 +90,7 @@ class FollowUserTile extends StatelessWidget {
                   PopupMenuItem(
                     value: 'followers',
                     child: Text(
-                      '${current.followersCount} followers',
+                      countLabel(current.followersCount, 'follower'),
                       style: const TextStyle(
                         color: DarkColors.whiteColor,
                         fontSize: 14,

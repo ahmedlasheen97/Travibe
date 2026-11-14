@@ -30,7 +30,12 @@ class StoryViewerState {
   final StoryDetail? detail;
   final List<StoryEditorLayer> layers;
   final int index, count, request;
+
+  /// Latest view count, already excluding the owner's own view.
   final int? viewsCount;
+
+  /// What the owner sees: never includes their own view.
+  int? get visibleViewsCount => viewsCount ?? detail?.viewsCountExcludingOwner;
   final double progress;
   final bool paused, imageReady;
   final ApiError? error;
@@ -133,7 +138,7 @@ class StoryViewerCubit extends Cubit<StoryViewerState> {
       _viewed.add(detail.id);
       // Confirmed success establishes seen state. Retain the last verified count;
       // no response fields or increment are inferred from the POST body.
-      onViewed?.call(detail.id, detail.viewsCount);
+      onViewed?.call(detail.id, detail.viewsCountExcludingOwner);
       if (!_active) return;
       final likeRevision = likes?.revision;
       final fresh = await repo.getStory(detail.id);
@@ -149,11 +154,11 @@ class StoryViewerCubit extends Cubit<StoryViewerState> {
       if (likeRevision != null) {
         likes?.accept(fresh, requestRevision: likeRevision);
       }
-      onViewed?.call(detail.id, fresh.viewsCount);
+      onViewed?.call(detail.id, fresh.viewsCountExcludingOwner);
       if (_active &&
           request == _generation &&
           state.status == StoryViewerStatus.ready) {
-        emit(state.playback(viewsCount: fresh.viewsCount));
+        emit(state.playback(viewsCount: fresh.viewsCountExcludingOwner));
       }
     } catch (error) {
       if (_active &&

@@ -31,11 +31,11 @@ class ProfileStats extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _statItem(posts?.toString() ?? '—', 'Posts'),
+          _statItem(posts?.toString() ?? '—', posts == 1 ? 'Post' : 'Posts'),
           _divider(),
           _statItem(
             followers?.toString() ?? '—',
-            'Followers',
+            followers == 1 ? 'Follower' : 'Followers',
             onTap: onFollowersTap,
           ),
           _divider(),

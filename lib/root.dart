@@ -40,6 +40,7 @@ import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_upload_toast.dart';
 import 'package:travibe/features/stories/widgets/discard_story_dialog.dart';
+import 'package:travibe/core/navigation/my_profile_tab.dart';
 import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
 import 'package:travibe/features/profile/screens/session_exit.dart';
 
@@ -90,6 +91,8 @@ class _RootState extends State<Root> {
   @override
   void initState() {
     super.initState();
+    // Own-user rows in sheets and pushed screens open this Profile tab.
+    MyProfileTab.attach(this, _showMyProfile);
     if (widget.revalidateSession) {
       final revalidator = _revalidator =
           widget.sessionRevalidator ?? SessionRevalidator();
@@ -200,6 +203,7 @@ class _RootState extends State<Root> {
 
   @override
   void dispose() {
+    MyProfileTab.detach(this);
     _lifecycle?.dispose();
     _revalidator?.dispose();
     _push?.detach(this);

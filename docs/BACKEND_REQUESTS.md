@@ -79,3 +79,24 @@ grows with file size (60 s up to 10 min).
 **Client after:** the client checks the documented limit before presigning and
 shows a clear "photo too large" message instead of a generic failure.
 
+## Stories: don't record/return the story owner's own view
+
+`POST /stories/{story}/view` says "the first view creates the caller's view
+row and increments the story's view count", with no exception for the author.
+When owners open their own Story, they are counted in `views_count` and listed
+in `GET /stories/{story}/viewers` (shown with a Follow button on themselves).
+
+**Ask:** don't record/return the story owner's own view. Either skip the view
+row for the author (the endpoint can still return success so seen-state code
+keeps working) or exclude the author from `views_count` and from
+`GET /stories/{story}/viewers`. Please also confirm what `has_seen` returns
+for the author afterwards.
+
+**Client today:** the viewers sheet hides the signed-in user's row, and when
+the server reports `is_mine && has_seen` on the user's own Story, one view is
+subtracted from the count (`StoryDetail.viewsCountExcludingOwner`).
+
+**Client after:** if the author's view is no longer recorded, `has_seen` is
+false for the owner and nothing is subtracted, so no client change is needed.
+If `has_seen` stays true while the count already excludes the author, tell us
+and we'll remove the subtraction.

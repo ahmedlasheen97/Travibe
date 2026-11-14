@@ -1,3 +1,4 @@
+import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/core/widgets/user_profile_link.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
@@ -69,12 +70,20 @@ class SuggestedUserCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FollowPill(
-              relation: relation,
-              pending: pending,
-              onPressed: onToggle,
+          // Never offer Follow on the signed-in user's own card; keep the
+          // card height so the row stays aligned.
+          Visibility(
+            visible: !isViewer(context, user.id),
+            maintainSize: true,
+            maintainAnimation: true,
+            maintainState: true,
+            child: SizedBox(
+              width: double.infinity,
+              child: FollowPill(
+                relation: relation,
+                pending: pending,
+                onPressed: onToggle,
+              ),
             ),
           ),
         ],
