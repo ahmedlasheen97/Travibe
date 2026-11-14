@@ -84,8 +84,9 @@ void main() {
     await tester.pump(const Duration(seconds: 61));
     await tester.tap(find.text('Resend OTP'));
     await _settle(tester);
-    expect(api.posts.last.$1, 'forgot-password');
-    expect(api.posts.last.$2['email'], 'user@mail.com');
+    expect(api.posts.last.$1, 'email/resend-code');
+    expect(api.posts.last.$2, {'email': 'user@mail.com'});
+    expect(api.posts.map((p) => p.$1), isNot(contains('forgot-password')));
 
     await tester.pumpWidget(const SizedBox());
   });

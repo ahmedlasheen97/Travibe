@@ -171,6 +171,16 @@ class AuthRepo {
     }
   }
 
+  /// Re-sends the signup verification code. `POST /email/resend-code`
+  /// (60 s cooldown, 20 per day; only unverified accounts get mail).
+  Future<void> resendVerificationCode({required String email}) async {
+    try {
+      await _apiService.post('email/resend-code', {'email': email});
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    }
+  }
+
   /// `PATCH /password`. The server revokes every other access token; this
   /// device keeps its own. A wrong current password is a 422 on
   /// `current_password`.
