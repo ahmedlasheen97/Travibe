@@ -4,9 +4,15 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/features/auth/data/auth_repo.dart';
+import 'package:travibe/features/profile/cubit/change_password_cubit.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
-  const ChangePasswordScreen({super.key});
+  const ChangePasswordScreen({super.key, this.repo});
+
+  final AuthRepo? repo;
 
   @override
   State<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
@@ -21,45 +27,58 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureCurrent = true;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
-  bool _isSubmitting = false;
+  late final _cubit = ChangePasswordCubit(repo: widget.repo);
+
+  @override
+  void initState() {
+    super.initState();
+    for (final (controller, field) in [
+      (_currentPasswordController, PasswordField.current),
+      (_newPasswordController, PasswordField.password),
+      (_confirmPasswordController, PasswordField.confirmation),
+    ]) {
+      controller.addListener(() => _cubit.clearFieldError(field));
+    }
+  }
 
   @override
   void dispose() {
+    _cubit.close();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _updatePassword() async {
+  void _updatePassword() {
     if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    _cubit.submit(
+      currentPassword: _currentPasswordController.text,
+      password: _newPasswordController.text,
+      passwordConfirmation: _confirmPasswordController.text,
+    );
+  }
 
-    setState(() => _isSubmitting = true);
-    try {
-      // TODO: wire to AuthRepo, e.g.:
-      // await AuthRepo().changePassword(
-      //   currentPassword: _currentPasswordController.text,
-      //   newPassword: _newPasswordController.text,
-      //   newPasswordConfirmation: _confirmPasswordController.text,
-      // );
-      debugPrint('Updating password...');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password updated successfully')),
-      );
+  void _onState(BuildContext context, ChangePasswordState state) {
+    if (state.done) {
+      final toast = TravibeToast.of(context);
       Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to update password: $e')));
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      toast.present(const TravibeToastData.success('Password updated'));
+    } else if (state.error case final message?) {
+      TravibeToast.show(context, TravibeToastData.error(message));
     }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) =>
+      BlocConsumer<ChangePasswordCubit, ChangePasswordState>(
+        bloc: _cubit,
+        listener: _onState,
+        builder: (context, state) => _buildBody(state),
+      );
+
+  Widget _buildBody(ChangePasswordState state) {
     return Scaffold(
       backgroundColor: DarkColors.backgroundColor,
       body: SafeArea(
@@ -80,6 +99,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       controller: _currentPasswordController,
                       hint: 'enter your current password',
                       obscure: _obscureCurrent,
+                      serverError: state.fieldErrors[PasswordField.current],
                       onToggle: () =>
                           setState(() => _obscureCurrent = !_obscureCurrent),
                       validator: (value) {
@@ -96,6 +116,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       controller: _newPasswordController,
                       hint: 'enter your new password',
                       obscure: _obscureNew,
+                      serverError: state.fieldErrors[PasswordField.password],
                       onToggle: () =>
                           setState(() => _obscureNew = !_obscureNew),
                       validator: (value) {
@@ -115,6 +136,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                       controller: _confirmPasswordController,
                       hint: 'renter your new password',
                       obscure: _obscureConfirm,
+                      serverError:
+                          state.fieldErrors[PasswordField.confirmation],
                       onToggle: () =>
                           setState(() => _obscureConfirm = !_obscureConfirm),
                       validator: (value) {
@@ -134,7 +157,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   AppSizes.pw20,
                   AppSizes.ph20,
                 ),
-                child: _buildUpdateButton(),
+                child: _buildUpdateButton(state.submitting || state.done),
               ),
             ],
           ),
@@ -184,6 +207,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     required String hint,
     required bool obscure,
     required VoidCallback onToggle,
+    String? serverError,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
@@ -194,6 +218,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
+        errorText: serverError,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
         prefixIcon: const Icon(
           Icons.lock_outline_rounded,
@@ -219,19 +244,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     );
   }
 
-  Widget _buildUpdateButton() {
+  Widget _buildUpdateButton(bool busy) {
     return SizedBox(
       width: double.infinity,
       height: AppSizes.h56,
       child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _updatePassword,
+        onPressed: busy ? null : _updatePassword,
         style: ElevatedButton.styleFrom(
           backgroundColor: DarkColors.primaryColor,
           foregroundColor: Colors.white,
           elevation: 0,
           shape: ActionButtonStyle.shape,
         ),
-        child: _isSubmitting
+        child: busy
             ? SizedBox(
                 width: AppSizes.w22,
                 height: AppSizes.h22,
