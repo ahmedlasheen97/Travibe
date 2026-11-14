@@ -7,8 +7,9 @@ import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/widgets/story_ring.dart';
 
 /// The profile picture. Active [stories] draw Home's [StoryRing] (orange
-/// unseen, grey seen); [onTap] opens the stories, the picture, or a sheet
-/// offering both (decided by the caller). My own profile passes
+/// unseen, grey seen) at Home's proportions; [onTap] opens the stories or
+/// the picture (decided by the caller, which wraps my own picture in Home's
+/// "You" menu while I have a story). My own profile passes
 /// [onAddStory], which adds the Home "You"-style "+" badge on the picture's
 /// lower-right diagonal.
 class ProfileAvatar extends StatelessWidget {
@@ -24,6 +25,10 @@ class ProfileAvatar extends StatelessWidget {
     this.onTap,
     this.onAddStory,
   });
+
+  /// Home's 2 px ring on a 64 px picture, scaled to [diameter].
+  static double ringWidth(double diameter) =>
+      StoryRingPainter.strokeWidth * diameter / 64;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +57,8 @@ class ProfileAvatar extends StatelessWidget {
         : StoryRing(
             key: const ValueKey('profile-story-ring'),
             stories: stories,
+            // Home draws 2 px on its 64 px bubble; keep that ratio here.
+            strokeWidth: ringWidth(diameter),
             child: picture,
           );
     if (onTap case final open?) {

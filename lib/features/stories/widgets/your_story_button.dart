@@ -7,6 +7,11 @@ import 'package:travibe/features/stories/data/story_model.dart';
 
 /// Only the authenticated ID and known future expiry establish an own active
 /// story. Names, absent expiry and stale session data are never ownership proof.
+///
+/// Home's "You" bubble and my Profile picture share this menu. Profile renames
+/// the rows, adds [onViewPicture] ("View profile picture") and opens the
+/// picture instead of adding a story when there is no active story
+/// ([onTapWithoutStory]).
 class YourStoryButton extends StatefulWidget {
   const YourStoryButton({
     super.key,
@@ -15,12 +20,24 @@ class YourStoryButton extends StatefulWidget {
     this.currentUserId,
     this.onAddStory,
     this.onViewStory,
+    this.onViewPicture,
+    this.onTapWithoutStory,
+    this.viewStoryLabel = 'View Story',
+    this.addStoryLabel = 'Add to Story',
+    this.semanticsLabel = 'Your Story',
     this.now,
   });
   final Widget child;
   final StoryGroup? group;
   final int? currentUserId;
   final VoidCallback? onAddStory, onViewStory;
+
+  /// Adds a "View profile picture" row when set.
+  final VoidCallback? onViewPicture;
+
+  /// Tap without an active story; defaults to [onAddStory].
+  final VoidCallback? onTapWithoutStory;
+  final String viewStoryLabel, addStoryLabel, semanticsLabel;
   final DateTime Function()? now;
 
   @override
@@ -104,7 +121,7 @@ class _YourStoryButtonState extends State<YourStoryButton> {
       _menu.open();
       _scheduleExpiry();
     } else {
-      widget.onAddStory?.call();
+      (widget.onTapWithoutStory ?? widget.onAddStory)?.call();
     }
   }
 
@@ -176,8 +193,8 @@ class _YourStoryButtonState extends State<YourStoryButton> {
                   },
             style: rowStyle,
             semanticsLabel: widget.onViewStory == null
-                ? 'View Story. Viewer unavailable.'
-                : 'View Story',
+                ? '${widget.viewStoryLabel}. Viewer unavailable.'
+                : widget.viewStoryLabel,
             leadingIcon: SvgPicture.asset(
               'assets/images/interactions/story.svg',
               width: 24,
@@ -187,7 +204,7 @@ class _YourStoryButtonState extends State<YourStoryButton> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('View Story'),
+                Text(widget.viewStoryLabel),
                 if (widget.onViewStory == null)
                   const Text(
                     'Viewer unavailable',
@@ -208,14 +225,32 @@ class _YourStoryButtonState extends State<YourStoryButton> {
               _menu.close();
               widget.onAddStory?.call();
             },
-            child: const Text('Add to Story'),
+            child: Text(widget.addStoryLabel),
           ),
+          if (widget.onViewPicture case final viewPicture?)
+            MenuItemButton(
+              key: const ValueKey('view-profile-picture'),
+              style: rowStyle,
+              leadingIcon: SvgPicture.asset(
+                'assets/images/icons/profile-circle.svg',
+                width: 24,
+                height: 24,
+              ),
+              onPressed: () {
+                _menu.close();
+                viewPicture();
+              },
+              child: const Text('View profile picture'),
+            ),
         ],
         child: Semantics(
           button: true,
           label: _hasActiveStory
-              ? 'Your Story. View Story or Add to Story'
-              : 'Your Story. Add to Story',
+              ? '${widget.semanticsLabel}. ${widget.viewStoryLabel} or '
+                    '${widget.addStoryLabel}'
+              : widget.onTapWithoutStory != null
+              ? widget.semanticsLabel
+              : '${widget.semanticsLabel}. ${widget.addStoryLabel}',
           child: GestureDetector(
             key: const ValueKey('your-story-bubble'),
             behavior: HitTestBehavior.opaque,

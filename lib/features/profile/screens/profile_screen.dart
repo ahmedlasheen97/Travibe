@@ -4,9 +4,9 @@ import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
-import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:travibe/core/widgets/profile_picture_viewer.dart';
 import 'package:travibe/features/stories/widgets/start_add_story.dart';
+import 'package:travibe/features/stories/widgets/your_story_button.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
@@ -350,64 +350,49 @@ class _ProfileViewState extends State<_ProfileView> {
 
   /// The picture, ringed (same as Home) while this user has an active Story I
   /// can see in the shared Stories source. Tapping it: my own with a story →
-  /// sheet (View story / View profile picture); another user's with a story
-  /// → their Stories; no story → the full-screen picture.
+  /// Home's "You" menu (View my Story / Add New Story / View profile
+  /// picture); another user's with a story → their Stories; no story → the
+  /// full-screen picture. My "+" badge always adds a story.
   Widget _avatar(ProfileModel profile) {
     final mine = context.read<ProfileCubit>().userId == null;
-    Widget avatar(StoryGroup? group) => ProfileAvatar(
-      imageUrl: profile.avatarUrl,
-      stories: group?.stories ?? const [],
-      onTap: _avatarTap(profile, group, mine: mine),
-      onAddStory: mine ? () => _addStory(profile) : null,
-    );
+    Widget avatar(StoryGroup? group) {
+      final url = profile.avatarUrl;
+      final picture = url == null || url.isEmpty
+          ? null
+          : () => openProfilePictureViewer(context, url);
+      final story = group != null && group.stories.isNotEmpty
+          ? () => _openStories(profile, group)
+          : null;
+      final menu = mine && story != null;
+      final avatar = ProfileAvatar(
+        imageUrl: url,
+        stories: group?.stories ?? const [],
+        onTap: menu ? null : story ?? picture,
+        onAddStory: mine ? () => _addStory(profile) : null,
+      );
+      if (!menu) return avatar;
+      // The badge's own GestureDetector is deeper, so "+" still wins its tap.
+      return YourStoryButton(
+        key: const ValueKey('profile-story-menu'),
+        group: group,
+        currentUserId: int.tryParse(profile.id),
+        onViewStory: story,
+        onAddStory: () => _addStory(profile),
+        onViewPicture: picture,
+        onTapWithoutStory: picture ?? () {},
+        viewStoryLabel: 'View my Story',
+        addStoryLabel: 'Add New Story',
+        semanticsLabel: 'My profile picture',
+        child: avatar,
+      );
+    }
+
     final stories = context.read<StoriesCubit?>();
     if (stories == null) return avatar(null);
     final id = int.tryParse(profile.id);
     return BlocBuilder<StoriesCubit, StoriesState>(
       bloc: stories,
       builder: (_, _) => avatar(stories.groupOf(id)),
-    );
-  }
-
-  VoidCallback? _avatarTap(
-    ProfileModel profile,
-    StoryGroup? group, {
-    required bool mine,
-  }) {
-    final url = profile.avatarUrl;
-    final picture = url == null || url.isEmpty
-        ? null
-        : () => openProfilePictureViewer(context, url);
-    final story = group != null && group.stories.isNotEmpty
-        ? () => _openStories(profile, group)
-        : null;
-    if (story == null) return picture;
-    if (!mine) return story;
-    return () => showOptionsSheet<void>(
-      context,
-      builder: (sheet) => OptionsSheetBody(
-        children: [
-          OptionSheetTile(
-            key: const ValueKey('profile-view-story'),
-            icon: optionSvg('assets/images/interactions/story.svg'),
-            label: 'View story',
-            onTap: () {
-              Navigator.of(sheet).pop();
-              story();
-            },
-          ),
-          if (picture != null)
-            OptionSheetTile(
-              key: const ValueKey('profile-view-picture'),
-              icon: optionSvg('assets/images/icons/profile-circle.svg'),
-              label: 'View profile picture',
-              onTap: () {
-                Navigator.of(sheet).pop();
-                picture();
-              },
-            ),
-        ],
-      ),
     );
   }
 
