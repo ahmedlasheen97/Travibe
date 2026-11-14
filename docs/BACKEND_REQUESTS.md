@@ -136,9 +136,16 @@ the flow are not specified.
 
 **Ask:**
 
-1. **Resend.** `/email/resend-code` only works for unverified accounts.
-   Please add `POST /email/change/resend` (no password needed), or document
-   that sending `POST /email/change` again is the way to resend.
+1. **Resend (needed).** Please add `POST /email/change/resend`: bearer token,
+   no password, empty body. It re-sends a fresh code to the account's pending
+   address, with the same cooldown, daily cap and 429 responses as the first
+   send, and returns 422 when no change is pending.
+   `/email/resend-code` doesn't cover this because it only mails unverified
+   accounts. **Why it matters:** without this endpoint, the only way to
+   resend is to post `POST /email/change` again, which needs
+   `current_password`. So `EmailChangeCubit` keeps the user's password in
+   memory for the whole OTP step, only so Resend can work. A dedicated
+   endpoint lets the app drop the password right after the first request.
 2. **Limits.** Please document the code length (the signup code is 4 digits),
    expiry, attempt limit, resend cooldown and daily cap, plus their 429
    responses.
