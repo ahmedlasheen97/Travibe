@@ -1,3 +1,5 @@
+import 'package:travibe/core/widgets/user_profile_link.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -217,57 +219,63 @@ class FollowRequestTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(bottom: AppSizes.h12),
-    child: Material(
-      color: const Color(0xFF141414),
-      borderRadius: BorderRadius.circular(AppSizes.r20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppSizes.pw12,
-            vertical: AppSizes.ph12,
-          ),
-          child: Row(
-            children: [
-              HomeUserAvatar(url: user.avatarUrl, size: AppSizes.w44),
-              SizedBox(width: AppSizes.w10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      user.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: DarkColors.whiteColor,
-                        fontSize: AppSizes.sp15,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (user.handle.isNotEmpty)
+  Widget build(BuildContext context) {
+    final own = isViewer(context, user.id);
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSizes.h12),
+      child: Material(
+        color: const Color(0xFF141414),
+        borderRadius: BorderRadius.circular(AppSizes.r20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: own ? const ValueKey('own-user-row') : null,
+          onTap: own ? () => openUserProfile(context, user.id) : onTap,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSizes.pw12,
+              vertical: AppSizes.ph12,
+            ),
+            child: Row(
+              children: [
+                HomeUserAvatar(url: user.avatarUrl, size: AppSizes.w44),
+                SizedBox(width: AppSizes.w10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        user.handle,
+                        user.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: DarkColors.greyColor,
-                          fontSize: AppSizes.sp12,
+                          color: DarkColors.whiteColor,
+                          fontSize: AppSizes.sp15,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                  ],
+                      if (user.handle.isNotEmpty)
+                        Text(
+                          user.handle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: DarkColors.greyColor,
+                            fontSize: AppSizes.sp12,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: AppSizes.w8),
-              FollowRequestActions(userId: user.id),
-            ],
+                if (!own) ...[
+                  SizedBox(width: AppSizes.w8),
+                  FollowRequestActions(userId: user.id),
+                ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

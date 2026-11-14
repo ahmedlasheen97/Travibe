@@ -215,6 +215,13 @@ class StoryDetail {
     return null;
   }
 
+  /// The view count the owner sees. `POST /stories/{id}/view` also records
+  /// the author's own view (docs/BACKEND_REQUESTS.md asks to stop that), so
+  /// when the server says this caller has a view row on their own Story
+  /// (`is_mine && has_seen`), it is removed from the count. If the backend
+  /// stops recording it, `has_seen` is false and nothing is subtracted.
+  int get viewsCountExcludingOwner =>
+      isMine && hasSeen && viewsCount > 0 ? viewsCount - 1 : viewsCount;
   late final bool isLiked, isMine, hasSeen;
   late final DateTime? createdAt, expiresAt;
 }

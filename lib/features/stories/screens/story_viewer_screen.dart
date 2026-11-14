@@ -145,7 +145,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
             ),
             builder: (_) => StoryViewersSheet(
               cubit: cubit,
-              count: _viewer.state.viewsCount ?? detail.viewsCount,
+              count: _viewer.state.visibleViewsCount ?? 0,
               follow: widget.follow,
               blocks: widget.blocks,
             ),
@@ -485,9 +485,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                           const SizedBox(width: 8),
                                           Flexible(
                                             child: Text(
-                                              '${state.viewsCount ?? state.detail!.viewsCount}',
-                                              semanticsLabel:
-                                                  '${state.viewsCount ?? state.detail!.viewsCount} views',
+                                              '${state.visibleViewsCount ?? 0}',
+                                              semanticsLabel: countLabel(
+                                                state.visibleViewsCount ?? 0,
+                                                'view',
+                                              ),
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
