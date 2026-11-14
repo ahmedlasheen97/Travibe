@@ -37,6 +37,9 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
+import 'package:travibe/features/stories/widgets/story_upload_toast.dart';
+import 'package:travibe/features/stories/widgets/discard_story_dialog.dart';
 import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
 import 'package:travibe/features/profile/screens/session_exit.dart';
 
@@ -181,7 +184,12 @@ class _RootState extends State<Root> {
     repo: widget.createPostRepo,
     uploads: widget.mediaUploads,
   );
+  late final _storyUploads = StoryUploadCubit(
+    repo: widget.storiesRepo,
+    uploads: widget.mediaUploads,
+  );
   final _publications = ValueNotifier<int>(0);
+  final _storyPublications = ValueNotifier<int>(0);
   final _homeRefreshes = ValueNotifier<int>(0);
   final _buddiesRefreshes = ValueNotifier<int>(0);
   final _profileRefreshes = ValueNotifier<int>(0);
@@ -200,7 +208,9 @@ class _RootState extends State<Root> {
     _chatUnread?.detach(this);
     unawaited(_reverbBlocks?.cancel() ?? Future.value());
     _postUploads.close();
+    _storyUploads.close();
     _publications.dispose();
+    _storyPublications.dispose();
     _homeRefreshes.dispose();
     _buddiesRefreshes.dispose();
     _profileRefreshes.dispose();
@@ -225,6 +235,7 @@ class _RootState extends State<Root> {
     HomeScreen(
       postsRepo: widget.postsRepo,
       publicationSignal: _publications,
+      storyPublicationSignal: _storyPublications,
       refreshSignal: _homeRefreshes,
       accountRepo: widget.homeAccountRepo,
       storiesRepo: widget.storiesRepo,
@@ -272,10 +283,18 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _incoming),
         BlocProvider.value(value: _blockCubit),
         BlocProvider.value(value: _postUploads),
+        BlocProvider.value(value: _storyUploads),
       ],
-      child: BlocListener<PostUploadCubit, PostUploadState>(
+      child: MultiBlocListener(
         key: _shellKey,
-        listener: _onPostUpload,
+        listeners: [
+          BlocListener<PostUploadCubit, PostUploadState>(
+            listener: _onPostUpload,
+          ),
+          BlocListener<StoryUploadCubit, StoryUploadState>(
+            listener: _onStoryUpload,
+          ),
+        ],
         child: BottomNavScope(
           visibility: _navVisibility,
           barHeight: navHeight,
@@ -464,6 +483,27 @@ class _RootState extends State<Root> {
         );
       case PostUploadIdle():
         _toasts.setSticky(_uploadToast, null);
+    }
+  }
+
+  static const _storyUploadToast = 'story-upload';
+
+  void _onStoryUpload(BuildContext context, StoryUploadState state) {
+    _toasts.setSticky(
+      _storyUploadToast,
+      storyUploadToast(
+        state,
+        onRetry: _storyUploads.retry,
+        onDiscard: () async {
+          if (await showDiscardStoryDialog(this.context)) {
+            _storyUploads.discard();
+          }
+        },
+      ),
+    );
+    if (state is StoryUploadDone) {
+      _storyPublications.value++;
+      _toasts.show(storyPublishedToast);
     }
   }
 

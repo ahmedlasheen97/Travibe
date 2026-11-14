@@ -60,3 +60,22 @@ filter stays as a safety net.
 `PATCH /notifications/read-all` should keep marking every unread row,
 including direct chat messages. The inbox calls it on open, so hidden rows are
 cleared too.
+
+## Stories: document the maximum Story photo upload size
+
+`POST /media/presign` says "a size over the configured per-type maximum is a
+`422`", but `docs/openapi.json` never states the number for images, and
+`POST /stories` doesn't say whether Stories use a different limit.
+
+**Ask:** please document the maximum image size in bytes for a Story photo
+(and the general image limit, if different). Ideally also the maximum pixel
+dimensions, and whether the server re-encodes or resizes Story photos.
+
+**Client today:** Stories upload a JPEG (quality 85) cropped to the editor
+view and no larger than 1080×1920, usually 0.3–1 MB. The shared upload service
+still enforces its own 20 MB client cap for images. The storage PUT timeout
+grows with file size (60 s up to 10 min).
+
+**Client after:** the client checks the documented limit before presigning and
+shows a clear "photo too large" message instead of a generic failure.
+

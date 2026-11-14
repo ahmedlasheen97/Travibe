@@ -70,14 +70,14 @@ void main() {
   );
 
   testWidgets(
-    'toolbar has five white 44px circles with 16px gaps and 20px right inset',
+    'toolbar has four white 44px circles with 16px gaps and 20px right inset',
     (tester) async {
       await show(tester);
       final buttons = tester
           .widgetList<IconButton>(find.byType(IconButton))
           .where((button) => button.tooltip != 'Back')
           .toList();
-      expect(buttons, hasLength(5));
+      expect(buttons, hasLength(4));
       for (var i = 0; i < buttons.length; i++) {
         final rect = tester.getRect(find.byWidget(buttons[i]));
         expect(rect.size, const Size(44, 44));
@@ -88,10 +88,11 @@ void main() {
           Colors.white,
         );
       }
-      expect(buttons.first.onPressed, isNotNull);
+      // Aa, @, emoji and draw are active; Location is intentionally absent.
+      expect(buttons.every((button) => button.onPressed != null), isTrue);
       expect(
-        buttons.skip(1).every((button) => button.onPressed == null),
-        isTrue,
+        buttons.map((button) => button.tooltip),
+        ['Add text', 'Mention someone', 'Add emoji', 'Draw'],
       );
       expect(tester.takeException(), isNull);
     },

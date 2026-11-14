@@ -19,6 +19,12 @@ class StoryExportController {
   bool get isInteracting =>
       _canvas?._activeId != null || (_canvas?._pointers.isNotEmpty ?? false);
 
+  /// The on-screen canvas size; the flattener maps stickers through it.
+  Size? get viewportSize {
+    final canvas = _canvas;
+    return canvas == null || !canvas.mounted ? null : canvas.widget.size;
+  }
+
   void _attach(_GestureCanvasState canvas) {
     if (_canvas != null && _canvas != canvas) {
       throw StateError('A Story export controller must have only one canvas.');

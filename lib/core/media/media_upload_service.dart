@@ -26,6 +26,12 @@ Dio createSignedStorageClient({HttpClientAdapter? adapter}) {
   return client;
 }
 
+/// Time allowed to send [bytes] to storage. Dio's `sendTimeout` limits the
+/// whole request body, so a fixed value fails large files on slow uplinks.
+/// Assumes at least ~32 KB/s (≈256 kbit/s) plus 30s, between 60s and 10 min.
+Duration storageSendTimeout(int bytes) =>
+    Duration(seconds: (30 + bytes ~/ (32 * 1024)).clamp(60, 600));
+
 /// Reusable upload pipeline. API and object-storage transports never share
 /// interceptors, credentials or default JSON headers. No request logging.
 class MediaUploadService {
@@ -206,6 +212,7 @@ class MediaUploadService {
           onSendProgress: onProgress,
           options: Options(
             method: signed.uploadMethod,
+            sendTimeout: storageSendTimeout(bytes.length),
             headers: headers,
             responseType: ResponseType.plain,
             followRedirects: false,

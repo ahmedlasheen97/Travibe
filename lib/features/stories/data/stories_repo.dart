@@ -9,7 +9,7 @@ class StoryCreationUncertain extends ApiError {
   StoryCreationUncertain()
     : super(
         message:
-            'The Story may have been published. Check Home Stories before trying again. Automatic resubmission is disabled to avoid duplicates.',
+            'We couldn’t confirm your story was posted. We’ll check before trying again.',
       );
 }
 
@@ -179,6 +179,47 @@ class StoriesRepo {
       throw ApiExceptions.handleError(e);
     } on FormatException {
       throw ApiError(message: 'Unable to read Story viewers.');
+    }
+  }
+
+  /// Read-only check after an uncertain `POST /stories`: returns the caller's
+  /// Story that claimed [mediaId], or null if no Story was created. Throws if
+  /// the answer cannot be determined (then nothing may be re-posted yet).
+  ///
+  /// `GET /media/{id}` reports `mediable_type`/`mediable_id` once media is
+  /// claimed. Its docs name posts and comments only, so the caller's own
+  /// active Stories are also checked by photo id.
+  Future<StoryDetail?> findStoryByMedia(int mediaId) async {
+    storyId(mediaId);
+    try {
+      final response = await _dio.get(
+        'media/$mediaId',
+        options: Options(receiveTimeout: const Duration(seconds: 15)),
+      );
+      if (response.statusCode != 200) throw const FormatException();
+      final media = storyObject(storyObject(response.data)['data']);
+      final type = media['mediable_type'];
+      final owner = media['mediable_id'];
+      if (type is String && owner is int && owner > 0) {
+        if (!type.toLowerCase().contains('story')) return null;
+        final story = await getStory(owner);
+        return story.isMine && story.media.id == mediaId ? story : null;
+      }
+      // Fallback: the caller's group comes first and holds at most 10 Stories.
+      final page = await getStories();
+      if (page.groups.isEmpty) return null;
+      for (final summary in page.groups.first.stories) {
+        final story = await getStory(summary.id);
+        if (!story.isMine) return null;
+        if (story.media.id == mediaId) return story;
+      }
+      return null;
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    } on FormatException {
+      throw ApiError(
+        message: 'Unable to confirm whether the Story was posted.',
+      );
     }
   }
 

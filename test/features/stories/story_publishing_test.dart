@@ -156,7 +156,7 @@ void main() {
       final encoded = StoryElements.encode(editor.state.layers);
       final restored = StoryElements.decode(jsonDecode(jsonEncode(encoded)));
       expect(restored.single.id, first.id);
-      expect(restored.single.text, first.text);
+      expect((restored.single as StoryTextLayer).text, first.text);
       expect(restored.single.center, const Offset(.21, .73));
       expect(restored.single.scale, 1.6);
       expect(encoded.single['style'], StoryElements.style);
@@ -309,13 +309,15 @@ void main() {
       expect(
         states,
         containsAll([
+          StoryPublishStatus.preparing,
           StoryPublishStatus.uploading,
           StoryPublishStatus.processing,
           StoryPublishStatus.publishing,
         ]),
       );
       expect(storage.requests, 1);
-      expect(storage.bytes, photoBytes());
+      // The upload is the exported Story JPEG, never the raw original/PNG.
+      expect(storage.bytes!.take(2), [0xFF, 0xD8]);
       expect(
         storage.request!.headers.keys.map((k) => k.toLowerCase()),
         isNot(contains('authorization')),
@@ -423,7 +425,8 @@ void main() {
       addTearDown(cubit.close);
       final value = draft();
       await cubit.publish(value);
-      expect(cubit.state.error!.message, contains('expired'));
+      // Plain wording; no transport/authorization details reach the user.
+      expect(cubit.state.error!.message, StoryPublishCubit.failureMessage);
       expect(storage.requests, 0);
       expect(adapter.requests, isEmpty);
       api.presign['expires_at'] = '2030-01-01T00:00:00Z';
@@ -579,34 +582,90 @@ void main() {
       expect(adapter.requests.single.data['visibility'], 'followers');
     },
   );
-  test(
-    'ambiguous creation blocks repeat POST and does not claim success',
-    () async {
-      final api = media.MediaApi()..statuses = ['ready'];
-      final storage = media.StorageAdapter();
-      final uploads = MediaUploadService(
+  group('ambiguous creation', () {
+    late media.MediaApi api;
+    late media.StorageAdapter storage;
+    late MediaUploadService uploads;
+    late StoryAdapter adapter;
+    late StoryPublishCubit cubit;
+    // Requests the Story repo sent, by method and path.
+    List<String> calls() =>
+        adapter.requests.map((r) => '${r.method} ${r.path}').toList();
+    int posts() => calls().where((c) => c == 'POST stories').length;
+
+    setUp(() {
+      api = media.MediaApi()..statuses = ['ready'];
+      storage = media.StorageAdapter();
+      uploads = MediaUploadService(
         api: api,
         storageAdapter: storage,
         wait: (_) async {},
       );
-      addTearDown(uploads.close);
-      final adapter = StoryAdapter()
+      adapter = StoryAdapter()
         ..handler = (r) async => throw DioException(
           requestOptions: r,
           type: DioExceptionType.receiveTimeout,
         );
-      final cubit = StoryPublishCubit(
-        repo: repository(adapter),
-        uploads: uploads,
-      );
-      addTearDown(cubit.close);
+      cubit = StoryPublishCubit(repo: repository(adapter), uploads: uploads);
+    });
+    tearDown(() async {
+      await cubit.close();
+      uploads.close();
+    });
+
+    test(
+      'unconfirmed POST is never repeated while it cannot be verified',
+      () async {
+        await cubit.publish(draft());
+        expect(cubit.state.status, StoryPublishStatus.failure);
+        expect(cubit.state.uncertain, true);
+        expect(cubit.state.error!.message, StoryPublishCubit.failureMessage);
+        await cubit.publish(draft());
+        expect(cubit.state.status, isNot(StoryPublishStatus.success));
+        expect(posts(), 1);
+        expect(storage.requests, 1);
+        // Each attempt verified read-only instead of posting again.
+        expect(calls().where((c) => c == 'GET media/19'), hasLength(2));
+      },
+    );
+
+    test(
+      'retry finds the Story that was created and reports success',
+      () async {
+        await cubit.publish(draft());
+        expect(cubit.state.uncertain, true);
+        adapter.handler = (r) async => switch ('${r.method} ${r.path}') {
+          'GET media/19' => response({
+            'data': {'id': 19, 'mediable_type': 'story', 'mediable_id': 3},
+          }),
+          'GET stories/3' => response({'data': storyDetail()}),
+          _ => throw StateError('unexpected ${r.method} ${r.path}'),
+        };
+        await cubit.publish(draft());
+        expect(cubit.state.status, StoryPublishStatus.success);
+        expect(cubit.state.story!.id, 3);
+        expect(posts(), 1);
+        expect(storage.requests, 1);
+      },
+    );
+
+    test('retry re-posts once only after confirming no Story exists', () async {
       await cubit.publish(draft());
-      expect(cubit.state.uncertain, true);
+      adapter.handler = (r) async => switch ('${r.method} ${r.path}') {
+        'GET media/19' => response({
+          'data': {'id': 19, 'mediable_type': null, 'mediable_id': null},
+        }),
+        'GET stories' => response(pageJson([])),
+        'POST stories' => response({'data': storyDetail()}, status: 201),
+        _ => throw StateError('unexpected ${r.method} ${r.path}'),
+      };
       await cubit.publish(draft());
-      expect(adapter.requests, hasLength(1));
+      expect(cubit.state.status, StoryPublishStatus.success);
+      expect(posts(), 2);
+      // The photo was not uploaded again.
       expect(storage.requests, 1);
-    },
-  );
+    });
+  });
   for (final dispose in [false, true]) {
     test(
       'publication ignores late response after ${dispose ? 'disposal' : 'account switch'}',
@@ -828,16 +887,20 @@ void main() {
         await tester.tap(find.text('Open editor'));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const ValueKey('story-post')));
-        await tester.runAsync(() async {
-          await Future<void>.delayed(const Duration(milliseconds: 100));
-        });
+        // Export decodes and encodes on real engine/isolate threads.
+        for (var i = 0; i < 50 && adapter.requests.isEmpty; i++) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 50)),
+          );
+          await tester.pump();
+        }
         await tester.pumpAndSettle();
         expect(adapter.requests, hasLength(1));
         expect(refreshed, hosted ? 1 : 0);
         expect(find.byType(StoryEditorScreen), findsNothing);
         // A host (Home) passing onPublished owns the success toast.
         expect(
-          find.text('Story published'),
+          find.text('Story published successfully'),
           hosted ? findsNothing : findsOneWidget,
         );
       },
