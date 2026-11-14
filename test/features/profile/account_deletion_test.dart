@@ -1,6 +1,5 @@
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -68,9 +67,11 @@ class MockAccountRepo extends AccountRepo {
   int calls = 0;
   AccountDeletionFailure? failure;
   Completer<void>? pending;
+  String? lastPassword;
   @override
   Future<void> delete(String password) async {
     calls++;
+    lastPassword = password;
     if (pending != null) await pending!.future;
     if (failure != null) throw failure!;
   }
@@ -128,12 +129,25 @@ Future<void> showDelete(
   await tester.pumpAndSettle();
 }
 
+final passwordField = find.descendant(
+  of: find.byKey(const ValueKey('delete-account-password')),
+  matching: find.byType(TextField),
+);
+
+ElevatedButton deleteButton(WidgetTester tester) =>
+    tester.widget<ElevatedButton>(
+      find.descendant(
+        of: find.byKey(const ValueKey('delete-account-submit')),
+        matching: find.byType(ElevatedButton),
+      ),
+    );
+
 Future<void> confirmDelete(WidgetTester tester) async {
-  await tester.enterText(find.byType(TextFormField), 'test-only-password');
-  await tester.tap(find.byType(CheckboxListTile));
+  await tester.enterText(passwordField, 'test-only-password');
+  await tester.pump();
   await tester.tap(find.text('Delete my Account'));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('Delete Permanently'));
+  await tester.tap(find.widgetWithText(TextButton, 'Delete'));
   await tester.pump();
 }
 
@@ -389,42 +403,29 @@ void main() {
   );
 
   testWidgets(
-    'opening does not delete; password and explicit consent precede the final dialog',
+    'opening does not delete; the button waits for a password, then the glass confirm',
     (tester) async {
       final repo = MockAccountRepo();
       await showDelete(tester, repo);
       expect(repo.calls, 0);
+      expect(tester.widget<TextField>(passwordField).obscureText, true);
+      expect(tester.widget<TextField>(passwordField).cursorColor, Colors.white);
       expect(
-        tester.widget<TextField>(find.byType(TextField)).obscureText,
-        true,
-      );
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).autofillHints,
-        isEmpty,
-      );
-      await tester.tap(find.text('Delete my Account'));
-      await tester.pumpAndSettle();
-      expect(find.text('Please enter your current password'), findsOneWidget);
-      expect(repo.calls, 0);
-      await tester.enterText(find.byType(TextFormField), 'test-only-password');
-      await tester.tap(find.text('Delete my Account'));
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Confirm permanent account deletion before continuing.'),
+        find.text(
+          'Your account, profile, posts, messages, and related data will be permanently deleted.',
+        ),
         findsOneWidget,
       );
-      expect(repo.calls, 0);
+      expect(deleteButton(tester).onPressed, isNull);
+      await tester.enterText(passwordField, 'test-only-password');
+      await tester.pump();
+      expect(deleteButton(tester).onPressed, isNotNull);
       await tester.tap(find.byTooltip('Show password'));
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).obscureText,
-        false,
-      );
-      await tester.tap(find.byType(CheckboxListTile));
+      expect(tester.widget<TextField>(passwordField).obscureText, false);
       await tester.tap(find.text('Delete my Account'));
       await tester.pumpAndSettle();
-      expect(find.text('Permanently Delete Account?'), findsOneWidget);
-      expect(find.byType(GlassConfirmDialog), findsOneWidget);
+      expect(find.text('Delete your account?'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byType(GlassConfirmDialog),
@@ -433,16 +434,39 @@ void main() {
         findsOneWidget,
       );
       expect(repo.calls, 0);
-      await tester.tap(find.widgetWithText(TextButton, 'Keep Account').last);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel').last);
       await tester.pumpAndSettle();
-      expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        '',
-      );
+      expect(find.byType(GlassConfirmDialog), findsNothing);
       expect(repo.calls, 0);
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('the optional reason has a counter and is not sent', (
+    tester,
+  ) async {
+    final repo = MockAccountRepo()..pending = Completer<void>();
+    await showDelete(tester, repo);
+    final reason = find.descendant(
+      of: find.byKey(const ValueKey('delete-account-reason')),
+      matching: find.byType(EditableText),
+    );
+    expect(find.text('Why you want to delete this account?'), findsOneWidget);
+    expect(find.text('0/500'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('delete-account-reason')),
+      'Too many notifications',
+    );
+    await tester.pump();
+    expect(reason, findsOneWidget);
+    expect(find.text('22/500'), findsOneWidget);
+    await confirmDelete(tester);
+    expect(repo.calls, 1);
+    expect(repo.lastPassword, 'test-only-password');
+    repo.pending!.complete();
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets(
     'confirmed success removes authenticated routes and navigates to Login without Back',
@@ -476,15 +500,16 @@ void main() {
         );
       await showDelete(tester, repo);
       await confirmDelete(tester);
+      expect(tester.widget<TextField>(passwordField).controller!.text, '');
       expect(
-        tester.widget<TextField>(find.byType(TextField)).controller!.text,
-        '',
+        tester
+            .widget<CircularProgressIndicator>(
+              find.byType(CircularProgressIndicator),
+            )
+            .color,
+        Colors.white,
       );
-      expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
-      expect(
-        tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
-        isNull,
-      );
+      expect(deleteButton(tester).onPressed, isNull);
       expect(
         tester.widget<BackButtonWidget>(find.byType(BackButtonWidget)).enabled,
         false,
@@ -493,7 +518,11 @@ void main() {
       repo.pending!.complete();
       await tester.pumpAndSettle();
       expect(preferences.hasSession, true);
-      expect(find.text('The password was not accepted.'), findsOneWidget);
+      // 422 → error under the password field.
+      expect(
+        tester.widget<TextField>(passwordField).decoration!.errorText,
+        'The password was not accepted.',
+      );
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -507,12 +536,11 @@ void main() {
       await confirmDelete(tester);
       await tester.pumpAndSettle();
       expect(preferences.hasSession, true);
-      expect(
-        tester.widget<ElevatedButton>(find.byType(ElevatedButton)).onPressed,
-        isNull,
-      );
+      await tester.enterText(passwordField, 'again');
+      await tester.pump();
+      expect(deleteButton(tester).onPressed, isNull);
       expect(find.textContaining('could not be confirmed'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       expect(find.byType(DeleteAccountScreen), findsNothing);
       expect(preferences.hasSession, true);
@@ -543,18 +571,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.scrollUntilVisible(
-        find.byType(TextFormField),
+        passwordField,
         160,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.enterText(find.byType(TextFormField), 'test-only-password');
-      await tester.scrollUntilVisible(
-        find.byType(Checkbox),
-        160,
-        scrollable: find.byType(Scrollable).first,
-      );
+      await tester.enterText(passwordField, 'test-only-password');
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(Checkbox));
       await tester.tap(find.text('Delete my Account'));
       await tester.pumpAndSettle();
       expect(find.byType(GlassConfirmDialog), findsOneWidget);

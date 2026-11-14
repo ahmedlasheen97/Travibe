@@ -100,3 +100,98 @@ subtracted from the count (`StoryDetail.viewsCountExcludingOwner`).
 false for the owner and nothing is subtracted, so no client change is needed.
 If `has_seen` stays true while the count already excludes the author, tell us
 and we'll remove the subtraction.
+
+## Support: Report a Problem endpoint
+
+Settings → Report a Problem has no endpoint. `POST /reports` only accepts
+`type: post|comment|user|story` plus an id, so it can't take app feedback.
+
+**Ask:** add `POST /support/problems` (bearer token):
+
+- `category`: required enum. The client currently sends `bug`, `account`,
+  `posts_stories`, `chats`, `notifications` or `other`. Please confirm the
+  list, or expose `GET /support/categories` returning `{slug, label}`.
+- `description`: required string, maxLength 1000 (the same as
+  `/reports.description`). Please document the real limit.
+- `media_ids`: optional integer array, max 3. These are ids from the
+  existing `POST /media/presign` → upload → `POST /media/{media}/finalize`
+  flow (JPEG/PNG/GIF/WebP, ≤ 20 MB). Please document the max count.
+- Responses: 201 `{data: {id, status, created_at}}`, 401, and 422 with
+  per-field errors.
+
+**Client today:** `SupportRepo.reportProblem` already posts this body to
+`support/problems`. Until the endpoint exists, Submit shows the server error
+as a toast. Screenshots are uploaded before the report and never re-uploaded
+on retry.
+
+**Client after:** nothing to do if the contract matches. Otherwise we update
+the path, field names and limits (`SupportRepo.categories`, `maxDescription`,
+`maxScreenshots`).
+
+## Email change: resend, limits and pending state
+
+`POST /email/change` and `POST /email/change/verify` exist, but some parts of
+the flow are not specified.
+
+**Ask:**
+
+1. **Resend.** `/email/resend-code` only works for unverified accounts.
+   Please add `POST /email/change/resend` (no password needed), or document
+   that sending `POST /email/change` again is the way to resend.
+2. **Limits.** Please document the code length (the signup code is 4 digits),
+   expiry, attempt limit, resend cooldown and daily cap, plus their 429
+   responses.
+3. **Wrong password.** Please document the 422 key for a wrong password on
+   `/email/change` (we read `current_password`, then `password`) and the key
+   for an email that is already taken (we read `email`).
+4. **Pending state.** Add `pending_email` (nullable) to `UserResource` so the
+   app can show "Verification pending for …" after a restart. Also declare
+   `email_verified_at` as `format: date-time`.
+
+**Client today:**
+
+- The Email Address screen asks for the password in a dialog and calls
+  `POST /email/change`.
+- Resend sends the same request again, using the password held in memory.
+- After `verify` returns, the client adopts the returned `UserResource`.
+
+**Client after:**
+
+- Resend switches to the dedicated endpoint, and the password is no longer
+  kept after the first request.
+- The UI shows the documented cooldown.
+
+## Account: delete-account body and reason
+
+`DELETE /account` takes `password` as a **query parameter**, so it can end up
+in access logs. The description mentions a `DeleteAccountRequest`, but that
+schema isn't in components. The Figma screen also collects an optional
+reason.
+
+**Ask:**
+
+- Accept `{password, reason?}` as the JSON body. Keep the query parameter
+  during migration if needed.
+- `reason`: optional string, max 500.
+- Document the wrong-password response (we expect 422 on `password`).
+
+**Client today:**
+
+- The password is sent as the query value, as specified.
+- The "Why you want to delete this account?" field (max 500) is shown but not
+  sent.
+- A 422 is shown under the password field.
+
+**Client after:** `ApiService.deleteAccount` sends the body, including
+`reason`.
+
+## Password: document complexity rules
+
+`PATCH /password`, `POST /register` and `POST /reset-password` refer to "the
+configured complexity rules" without stating them.
+
+**Ask:** document the minimum length and the required character classes, so
+the client validates before sending.
+
+**Client today:** the client only checks for at least 8 characters and relies
+on the server's 422.

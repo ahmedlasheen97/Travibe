@@ -503,29 +503,28 @@ void main() {
       final repo = deletion.MockAccountRepo();
       await show(tester, child: DeleteAccountScreen(repo: repo));
       expect(find.text('Current password *'), findsOneWidget);
-      expect(find.text('Problem'), findsNothing);
+      // The optional reason (Figma) is shown but never sent.
+      expect(find.text('Problem'), findsOneWidget);
       expect(find.text('0/24'), findsNothing);
-      expect(find.byType(TextFormField), findsOneWidget);
-      expect(
-        tester.widget<EditableText>(find.byType(EditableText)).obscureText,
-        isTrue,
+      final password = find.descendant(
+        of: find.byKey(const ValueKey('delete-account-password')),
+        matching: find.byType(EditableText),
       );
+      expect(tester.widget<EditableText>(password).obscureText, isTrue);
       await tester.tap(find.byTooltip('Show password'));
       await tester.pump();
-      expect(
-        tester.widget<EditableText>(find.byType(EditableText)).obscureText,
-        isFalse,
-      );
+      expect(tester.widget<EditableText>(password).obscureText, isFalse);
       final button = tester.widget<ElevatedButton>(
         find.widgetWithText(ElevatedButton, 'Delete my Account'),
       );
       expect(
         button.style!.backgroundColor!.resolve({}),
-        const Color(0xFFDB4A3D),
+        DarkColors.dangerColor,
       );
+      // An empty password disables the action instead of validating.
+      expect(button.onPressed, isNull);
       await tester.tap(find.text('Delete my Account'));
       await tester.pumpAndSettle();
-      expect(find.text('Please enter your current password'), findsOneWidget);
       expect(repo.calls, 0);
     },
   );

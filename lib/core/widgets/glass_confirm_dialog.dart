@@ -47,7 +47,11 @@ class GlassConfirmDialog extends StatelessWidget {
     this.onConfirm,
     this.onCancel,
     this.surfaceKey,
+    this.content,
   });
+
+  /// Extra input under [message] (e.g. a password field).
+  final Widget? content;
 
   final String title;
   final String message;
@@ -109,6 +113,10 @@ class GlassConfirmDialog extends StatelessWidget {
                       height: 1.5,
                     ),
                   ),
+                  if (content case final extra?) ...[
+                    const SizedBox(height: 16),
+                    extra,
+                  ],
                   if (error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 12),

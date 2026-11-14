@@ -1,5 +1,6 @@
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
@@ -203,6 +204,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       onChanged: onChanged,
       style: const TextStyle(color: Colors.white, fontSize: 14),
       validator: validator,
+      cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
@@ -211,10 +213,8 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
           color: Colors.white54,
         ),
         suffixIcon: IconButton(
-          icon: Icon(
-            obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            color: Colors.white54,
-          ),
+          tooltip: obscure ? 'Show password' : 'Hide password',
+          icon: PasswordEye.icon(obscured: obscure),
           onPressed: onToggle,
         ),
         filled: true,
