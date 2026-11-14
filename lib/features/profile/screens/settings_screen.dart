@@ -1,3 +1,4 @@
+import 'package:travibe/features/profile/screens/email_address_screen.dart';
 import 'dart:async';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -122,9 +123,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _sectionTitle('Account'),
                 _card([
                   _settingsTile(
+                    key: const ValueKey('settings-email'),
                     icon: _svgIcon('sms.svg'),
                     title: 'Email',
-                    onTap: () {},
+                    detail: switch (profile?.email) {
+                      final String email when email.isNotEmpty => maskEmail(
+                        email,
+                      ),
+                      _ => null,
+                    },
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EmailAddressScreen(
+                          currentUser: _user,
+                          authRepo: widget.authRepo,
+                        ),
+                      ),
+                    ),
                   ),
                   _divider(),
                   _settingsTile(
@@ -476,12 +492,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       Icon(icon, color: _iconGrey, size: AppSizes.w20);
 
   Widget _settingsTile({
+    Key? key,
     required Widget icon,
     required String title,
     required VoidCallback? onTap,
     String? detail,
   }) {
     return InkWell(
+      key: key,
       onTap: onTap,
       child: Padding(
         padding: EdgeInsets.symmetric(

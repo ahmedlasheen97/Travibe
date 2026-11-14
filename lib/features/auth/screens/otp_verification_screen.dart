@@ -4,13 +4,37 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 
+/// 4-digit code entry. Defaults to signup verification (then Profile setup);
+/// other flows (e.g. changing email) pass [onVerify], [onResend] and
+/// [onVerified].
 class OtpVerificationScreen extends StatefulWidget {
   final String email;
+  final String title;
+  final AuthRepo? authRepo;
 
-  const OtpVerificationScreen({super.key, required this.email});
+  /// Verifies the code; throws (e.g. [ApiError]) when it is wrong.
+  final Future<void> Function(String code)? onVerify;
+
+  /// Sends a fresh code.
+  final Future<void> Function()? onResend;
+
+  /// Runs after a successful [onVerify]; defaults to popping `true`.
+  final void Function(BuildContext context)? onVerified;
+
+  const OtpVerificationScreen({
+    super.key,
+    required this.email,
+    this.title = 'Verify your email',
+    this.authRepo,
+    this.onVerify,
+    this.onResend,
+    this.onVerified,
+  });
 
   @override
   State<OtpVerificationScreen> createState() => _OtpVerificationScreenState();
@@ -18,7 +42,8 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final PinInputController _pinController = PinInputController();
-  final AuthRepo _authRepo = AuthRepo();
+  late final AuthRepo _authRepo = widget.authRepo ?? AuthRepo();
+  bool get _custom => widget.onVerify != null;
 
   Timer? _timer;
   int _secondsRemaining = 0;
@@ -71,6 +96,13 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
     setState(() => _isVerifying = true);
     try {
+      if (widget.onVerify case final verify?) {
+        await verify(_enteredOtp);
+        if (!mounted) return;
+        final done = widget.onVerified;
+        done == null ? Navigator.pop(context, true) : done(context);
+        return;
+      }
       await _authRepo.verifyEmailCode(email: widget.email, code: _enteredOtp);
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -80,9 +112,18 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     } catch (e) {
       _pinController.triggerError();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Verification failed: $e')));
+      if (_custom) {
+        TravibeToast.show(
+          context,
+          TravibeToastData.error(
+            e is ApiError ? e.message : 'Verification failed. Please retry.',
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Verification failed: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isVerifying = false);
     }
@@ -92,20 +133,42 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (!_canResend) return;
 
     try {
-      await _authRepo.forgotPassword(
-        email: widget.email,
-      ); // same endpoint sends a fresh code
+      if (widget.onResend case final resend?) {
+        await resend();
+      } else {
+        await _authRepo.forgotPassword(
+          email: widget.email,
+        ); // same endpoint sends a fresh code
+      }
       _pinController.clear();
       _startTimer();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A new code has been sent to your email')),
-      );
+      if (_custom) {
+        TravibeToast.show(
+          context,
+          const TravibeToastData.success('A new code has been sent'),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('A new code has been sent to your email'),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to resend code: $e')));
+      if (_custom) {
+        TravibeToast.show(
+          context,
+          TravibeToastData.error(
+            e is ApiError ? e.message : 'Unable to resend the code.',
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to resend code: $e')));
+      }
     }
   }
 
@@ -124,7 +187,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               const SizedBox(height: 40),
               Center(
                 child: Text(
-                  'Verify your email',
+                  widget.title,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 22,
@@ -224,7 +287,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             ? const SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: Colors.white,
+                ),
               )
             : const Text('Verify', style: ActionButtonStyle.label),
       ),

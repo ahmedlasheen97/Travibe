@@ -171,6 +171,46 @@ class AuthRepo {
     }
   }
 
+  /// Sends a verification code to [email]; the account keeps its current
+  /// address until [verifyEmailChange] succeeds. `POST /email/change`.
+  Future<void> requestEmailChange({
+    required String currentPassword,
+    required String email,
+  }) async {
+    try {
+      await _apiService.post('email/change', {
+        'current_password': currentPassword,
+        'email': email,
+      });
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    }
+  }
+
+  /// Confirms the code sent to [email] and returns the updated user.
+  /// `POST /email/change/verify`.
+  Future<ProfileModel> verifyEmailChange({
+    required String email,
+    required String code,
+  }) async {
+    final dynamic response;
+    try {
+      response = await _apiService.post('email/change/verify', {
+        'email': email,
+        'code': code,
+      });
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    }
+    final data = response is Map ? response['data'] : null;
+    if (data is! Map<String, dynamic>) {
+      throw ApiError(
+        message: 'Unable to confirm your new email. Please retry.',
+      );
+    }
+    return ProfileModel.fromJson(data);
+  }
+
   /// Sends a password-reset code to the user's email.
   Future<void> forgotPassword({required String email}) async {
     try {
