@@ -1,7 +1,8 @@
-import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
-import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/widgets/custom_text_field.dart';
+import 'package:travibe/features/profile/widgets/settings_form.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -17,51 +18,45 @@ class DeleteAccountScreen extends StatefulWidget {
 }
 
 class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
-  final _form = GlobalKey<FormState>();
   final _password = TextEditingController();
+  final _reason = TextEditingController();
   late final _cubit = AccountDeletionCubit(repo: widget.repo);
-  bool _obscure = true;
-  bool _confirmed = false;
-  bool _confirmationError = false;
   bool _showingConfirmation = false;
 
-  void _cancel() {
-    if (_cubit.state.loading) return;
-    _password.clear();
-    Navigator.of(context).maybePop();
+  /// Kept on screen only: `DELETE /account` has no reason field yet
+  /// (requested in docs/BACKEND_REQUESTS.md).
+  static const maxReason = 500;
+
+  @override
+  void initState() {
+    super.initState();
+    _password.addListener(_passwordChanged);
   }
 
+  void _passwordChanged() => setState(() {});
+
+  bool _canSubmit(AccountDeletionState state) =>
+      _password.text.isNotEmpty &&
+      !state.loading &&
+      !state.sessionChanged &&
+      state.error?.outcomeUncertain != true;
+
   Future<void> _submit() async {
-    if (_showingConfirmation ||
-        _cubit.state.loading ||
-        _cubit.state.error?.outcomeUncertain == true) {
-      return;
-    }
-    if (!_form.currentState!.validate()) return;
-    if (!_confirmed) {
-      setState(() => _confirmationError = true);
-      return;
-    }
+    if (_showingConfirmation || !_canSubmit(_cubit.state)) return;
+    FocusScope.of(context).unfocus();
     _showingConfirmation = true;
     try {
       final confirmed = await showGlassConfirmDialog(
         context,
-        title: 'Permanently Delete Account?',
+        title: 'Delete your account?',
         message:
             'This action cannot be undone. Your Travibe account will be permanently deleted.',
-        confirmLabel: 'Delete Permanently',
-        cancelLabel: 'Keep Account',
+        confirmLabel: 'Delete',
       );
-      if (!mounted) return;
-      if (!confirmed) {
-        _password.clear();
-        setState(() => _confirmed = false);
-        return;
-      }
+      if (!mounted || !confirmed) return;
       final request = _cubit.submit(_password.text, confirmed: true);
       // Only the in-flight transport holds the required query value.
       _password.clear();
-      setState(() => _confirmed = false);
       await request;
     } finally {
       _showingConfirmation = false;
@@ -70,8 +65,10 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   void dispose() {
+    _password.removeListener(_passwordChanged);
     _password.clear();
     _password.dispose();
+    _reason.dispose();
     _cubit.close();
     super.dispose();
   }
@@ -82,244 +79,74 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   ) => BlocConsumer<AccountDeletionCubit, AccountDeletionState>(
     bloc: _cubit,
     listener: (context, state) {
-      if (state.sessionChanged) {
-        _password.clear();
-        _confirmed = false;
-      }
+      if (state.sessionChanged) _password.clear();
       if (state.deleted) {
         _password.clear();
         openSignedOutScreen(context);
       }
     },
-    builder: (context, state) => PopScope(
-      canPop: !state.loading,
-      child: Scaffold(
-        backgroundColor: DarkColors.backgroundColor,
-        appBar: AppBar(
-          backgroundColor: DarkColors.backgroundColor,
-          centerTitle: true,
-          title: Text(
-            'Delete Account',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: AppSizes.sp17,
-              fontWeight: FontWeight.w700,
-              decoration: TextDecoration.none,
+    builder: (context, state) {
+      final error = state.error;
+      final fieldError = error?.statusCode == 422 ? error!.message : null;
+      return SettingsFormScaffold(
+        title: 'Delete Account',
+        busy: state.loading,
+        button: SettingsActionButton(
+          key: const ValueKey('delete-account-submit'),
+          label: 'Delete my Account',
+          color: DarkColors.dangerColor,
+          loading: state.loading,
+          loadingLabel: 'Deleting account',
+          onPressed: _canSubmit(state) ? _submit : null,
+        ),
+        children: [
+          const SettingsNotice(
+            'Your account, profile, posts, messages, and related data will be permanently deleted.',
+            danger: true,
+          ),
+          SizedBox(height: AppSizes.h24),
+          const SettingsFieldLabel('Current password', required: true),
+          CustomTextField(
+            key: const ValueKey('delete-account-password'),
+            title: '',
+            hintText: 'enter your current password',
+            controller: _password,
+            passwordVisibilityToggle: true,
+            enabled: !state.loading && !state.sessionChanged,
+            errorText: fieldError,
+            prefixIcon: SvgPicture.asset(
+              'assets/images/auth/lock.svg',
+              width: 20,
+              height: 20,
             ),
           ),
-          leading: BackButtonWidget(
-            onTap: _cancel,
+          SizedBox(height: AppSizes.h24),
+          const SettingsFieldLabel('Problem'),
+          SettingsMultilineField(
+            fieldKey: const ValueKey('delete-account-reason'),
+            controller: _reason,
+            hintText: 'Why you want to delete this account?',
+            maxLength: maxReason,
             enabled: !state.loading,
-            iconSize: 18,
           ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: Form(
-            key: _form,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.all(AppSizes.pw20),
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.error_outline_rounded,
-                            color: Color(0xFFDB4A3D),
-                          ),
-                          SizedBox(width: AppSizes.w10),
-                          Expanded(
-                            child: Text(
-                              'Your account, profile and associated account data will be permanently deleted. This action cannot be undone.',
-                              style: TextStyle(
-                                color: Color(0xFFDB4A3D),
-                                fontSize: AppSizes.sp14,
-                                height: 1.4,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: AppSizes.h24),
-                      Text(
-                        'Current password *',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: AppSizes.sp14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      SizedBox(height: AppSizes.h8),
-                      TextFormField(
-                        controller: _password,
-                        cursorColor: DarkColors.primaryColor,
-                        obscureText: _obscure,
-                        enabled: !state.loading && !state.sessionChanged,
-                        autocorrect: false,
-                        autofillHints: const [],
-                        keyboardType: TextInputType.visiblePassword,
-                        enableSuggestions: false,
-                        enableIMEPersonalizedLearning: false,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: AppSizes.sp14,
-                        ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Please enter your current password'
-                            : null,
-                        decoration: InputDecoration(
-                          hintText: 'Enter your current password',
-                          hintStyle: const TextStyle(color: Colors.white54),
-                          errorStyle: TextStyle(
-                            color: Color(0xFFDB4A3D),
-                            fontSize: AppSizes.sp12,
-                          ),
-                          errorMaxLines: 3,
-                          errorText: state.error?.statusCode == 422
-                              ? state.error!.message
-                              : null,
-                          prefixIcon: const Icon(
-                            Icons.lock_outline_rounded,
-                            color: Colors.white54,
-                          ),
-                          suffixIcon: IconButton(
-                            tooltip: _obscure
-                                ? 'Show password'
-                                : 'Hide password',
-                            onPressed: state.loading
-                                ? null
-                                : () => setState(() => _obscure = !_obscure),
-                            icon: Icon(
-                              _obscure
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                              color: Colors.white54,
-                            ),
-                          ),
-                          filled: true,
-                          fillColor: DarkColors.darkgreyColor,
-                          focusColor: DarkColors.darkgreyColor,
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.r28),
-                            borderSide: BorderSide(
-                              color: DarkColors.greyColor.withValues(
-                                alpha: .25,
-                              ),
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.r28),
-                            borderSide: const BorderSide(
-                              color: DarkColors.primaryColor,
-                            ),
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(AppSizes.r28),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: AppSizes.h20),
-                      CheckboxListTile(
-                        contentPadding: EdgeInsets.zero,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        activeColor: DarkColors.primaryColor,
-                        title: Text(
-                          'I understand that deleting my account is permanent.',
-                          style: TextStyle(
-                            fontSize: AppSizes.sp14,
-                            color: Colors.white,
-                          ),
-                        ),
-                        value: _confirmed,
-                        onChanged: state.loading || state.sessionChanged
-                            ? null
-                            : (value) => setState(() {
-                                _confirmed = value == true;
-                                _confirmationError = false;
-                              }),
-                      ),
-                      if (_confirmationError)
-                        const Text(
-                          'Confirm permanent account deletion before continuing.',
-                          style: TextStyle(color: Color(0xFFDB4A3D)),
-                        ),
-                      if (state.sessionChanged)
-                        const Text(
-                          'Your session changed. Reopen Settings before continuing.',
-                        ),
-                      if (state.error != null && state.error!.statusCode != 422)
-                        Text(
-                          state.error!.message,
-                          style: const TextStyle(color: Color(0xFFDB4A3D)),
-                        ),
-                    ],
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    AppSizes.pw20,
-                    AppSizes.ph12,
-                    AppSizes.pw20,
-                    AppSizes.ph20,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ElevatedButton(
-                        onPressed:
-                            state.loading ||
-                                state.sessionChanged ||
-                                state.error?.outcomeUncertain == true
-                            ? null
-                            : _submit,
-                        style: ElevatedButton.styleFrom(
-                          textStyle: Theme.of(context).textTheme.labelLarge!
-                              .copyWith(
-                                fontSize: AppSizes.sp16,
-                                fontWeight: FontWeight.w600,
-                                decoration: TextDecoration.none,
-                              ),
-                          backgroundColor: const Color(0xFFDB4A3D),
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(0, 56),
-                          shape: const StadiumBorder(),
-                        ),
-                        child: state.loading
-                            ? Semantics(
-                                label: 'Deleting account',
-                                child: const AppActivityIndicator(radius: 11),
-                              )
-                            : Text(
-                                'Delete my Account',
-                                style: TextStyle(
-                                  fontSize: AppSizes.sp16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                      ),
-                      TextButton(
-                        onPressed: state.loading ? null : _cancel,
-                        style: TextButton.styleFrom(
-                          textStyle: Theme.of(context).textTheme.labelLarge!
-                              .copyWith(
-                                fontSize: AppSizes.sp15,
-                                decoration: TextDecoration.none,
-                              ),
-                        ),
-                        child: const Text('Cancel'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+          if (state.sessionChanged)
+            Padding(
+              padding: EdgeInsets.only(top: AppSizes.h12),
+              child: const Text(
+                'Your session changed. Reopen Settings before continuing.',
+                style: TextStyle(color: Colors.white70),
+              ),
             ),
-          ),
-        ),
-      ),
-    ),
+          if (error != null && fieldError == null)
+            Padding(
+              padding: EdgeInsets.only(top: AppSizes.h12),
+              child: Text(
+                error.message,
+                style: const TextStyle(color: DarkColors.dangerColor),
+              ),
+            ),
+        ],
+      );
+    },
   );
 }
