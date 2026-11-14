@@ -28,6 +28,7 @@ class AppSizes {
   static final double sp28 = 28.sp;
   static final double sp32 = 32.sp;
   static final double sp40 = 40.sp;
+  static final double sp11 = 11.sp;
 
   /// Heights
   static final double h2 = 2.h;
@@ -72,6 +73,14 @@ class AppSizes {
   static final double h330 = 330.h;
   static final double h369 = 369.h;
   static final double h400 = 400.h;
+  static final double h1 = 1.h;
+  static final double h121 = 121.h;
+  static final double h128 = 128.h;
+  static final double h18 = 18.h;
+  static final double h220 = 220.h;
+  static final double h26 = 26.h;
+  static final double h68 = 68.h;
+  static final double h76 = 76.h;
 
   /// Width
   static final double w1 = 1.w;
@@ -110,6 +119,21 @@ class AppSizes {
   static final double w180 = 180.w;
   static final double w200 = 200.w;
   static final double w240 = 240.w;
+  static final double w112 = 112.w;
+  static final double w120 = 120.w;
+  static final double w128 = 128.w;
+  static final double w136 = 136.w;
+  static final double w170 = 170.w;
+  static final double w18 = 18.w;
+  static final double w1_5 = 1.5.w;
+  static final double w210 = 210.w;
+  static final double w220 = 220.w;
+  static final double w290 = 290.w;
+  static final double w3 = 3.w;
+  static final double w30 = 30.w;
+  static final double w300 = 300.w;
+  static final double w36 = 36.w;
+  static final double w6 = 6.w;
 
   /// Padding Height
   static final double ph4 = 4.h;
@@ -130,6 +154,8 @@ class AppSizes {
   static final double ph80 = 80.h;
   static final double ph100 = 100.h;
   static final double ph112 = 112.h;
+  static final double ph2 = 2.h;
+  static final double ph28 = 28.h;
 
   /// Padding Width
   static final double pw6 = 6.w;
@@ -140,6 +166,8 @@ class AppSizes {
   static final double pw18 = 18.w;
   static final double pw20 = 20.w;
   static final double pw24 = 24.w;
+  static final double pw10 = 10.w;
+  static final double pw32 = 32.w;
 
   /// Radius
   static final double r2 = 2.r;
@@ -157,4 +185,7 @@ class AppSizes {
   static final double r50 = 50.r;
   static final double r60 = 60.r;
   static final double r64 = 64.r;
+  static final double r11 = 11.r;
+  static final double r48 = 48.r;
+  static final double r6 = 6.r;
 }

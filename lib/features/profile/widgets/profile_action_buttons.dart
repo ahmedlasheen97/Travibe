@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
@@ -18,15 +19,15 @@ class ProfileActionButtons extends StatelessWidget {
       disabledBackgroundColor: DarkColors.darkgreyColor,
       foregroundColor: DarkColors.whiteColor,
       disabledForegroundColor: DarkColors.whiteColor,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      minimumSize: const Size(0, 44),
-      fixedSize: const Size.fromHeight(44),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw8),
+      minimumSize: Size(0, AppSizes.h44),
+      fixedSize: Size.fromHeight(AppSizes.h44),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       shape: ActionButtonStyle.shape,
-      textStyle: ActionButtonStyle.label,
+      textStyle: ActionButtonStyle.label.copyWith(fontSize: AppSizes.sp18),
     );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       child: Row(
         children: [
           if (onShare case final share?) ...[
@@ -54,7 +55,7 @@ class ProfileActionButtons extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: AppSizes.w12),
           ],
           Expanded(
             child: FilledButton(

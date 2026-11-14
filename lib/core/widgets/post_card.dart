@@ -61,6 +61,10 @@ class PostCard extends StatefulWidget {
   final bool isFollowPending;
   final VoidCallback? onFollowTap;
 
+  /// Author picture diameter; null keeps the default 40 (scaled when
+  /// [responsive]).
+  final double? avatarSize;
+
   const PostCard({
     super.key,
     required this.name,
@@ -90,6 +94,7 @@ class PostCard extends StatefulWidget {
     this.onFollowTap,
     this.onMoreTap,
     this.showMoreButton = true,
+    this.avatarSize,
     this.onCommentsTap,
     this.onLikeTap,
     this.onLikesCountTap,
@@ -231,15 +236,18 @@ class _PostCardState extends State<PostCard> {
 
   Widget _buildAvatar() {
     final avatar = widget.avatar;
+    final radius = widget.avatarSize == null ? _r(20) : widget.avatarSize! / 2;
     if (avatar == null || avatar.isEmpty) {
       return CircleAvatar(
-        radius: _r(20),
+        key: const ValueKey('post-author-avatar'),
+        radius: radius,
         backgroundColor: Color(0xFF2A2A2A),
         child: Icon(Icons.person_rounded, color: Colors.white54),
       );
     }
     return CircleAvatar(
-      radius: _r(20),
+      key: const ValueKey('post-author-avatar'),
+      radius: radius,
       backgroundImage: _imageProvider(avatar),
     );
   }

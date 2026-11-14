@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
@@ -97,6 +100,21 @@ void main() {
     await show(tester);
     expect(find.byType(PrivateProfileLocked), findsOneWidget);
     expect(find.text('This account is private'), findsOneWidget);
+    final lock = tester.widget<SvgPicture>(
+      find.byKey(const ValueKey('private-profile-lock')),
+    );
+    expect(
+      (lock.bytesLoader as SvgAssetLoader).assetName,
+      'assets/images/icons/lock-circle.svg',
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('private-profile-lock'))),
+      Size(AppSizes.w72, AppSizes.w72),
+    );
+    expect(
+      lock.colorFilter,
+      const ColorFilter.mode(DarkColors.whiteColor, BlendMode.srcIn),
+    );
     expect(find.text('Follow this account to see their posts'), findsOneWidget);
     expect(find.byType(ProfileTabs), findsNothing);
     expect(find.text('No posts yet'), findsNothing);

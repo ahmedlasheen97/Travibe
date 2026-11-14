@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
@@ -68,7 +69,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   }
 
   Widget _message(String text, {VoidCallback? retry}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 24),
+    padding: EdgeInsets.symmetric(vertical: AppSizes.ph24),
     child: Column(
       children: [
         Text(text, style: const TextStyle(color: Colors.white70)),
@@ -82,7 +83,12 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
     builder: (context, state) {
       final posts = context.read<PostsCubit>();
       return SliverPadding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        padding: EdgeInsets.fromLTRB(
+          AppSizes.pw20,
+          AppSizes.ph16,
+          AppSizes.pw20,
+          AppSizes.ph100,
+        ),
         sliver: SliverList(
           delegate: SliverChildListDelegate([
             if (widget.showLoadingIndicators &&
@@ -108,7 +114,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
               for (final post in state.posts)
                 Padding(
                   key: ValueKey('profile-post-${post.id}'),
-                  padding: const EdgeInsets.only(bottom: 16),
+                  padding: EdgeInsets.only(bottom: AppSizes.ph16),
                   child: _card(post),
                 ),
               if (state.isLoadingMore && widget.showLoadingIndicators)
@@ -141,6 +147,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
         authorId: post.user.id,
         name: post.user.name,
         avatar: post.user.avatarUrl,
+        avatarSize: AppSizes.w40,
         time: timeAgo(post.createdAt),
         text: post.content ?? '',
         image: media.length == 1 ? media.first : null,

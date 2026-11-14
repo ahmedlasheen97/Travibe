@@ -22,10 +22,15 @@ class StoriesState {
 
 /// Independent pagination by author group; never shares Home post cursors.
 class StoriesCubit extends Cubit<StoriesState> {
-  StoriesCubit({StoriesRepo? repo, PreferencesManager? session, this.blocks})
-    : repo = repo ?? StoriesRepo(),
-      session = session ?? PreferencesManager(),
-      super(StoriesState()) {
+  StoriesCubit({
+    StoriesRepo? repo,
+    PreferencesManager? session,
+    this.blocks,
+    DateTime Function()? now,
+  }) : repo = repo ?? StoriesRepo(),
+       session = session ?? PreferencesManager(),
+       _now = now ?? DateTime.now,
+       super(StoriesState()) {
     this.session.addListener(_sessionChanged);
     _blocked = blocks?.state.blockedIds ?? {};
     _blockSubscription = blocks?.stream.listen((state) {
@@ -48,6 +53,67 @@ class StoriesCubit extends Cubit<StoriesState> {
   }
   final StoriesRepo repo;
   final PreferencesManager session;
+  final DateTime Function() _now;
+  Timer? _expiry;
+
+  /// The loaded group for [userId], if they have an active Story I can see.
+  StoryGroup? groupOf(int? userId) => userId == null
+      ? null
+      : state.groups.where((g) => g.user.id == userId).firstOrNull;
+
+  @override
+  void onChange(Change<StoriesState> change) {
+    super.onChange(change);
+    _scheduleExpiry(change.nextState);
+  }
+
+  /// Drops each Story when it expires, so every ring (Home, Profile) updates
+  /// without a refetch.
+  void _scheduleExpiry(StoriesState state) {
+    _expiry?.cancel();
+    _expiry = null;
+    DateTime? next;
+    for (final group in state.groups) {
+      for (final story in group.stories) {
+        final at = story.expiresAt;
+        if (at != null && (next == null || at.isBefore(next))) next = at;
+      }
+    }
+    if (next == null || isClosed) return;
+    final delay = next.difference(_now());
+    _expiry = Timer(
+      delay.isNegative
+          ? Duration.zero
+          : delay + const Duration(milliseconds: 1),
+      _dropExpired,
+    );
+  }
+
+  void _dropExpired() {
+    if (isClosed) return;
+    final now = _now();
+    final groups = state.groups
+        .map((g) => g.withoutExpired(now))
+        .where((g) => g.stories.isNotEmpty)
+        .toList();
+    final changed =
+        groups.length != state.groups.length ||
+        !groups.indexed.every((e) => identical(e.$2, state.groups[e.$1]));
+    if (!changed) {
+      _scheduleExpiry(state);
+      return;
+    }
+    emit(
+      StoriesState(
+        groups: groups,
+        loading: state.loading,
+        loadingMore: state.loadingMore,
+        hasMore: state.hasMore,
+        error: state.error,
+      ),
+    );
+  }
+
   final BlockCubit? blocks;
   StreamSubscription<BlockState>? _blockSubscription;
   Set<String> _blocked = {};
@@ -191,6 +257,7 @@ class StoriesCubit extends Cubit<StoriesState> {
   @override
   Future<void> close() {
     ++_generation;
+    _expiry?.cancel();
     session.removeListener(_sessionChanged);
     unawaited(_blockSubscription?.cancel());
     return super.close();

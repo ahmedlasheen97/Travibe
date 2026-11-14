@@ -113,6 +113,24 @@ class StoryGroup {
     );
   }
 
+  /// Whether a story with a known expiry is still live at [now].
+  bool hasActiveStoryAt(DateTime now) =>
+      stories.any((s) => s.expiresAt?.isAfter(now) == true);
+
+  /// This group without stories that expired at [now] (same instance when
+  /// none did). Stories without an expiry are kept.
+  StoryGroup withoutExpired(DateTime now) {
+    bool live(StorySummary s) =>
+        s.expiresAt == null || s.expiresAt!.isAfter(now);
+    if (stories.every(live)) return this;
+    final items = stories.where(live).toList();
+    return StoryGroup._(
+      user,
+      items.any((s) => !s.hasSeen),
+      List.unmodifiable(items),
+    );
+  }
+
   StoryGroup merge(StoryGroup previous) {
     final merged = {for (final story in previous.stories) story.id: story};
     for (final story in stories) {

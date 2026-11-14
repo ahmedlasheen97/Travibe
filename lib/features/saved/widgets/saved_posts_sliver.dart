@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
@@ -119,6 +120,7 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
             postId: post.id,
             name: post.user.name,
             avatar: post.user.avatarUrl,
+            avatarSize: AppSizes.w40,
             time: timeAgo(post.createdAt),
             text: post.content ?? '',
             image: media.length == 1 ? media.first : null,

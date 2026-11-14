@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -163,7 +164,7 @@ void main() {
     'public profile has authoritative relationship, action row and real About fields',
     (tester) async {
       await show(tester);
-      expect(find.text('Follows You'), findsOneWidget);
+      expect(find.text('Follows you'), findsOneWidget);
       expect(find.text('Message'), findsOneWidget);
       expect(find.text('Follow'), findsOneWidget);
       await tester.tap(find.text('Follow'));
@@ -209,7 +210,7 @@ void main() {
       repo.removing!.complete();
       await tester.pumpAndSettle();
       expect(follow.state.followsYou['23'], false);
-      expect(find.text('Follows You'), findsNothing);
+      expect(find.text('Follows you'), findsNothing);
       await tester.tap(find.byTooltip('Profile options'));
       await tester.pumpAndSettle();
       expect(find.text('Remove follower'), findsNothing);
@@ -289,26 +290,51 @@ void main() {
     });
   });
 
-  testWidgets('Follows You badge is a grey chip with white text', (
+  testWidgets("other header: 128 picture, no add-story badge, 44 buttons", (
     tester,
   ) async {
     await show(tester);
-    final label = find.text('Follows You');
+    expect(
+      tester.getSize(find.byKey(const ValueKey('profile-avatar'))),
+      Size(AppSizes.w128, AppSizes.w128),
+    );
+    expect(find.byKey(const ValueKey('profile-add-story')), findsNothing);
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('profile-name')))
+          .style!
+          .fontSize,
+      AppSizes.sp20,
+    );
+    for (final label in ['Message', 'Follow']) {
+      final button = find.ancestor(
+        of: find.text(label),
+        matching: find.byType(FilledButton),
+      );
+      expect(tester.getSize(button).height, AppSizes.h44, reason: label);
+    }
+  });
+
+  testWidgets('Follows you badge is a grey chip with white text', (
+    tester,
+  ) async {
+    await show(tester);
+    final label = find.text('Follows you');
     final text = tester.widget<Text>(label);
     expect(text.style!.color, DarkColors.whiteColor);
-    expect(text.style!.fontSize, 12);
+    expect(text.style!.fontSize, AppSizes.sp12);
     final box = tester.widget<DecoratedBox>(
       find.ancestor(of: label, matching: find.byType(DecoratedBox)).first,
     );
     final decoration = box.decoration as BoxDecoration;
     expect(decoration.color, DarkColors.darkgreyColor);
-    expect(decoration.borderRadius, BorderRadius.circular(8));
+    expect(decoration.borderRadius, BorderRadius.circular(AppSizes.r8));
     final padding = tester.widget<Padding>(
       find.ancestor(of: label, matching: find.byType(Padding)).first,
     );
     expect(
       padding.padding,
-      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      EdgeInsets.symmetric(horizontal: AppSizes.pw10, vertical: AppSizes.ph4),
     );
   });
 
@@ -323,7 +349,7 @@ void main() {
     });
     await show(tester);
     expect(find.widgetWithText(FilledButton, 'Following'), findsOneWidget);
-    expect(find.text('Follows You'), findsNothing);
+    expect(find.text('Follows you'), findsNothing);
     await tester.tap(find.byTooltip('Profile options'));
     await tester.pumpAndSettle();
     expect(find.text('Remove follower'), findsNothing);

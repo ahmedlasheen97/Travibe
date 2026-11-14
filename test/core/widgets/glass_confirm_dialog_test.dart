@@ -36,6 +36,14 @@ void main() {
       .style!
       .color;
 
+  double? fontSizeOf(WidgetTester tester, String label) => tester
+      .widget<RichText>(
+        find.descendant(of: find.text(label), matching: find.byType(RichText)),
+      )
+      .text
+      .style!
+      .fontSize;
+
   testWidgets(
     'uses the Log Out glass look: confirm left in red, Cancel right',
     (tester) async {
@@ -55,7 +63,10 @@ void main() {
         lessThan(tester.getCenter(find.text('Cancel')).dx),
       );
       expect(colorOf(tester, 'Delete'), DarkColors.dangerColor);
+      expect(DarkColors.dangerColor, const Color(0xFFDD312A));
       expect(colorOf(tester, 'Cancel'), DarkColors.whiteColor);
+      expect(fontSizeOf(tester, 'Delete'), 18);
+      expect(fontSizeOf(tester, 'Cancel'), 18);
     },
   );
 

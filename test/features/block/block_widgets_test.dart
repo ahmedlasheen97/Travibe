@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/screen_util.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
@@ -43,19 +45,21 @@ void main() {
       });
       final user = PublicUserModel.fromJson({'id': 7, 'name': 'Sara'});
       await tester.pumpWidget(
-        MaterialApp(
-          home: MultiBlocProvider(
-            providers: [
-              BlocProvider.value(value: follow),
-              BlocProvider.value(value: block),
-            ],
-            child: Scaffold(
-              body: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    FollowUserTile(user: user),
-                    const SuggestedUsersSection(),
-                  ],
+        withScreenUtil(
+          MaterialApp(
+            home: MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: follow),
+                BlocProvider.value(value: block),
+              ],
+              child: Scaffold(
+                body: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      FollowUserTile(user: user),
+                      const SuggestedUsersSection(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -107,10 +111,12 @@ void main() {
         await follow.close();
       });
       await tester.pumpWidget(
-        MaterialApp(
-          home: BlocProvider.value(
-            value: block,
-            child: const Scaffold(body: BlockUserButton(userId: '7')),
+        withScreenUtil(
+          MaterialApp(
+            home: BlocProvider.value(
+              value: block,
+              child: const Scaffold(body: BlockUserButton(userId: '7')),
+            ),
           ),
         ),
       );

@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:flutter/material.dart';
 
 class ProfileSavedSubTabs extends StatelessWidget {
@@ -15,12 +16,15 @@ class ProfileSavedSubTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSizes.pw20,
+        vertical: AppSizes.ph8,
+      ),
       child: Row(
         children: [
           for (int i = 0; i < _labels.length; i++) ...[
             _tabItem(_labels[i], i),
-            if (i != _labels.length - 1) const SizedBox(width: 20),
+            if (i != _labels.length - 1) SizedBox(width: AppSizes.w20),
           ],
         ],
       ),
@@ -34,7 +38,7 @@ class ProfileSavedSubTabs extends StatelessWidget {
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 14,
+          fontSize: AppSizes.sp14,
           fontWeight: isSelected ? FontWeight.w700 : FontWeight.w400,
           color: isSelected ? Colors.white : Colors.white38,
         ),

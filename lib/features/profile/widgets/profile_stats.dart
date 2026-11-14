@@ -22,11 +22,11 @@ class ProfileStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      margin: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
+      padding: EdgeInsets.symmetric(vertical: AppSizes.ph14),
       decoration: BoxDecoration(
         border: Border.all(color: DarkColors.darkgreyColor),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppSizes.r20),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -49,11 +49,11 @@ class ProfileStats extends StatelessWidget {
     );
   }
 
-  Widget _divider() => const SizedBox(
-    height: 28,
+  Widget _divider() => SizedBox(
+    height: AppSizes.h28,
     child: VerticalDivider(
-      width: 1,
-      thickness: 1,
+      width: AppSizes.w1,
+      thickness: AppSizes.h1,
       color: DarkColors.darkgreyColor,
     ),
   );
@@ -65,7 +65,7 @@ class ProfileStats extends StatelessWidget {
           value,
           style: TextStyle(
             color: DarkColors.primaryColor,
-            fontSize: 18,
+            fontSize: AppSizes.sp18,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -86,7 +86,7 @@ class ProfileStats extends StatelessWidget {
               button: true,
               child: InkWell(
                 onTap: onTap,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppSizes.r12),
                 child: content,
               ),
             ),

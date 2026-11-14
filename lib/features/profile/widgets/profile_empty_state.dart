@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -19,45 +20,52 @@ class ProfileEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 28),
+    padding: EdgeInsets.symmetric(
+      horizontal: AppSizes.pw16,
+      vertical: AppSizes.ph28,
+    ),
     child: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           ExcludeSemantics(
-            child: SvgPicture.asset(asset, height: 121, fit: BoxFit.contain),
+            child: SvgPicture.asset(
+              asset,
+              height: AppSizes.h121,
+              fit: BoxFit.contain,
+            ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: AppSizes.h24),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(
+            style: TextStyle(
               color: DarkColors.whiteColor,
-              fontSize: 18,
+              fontSize: AppSizes.sp18,
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: AppSizes.h10),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 300),
+            constraints: BoxConstraints(maxWidth: AppSizes.w300),
             child: Text(
               description,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 color: DarkColors.greyColor,
-                fontSize: 14,
+                fontSize: AppSizes.sp14,
                 height: 1.5,
               ),
             ),
           ),
           if (actionLabel != null && onAction != null) ...[
-            const SizedBox(height: 24),
+            SizedBox(height: AppSizes.h24),
             FilledButton(
               onPressed: onAction,
               style: FilledButton.styleFrom(
                 backgroundColor: DarkColors.primaryColor,
                 foregroundColor: DarkColors.whiteColor,
-                minimumSize: const Size(170, 44),
+                minimumSize: Size(AppSizes.w170, AppSizes.h44),
                 shape: ActionButtonStyle.shape,
                 textStyle: ActionButtonStyle.label,
               ),

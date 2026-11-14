@@ -6,6 +6,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/widgets/glass_surface.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/features/stories/widgets/post_story_sheet.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/features/shares/data/post_share_actions.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
@@ -115,6 +120,25 @@ void main() {
       expect(find.byType(Shimmer), findsOneWidget);
       expect(find.text('My Profile'), findsOneWidget);
       expect(find.byTooltip('Settings'), findsOneWidget);
+      // Settings: setting-2.svg, white 24, in the 44 glass header circle.
+      final settings = find.byKey(const ValueKey('profile-settings'));
+      expect(tester.getSize(settings), const Size(44, 44));
+      expect(
+        find.descendant(of: settings, matching: find.byType(GlassSurface)),
+        findsOneWidget,
+      );
+      final gear = tester.widget<SvgPicture>(
+        find.descendant(of: settings, matching: find.byType(SvgPicture)),
+      );
+      expect(
+        (gear.bytesLoader as SvgAssetLoader).assetName,
+        'assets/images/icons/setting-2.svg',
+      );
+      expect((gear.width, gear.height), (24.0, 24.0));
+      expect(
+        gear.colorFilter,
+        const ColorFilter.mode(DarkColors.whiteColor, BlendMode.srcIn),
+      );
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(tester.widget<Shimmer>(find.byType(Shimmer)).enabled, isTrue);
@@ -444,6 +468,80 @@ void main() {
       }
     },
   );
+
+  testWidgets(
+    'my header: 128 picture with add-story badge, Figma type and 44 buttons',
+    (tester) async {
+      await show(tester);
+      expect(
+        tester.getSize(find.byKey(const ValueKey('profile-avatar'))),
+        const Size(128, 128),
+      );
+      final badge = find.byKey(const ValueKey('profile-add-story'));
+      expect(tester.getSize(badge), const Size(32, 32));
+
+      TextStyle style(String key) =>
+          tester.widget<Text>(find.byKey(ValueKey(key))).style!;
+      expect(style('profile-name').fontSize, AppSizes.sp20);
+      expect(style('profile-name').color, DarkColors.whiteColor);
+      expect(style('profile-username').fontSize, AppSizes.sp14);
+      expect(style('profile-username').color, const Color(0xFFBDBCBB));
+      expect(style('profile-bio').fontSize, AppSizes.sp16);
+      expect(style('profile-bio').color, DarkColors.whiteColor);
+
+      expect(
+        tester
+            .getSize(
+              find.ancestor(
+                of: find.text('Edit Profile'),
+                matching: find.byType(FilledButton),
+              ),
+            )
+            .height,
+        44,
+      );
+      expect(
+        tester.getSize(find.byKey(const ValueKey('post-author-avatar')).first),
+        const Size(40, 40),
+      );
+    },
+  );
+
+  testWidgets('the "+" opens the add-story sheet over my Profile', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.tap(find.byKey(const ValueKey('profile-add-story')));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostStorySheet), findsOneWidget);
+    await tester.tapAt(const Offset(10, 100));
+    await tester.pumpAndSettle();
+    expect(find.byType(PostStorySheet), findsNothing);
+    expect(find.byKey(const ValueKey('profile-avatar')), findsOneWidget);
+  });
+
+  testWidgets('a finished background Story upload refreshes my profile', (
+    tester,
+  ) async {
+    final uploads = StoryUploadCubit();
+    addTearDown(uploads.close);
+    await show(
+      tester,
+      child: BlocProvider.value(
+        value: uploads,
+        child: ProfileScreen(profileRepo: profiles, postsRepo: posts),
+      ),
+    );
+    final before = profiles.reads.length;
+    // ignore: invalid_use_of_protected_member
+    uploads.emit(const StoryUploading(progress: .5));
+    await tester.pumpAndSettle();
+    expect(profiles.reads.length, before);
+    // ignore: invalid_use_of_protected_member
+    uploads.emit(const StoryUploadDone(null));
+    await tester.pumpAndSettle();
+    expect(profiles.reads.length, before + 1);
+  });
 
   testWidgets('Share Profile shares the backend url via the native sheet', (
     tester,

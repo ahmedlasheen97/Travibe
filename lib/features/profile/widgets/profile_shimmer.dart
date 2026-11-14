@@ -14,36 +14,49 @@ class ProfileShimmer extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(height: AppSizes.h20),
-          const _Bone(width: 128, height: 128, radius: 64),
+          _Bone(
+            width: AppSizes.w128,
+            height: AppSizes.h128,
+            radius: AppSizes.r64,
+          ),
           SizedBox(height: AppSizes.h16),
-          const _Bone(width: 136, height: 22),
-          const SizedBox(height: 2),
-          const _Bone(width: 80, height: 16),
-          const SizedBox(height: 8),
-          const _Bone(width: 210, height: 22),
-          const SizedBox(height: 2),
-          const _Bone(width: 160, height: 22),
+          _Bone(width: AppSizes.w136, height: AppSizes.h22),
+          SizedBox(height: AppSizes.h2),
+          _Bone(width: AppSizes.w80, height: AppSizes.h16),
+          SizedBox(height: AppSizes.h8),
+          _Bone(width: AppSizes.w210, height: AppSizes.h22),
+          SizedBox(height: AppSizes.h2),
+          _Bone(width: AppSizes.w160, height: AppSizes.h22),
           SizedBox(height: AppSizes.h20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: _Bone(height: 68, radius: 20),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
+            child: _Bone(height: AppSizes.h68, radius: AppSizes.r20),
           ),
           SizedBox(height: AppSizes.h20),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
             child: Row(
               children: [
-                Expanded(child: _Bone(height: 44, radius: 20)),
-                SizedBox(width: 12),
-                Expanded(child: _Bone(height: 44, radius: 20)),
+                Expanded(
+                  child: _Bone(height: AppSizes.h44, radius: AppSizes.r20),
+                ),
+                SizedBox(width: AppSizes.w12),
+                Expanded(
+                  child: _Bone(height: AppSizes.h44, radius: AppSizes.r20),
+                ),
               ],
             ),
           ),
           SizedBox(height: AppSizes.h24),
-          const _Bone(width: 220, height: 26),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 24, 20, 100),
-            child: _PostBones(),
+          _Bone(width: AppSizes.w220, height: AppSizes.h26),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.pw20,
+              AppSizes.ph24,
+              AppSizes.pw20,
+              AppSizes.ph100,
+            ),
+            child: const _PostBones(),
           ),
         ],
       ),
@@ -79,18 +92,18 @@ class _Bone extends StatelessWidget {
   const _Bone({
     this.width = double.infinity,
     required this.height,
-    this.radius = 6,
+    this.radius,
   });
   final double width;
   final double height;
-  final double radius;
+  final double? radius;
   @override
   Widget build(BuildContext context) => Container(
     width: width,
     height: height,
     decoration: BoxDecoration(
       color: DarkColors.darkgreyColor,
-      borderRadius: BorderRadius.circular(radius),
+      borderRadius: BorderRadius.circular(radius ?? AppSizes.r6),
     ),
   );
 }
@@ -98,22 +111,26 @@ class _Bone extends StatelessWidget {
 class _PostBones extends StatelessWidget {
   const _PostBones();
   @override
-  Widget build(BuildContext context) => const Column(
+  Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Row(
         children: [
-          _Bone(width: 40, height: 40, radius: 20),
-          SizedBox(width: 12),
-          _Bone(width: 120, height: 16),
+          _Bone(
+            width: AppSizes.w40,
+            height: AppSizes.h40,
+            radius: AppSizes.r20,
+          ),
+          SizedBox(width: AppSizes.w12),
+          _Bone(width: AppSizes.w120, height: AppSizes.h16),
         ],
       ),
-      SizedBox(height: 16),
-      _Bone(height: 16),
-      SizedBox(height: 8),
-      _Bone(width: 180, height: 16),
-      SizedBox(height: 16),
-      _Bone(height: 180, radius: 20),
+      SizedBox(height: AppSizes.h16),
+      _Bone(height: AppSizes.h16),
+      SizedBox(height: AppSizes.h8),
+      _Bone(width: AppSizes.w180, height: AppSizes.h16),
+      SizedBox(height: AppSizes.h16),
+      _Bone(height: AppSizes.h180, radius: AppSizes.r20),
     ],
   );
 }

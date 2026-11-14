@@ -1,3 +1,5 @@
+import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
+import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
 import 'package:travibe/features/chats/data/chat_reverb_service.dart';
@@ -192,7 +194,6 @@ class _RootState extends State<Root> {
     uploads: widget.mediaUploads,
   );
   final _publications = ValueNotifier<int>(0);
-  final _storyPublications = ValueNotifier<int>(0);
   final _homeRefreshes = ValueNotifier<int>(0);
   final _buddiesRefreshes = ValueNotifier<int>(0);
   final _profileRefreshes = ValueNotifier<int>(0);
@@ -200,6 +201,14 @@ class _RootState extends State<Root> {
   final _shellKey = GlobalKey();
   bool _openingComposer = false;
   late final _blockCubit = BlockCubit(follow: _followCubit);
+
+  /// The one source of active Stories for Home's row and every profile ring;
+  /// publishing, viewing, deleting and expiry all update it in place.
+  late final _stories = StoriesCubit(
+    repo: widget.storiesRepo,
+    blocks: _blockCubit,
+  );
+  late final _storyLikes = StoryLikesCubit(repo: _stories.repo);
 
   @override
   void dispose() {
@@ -213,8 +222,9 @@ class _RootState extends State<Root> {
     unawaited(_reverbBlocks?.cancel() ?? Future.value());
     _postUploads.close();
     _storyUploads.close();
+    _storyLikes.close();
+    _stories.close();
     _publications.dispose();
-    _storyPublications.dispose();
     _homeRefreshes.dispose();
     _buddiesRefreshes.dispose();
     _profileRefreshes.dispose();
@@ -239,7 +249,6 @@ class _RootState extends State<Root> {
     HomeScreen(
       postsRepo: widget.postsRepo,
       publicationSignal: _publications,
-      storyPublicationSignal: _storyPublications,
       refreshSignal: _homeRefreshes,
       accountRepo: widget.homeAccountRepo,
       storiesRepo: widget.storiesRepo,
@@ -253,6 +262,7 @@ class _RootState extends State<Root> {
       refreshSignal: _profileRefreshes,
       onCreatePost: _showCreateOptions,
       onExplorePeople: _explorePeople,
+      storiesRepo: widget.storiesRepo,
     ),
   ];
 
@@ -288,6 +298,8 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _blockCubit),
         BlocProvider.value(value: _postUploads),
         BlocProvider.value(value: _storyUploads),
+        BlocProvider.value(value: _stories),
+        BlocProvider.value(value: _storyLikes),
       ],
       child: MultiBlocListener(
         key: _shellKey,
@@ -506,7 +518,7 @@ class _RootState extends State<Root> {
       ),
     );
     if (state is StoryUploadDone) {
-      _storyPublications.value++;
+      unawaited(_stories.refresh());
       _toasts.show(storyPublishedToast);
     }
   }

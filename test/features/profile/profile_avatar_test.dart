@@ -7,6 +7,8 @@ import 'package:dio/dio.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../helpers/screen_util.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
@@ -612,22 +614,24 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => EditProfileScreen(
-                    profile: profile(),
-                    owner: owner,
-                    avatarRepo: photos,
-                    mediaUpload: upload ?? _Upload(),
+      withScreenUtil(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute<void>(
+                    builder: (_) => EditProfileScreen(
+                      profile: profile(),
+                      owner: owner,
+                      avatarRepo: photos,
+                      mediaUpload: upload ?? _Upload(),
+                    ),
                   ),
                 ),
+                child: const Text('Open editor'),
               ),
-              child: const Text('Open editor'),
             ),
           ),
         ),

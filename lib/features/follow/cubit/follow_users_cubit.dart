@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -183,6 +184,54 @@ class FollowUsersCubit extends Cubit<FollowUsersState> {
       if (generation == _generation) _loadingMore = false;
     }
   }
+
+  /// Optimistically drops [id] from the loaded list (and one from [total]).
+  /// Returns a restore callback that puts the row back at its old index; it
+  /// is a no-op once a newer load has replaced the list.
+  VoidCallback removeLocally(String id) {
+    final previous = state;
+    final index = previous.users.indexWhere((user) => user.id == id);
+    if (isClosed || index < 0) return () {};
+    final removed = previous.users[index];
+    final generation = _generation;
+    emit(
+      _copy(
+        previous,
+        users: [...previous.users]..removeAt(index),
+        total: previous.total == null
+            ? null
+            : (previous.total! - 1).clamp(0, previous.total!),
+      ),
+    );
+    return () {
+      if (isClosed || generation != _generation) return;
+      if (state.users.any((user) => user.id == id)) return;
+      final users = [...state.users];
+      users.insert(index.clamp(0, users.length), removed);
+      emit(
+        _copy(
+          state,
+          users: users,
+          total: state.total == null ? null : state.total! + 1,
+        ),
+      );
+    };
+  }
+
+  FollowUsersState _copy(
+    FollowUsersState s, {
+    required List<PublicUserModel> users,
+    required int? total,
+  }) => FollowUsersState(
+    status: s.status,
+    users: users,
+    hasMore: s.hasMore,
+    total: total,
+    loadingMore: s.loadingMore,
+    refreshing: s.refreshing,
+    error: s.error,
+    paginationError: s.paginationError,
+  );
 
   ApiError _error(Object e) => e is ApiError
       ? e

@@ -1,3 +1,14 @@
+import 'package:travibe/core/utils/viewer_identity.dart';
+import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
+import 'package:travibe/features/stories/data/story_model.dart';
+import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
+import 'package:travibe/features/stories/cubit/stories_cubit.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
+import 'package:travibe/core/widgets/profile_picture_viewer.dart';
+import 'package:travibe/features/stories/widgets/start_add_story.dart';
+import 'package:travibe/features/stories/data/stories_repo.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
 import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
 import 'package:travibe/features/profile/widgets/other_profile_actions.dart';
@@ -33,6 +44,7 @@ import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/features/profile/widgets/about_section.dart';
 import 'package:travibe/features/profile/widgets/profile_action_buttons.dart';
+import 'package:travibe/features/follow/widgets/follows_you_badge.dart';
 import 'package:travibe/features/profile/widgets/profile_avatar.dart';
 import 'package:travibe/features/profile/widgets/profile_header_info.dart';
 import 'package:travibe/features/profile/widgets/profile_saved_sub_tabs.dart';
@@ -54,6 +66,7 @@ class ProfileScreen extends StatelessWidget {
     this.refreshSignal,
     this.onCreatePost,
     this.onExplorePeople,
+    this.storiesRepo,
   });
 
   /// Null loads the authenticated full profile; otherwise loads a public profile.
@@ -63,6 +76,9 @@ class ProfileScreen extends StatelessWidget {
   final ChatRepository? chatRepository;
   final ValueListenable<int>? refreshSignal;
   final VoidCallback? onCreatePost, onExplorePeople;
+
+  /// Used by my profile's "+" (add story) flow; defaults to the real repo.
+  final StoriesRepo? storiesRepo;
 
   static final _openProfiles = Expando<Set<int>>();
 
@@ -86,6 +102,8 @@ class ProfileScreen extends StatelessWidget {
     final activity = context.read<PostActivityCubit?>();
     final hidden = context.read<HiddenPostsCubit?>();
     final incoming = context.read<IncomingRequestsCubit?>();
+    final stories = context.read<StoriesCubit?>();
+    final storyLikes = context.read<StoryLikesCubit?>();
     return navigator
         .push<void>(
           MaterialPageRoute(
@@ -106,7 +124,9 @@ class ProfileScreen extends StatelessWidget {
                   likes == null &&
                   activity == null &&
                   hidden == null &&
-                  incoming == null) {
+                  incoming == null &&
+                  stories == null &&
+                  storyLikes == null) {
                 return screen;
               }
               return MultiBlocProvider(
@@ -120,6 +140,8 @@ class ProfileScreen extends StatelessWidget {
                   if (follow != null) BlocProvider.value(value: follow),
                   if (block != null) BlocProvider.value(value: block),
                   if (incoming != null) BlocProvider.value(value: incoming),
+                  if (stories != null) BlocProvider.value(value: stories),
+                  if (storyLikes != null) BlocProvider.value(value: storyLikes),
                 ],
                 child: screen,
               );
@@ -144,6 +166,7 @@ class ProfileScreen extends StatelessWidget {
         refreshSignal: refreshSignal,
         onCreatePost: onCreatePost,
         onExplorePeople: onExplorePeople,
+        storiesRepo: storiesRepo,
       ),
     );
 
@@ -197,8 +220,10 @@ class _ProfileView extends StatefulWidget {
     this.refreshSignal,
     this.onCreatePost,
     this.onExplorePeople,
+    this.storiesRepo,
   });
   final VoidCallback? onCreatePost, onExplorePeople;
+  final StoriesRepo? storiesRepo;
   final ValueListenable<int>? refreshSignal;
   final PostsRepo? postsRepo;
   final ChatRepository? chatRepository;
@@ -212,6 +237,7 @@ class _ProfileViewState extends State<_ProfileView> {
   StreamSubscription<FollowState>? _followSubscription;
   StreamSubscription<ProfileState>? _profileSubscription;
   StreamSubscription<BlockState>? _blockSubscription;
+  StreamSubscription<StoryUploadState>? _storyUploadSubscription;
   BlockCubit? _block;
   BuildContext? _contentContext;
   Future<void>? _refreshRequest;
@@ -244,6 +270,8 @@ class _ProfileViewState extends State<_ProfileView> {
       if (_selectedTab == 0 && !locked) content.read<PostsCubit>().refresh(),
       if (_selectedTab == 2 && _savedSubTab == 0 && profile.userId == null)
         content.read<SavedPostsCubit>().load(),
+      // The shared Stories source: this profile's ring and Home's row.
+      if (content.read<StoriesCubit?>() case final stories?) stories.refresh(),
     ];
     final request = Future.wait(requests).then<void>((_) {});
     _refreshRequest = request;
@@ -261,6 +289,15 @@ class _ProfileViewState extends State<_ProfileView> {
     final cubit = context.read<ProfileCubit>();
     final follow = context.read<FollowCubit?>();
     _block = context.read<BlockCubit?>();
+    if (cubit.userId == null) {
+      // A background Story upload (from Home or this profile) finished.
+      _storyUploadSubscription = context
+          .read<StoryUploadCubit?>()
+          ?.stream
+          .listen((state) {
+            if (state is StoryUploadDone && !cubit.isClosed) cubit.refresh();
+          });
+    }
     var followRevision = follow?.state.revision;
     _followSubscription = follow?.stream.listen((state) {
       if (state.revision == followRevision) return;
@@ -307,8 +344,113 @@ class _ProfileViewState extends State<_ProfileView> {
     _followSubscription?.cancel();
     _profileSubscription?.cancel();
     _blockSubscription?.cancel();
+    _storyUploadSubscription?.cancel();
     super.dispose();
   }
+
+  /// The picture, ringed (same as Home) while this user has an active Story I
+  /// can see in the shared Stories source. Tapping it: my own with a story →
+  /// sheet (View story / View profile picture); another user's with a story
+  /// → their Stories; no story → the full-screen picture.
+  Widget _avatar(ProfileModel profile) {
+    final mine = context.read<ProfileCubit>().userId == null;
+    Widget avatar(StoryGroup? group) => ProfileAvatar(
+      imageUrl: profile.avatarUrl,
+      stories: group?.stories ?? const [],
+      onTap: _avatarTap(profile, group, mine: mine),
+      onAddStory: mine ? () => _addStory(profile) : null,
+    );
+    final stories = context.read<StoriesCubit?>();
+    if (stories == null) return avatar(null);
+    final id = int.tryParse(profile.id);
+    return BlocBuilder<StoriesCubit, StoriesState>(
+      bloc: stories,
+      builder: (_, _) => avatar(stories.groupOf(id)),
+    );
+  }
+
+  VoidCallback? _avatarTap(
+    ProfileModel profile,
+    StoryGroup? group, {
+    required bool mine,
+  }) {
+    final url = profile.avatarUrl;
+    final picture = url == null || url.isEmpty
+        ? null
+        : () => openProfilePictureViewer(context, url);
+    final story = group != null && group.stories.isNotEmpty
+        ? () => _openStories(profile, group)
+        : null;
+    if (story == null) return picture;
+    if (!mine) return story;
+    return () => showOptionsSheet<void>(
+      context,
+      builder: (sheet) => OptionsSheetBody(
+        children: [
+          OptionSheetTile(
+            key: const ValueKey('profile-view-story'),
+            icon: optionSvg('assets/images/interactions/story.svg'),
+            label: 'View story',
+            onTap: () {
+              Navigator.of(sheet).pop();
+              story();
+            },
+          ),
+          if (picture != null)
+            OptionSheetTile(
+              key: const ValueKey('profile-view-picture'),
+              icon: optionSvg('assets/images/icons/profile-circle.svg'),
+              label: 'View profile picture',
+              onTap: () {
+                Navigator.of(sheet).pop();
+                picture();
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openStories(ProfileModel profile, StoryGroup group) =>
+      openStoryViewer(
+        context,
+        groups: [group],
+        authorId: group.user.id,
+        stories: context.read<StoriesCubit>(),
+        likes: context.read<StoryLikesCubit?>(),
+        currentUserId: int.tryParse(
+          viewerUserId(
+                context,
+                fallbackId: context.read<ProfileCubit>().userId == null
+                    ? profile.id
+                    : null,
+                fallbackSession: PreferencesManager().sessionRevision,
+              ) ??
+              '',
+        ),
+      );
+
+  /// The same picker → editor → upload flow as Home, opened over Profile.
+  /// With the app's upload queue, Root shows the toast and the listener in
+  /// [initState] refreshes; otherwise the editor publishes and calls back.
+  Future<void> _addStory(ProfileModel profile) => startAddStory(
+    context,
+    avatarUrl: profile.avatarUrl,
+    storiesRepo: widget.storiesRepo,
+    onPublished: () async {
+      final cubit = context.read<ProfileCubit>();
+      try {
+        await cubit.refresh();
+      } finally {
+        if (mounted) {
+          TravibeToast.show(
+            context,
+            const TravibeToastData.success('Story published successfully'),
+          );
+        }
+      }
+    },
+  );
 
   Future<void> _shareMyProfile(Uri url, Rect origin) async {
     try {
@@ -350,9 +492,9 @@ class _ProfileViewState extends State<_ProfileView> {
                 ? const BackButtonWidget()
                 : null,
             centerTitle: true,
-            title: const Text(
+            title: Text(
               'Profile',
-              style: TextStyle(color: Colors.white, fontSize: 18),
+              style: TextStyle(color: Colors.white, fontSize: AppSizes.sp18),
             ),
             actions: [
               if (_block case final block?)
@@ -432,15 +574,15 @@ class _ProfileViewState extends State<_ProfileView> {
               // Header is 8px + 44px. This uses its existing lower clearance
               // and the avatar's 20px gap; it reserves no layout height.
               top: context.read<ProfileCubit>().userId == null
-                  ? AppSizes.h8 + 44 + AppSizes.h20 - 30
+                  ? AppSizes.h8 + AppSizes.h44 + AppSizes.h20 - AppSizes.w30
                   : 0,
               left: 0,
               right: 0,
-              child: const IgnorePointer(
+              child: IgnorePointer(
                 child: Center(
                   child: TravibeLoadingIndicator(
-                    key: ValueKey('profile-refresh-indicator'),
-                    size: 30,
+                    key: const ValueKey('profile-refresh-indicator'),
+                    size: AppSizes.w30,
                     semanticsLabel: 'Refreshing profile',
                   ),
                 ),
@@ -471,7 +613,7 @@ class _ProfileViewState extends State<_ProfileView> {
             children: [
               if (state.error != null)
                 Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.all(AppSizes.pw12),
                   child: Column(
                     children: [
                       Text(
@@ -486,7 +628,7 @@ class _ProfileViewState extends State<_ProfileView> {
                   ),
                 ),
               SizedBox(height: AppSizes.h20),
-              ProfileAvatar(imageUrl: profile.avatarUrl),
+              _avatar(profile),
               SizedBox(height: AppSizes.h16),
               ProfileHeaderInfo(
                 name: profile.displayName,
@@ -597,20 +739,8 @@ class _ProfileViewState extends State<_ProfileView> {
     final follow = context.read<FollowCubit?>();
     Widget badge(bool value) => value
         ? Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: DarkColors.darkgreyColor,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                child: Text(
-                  'Follows You',
-                  style: TextStyle(color: DarkColors.whiteColor, fontSize: 12),
-                ),
-              ),
-            ),
+            padding: EdgeInsets.only(top: AppSizes.ph8),
+            child: const FollowsYouBadge(),
           )
         : const SizedBox.shrink();
     return follow == null
@@ -623,7 +753,12 @@ class _ProfileViewState extends State<_ProfileView> {
   }
 
   Widget _notLoaded(String message) => SliverPadding(
-    padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
+    padding: EdgeInsets.fromLTRB(
+      AppSizes.pw20,
+      AppSizes.ph24,
+      AppSizes.pw20,
+      AppSizes.ph100,
+    ),
     sliver: SliverToBoxAdapter(
       child: Center(
         child: Text(message, style: const TextStyle(color: Colors.white70)),
@@ -642,7 +777,7 @@ class _ProfileViewState extends State<_ProfileView> {
           title: 'Nationality',
           child: Text(
             profile.nationality ?? profile.nationalityCode!,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: Colors.white70, fontSize: AppSizes.sp14),
           ),
         ),
       if (location != null)
@@ -651,16 +786,19 @@ class _ProfileViewState extends State<_ProfileView> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
+              Icon(
                 Icons.location_on_outlined,
                 color: Colors.white54,
-                size: 16,
+                size: AppSizes.w16,
               ),
               SizedBox(width: AppSizes.w4),
               Flexible(
                 child: Text(
                   location,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: AppSizes.sp14,
+                  ),
                 ),
               ),
             ],
@@ -671,7 +809,7 @@ class _ProfileViewState extends State<_ProfileView> {
           title: 'Gender',
           child: Text(
             profile.gender!,
-            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            style: TextStyle(color: Colors.white70, fontSize: AppSizes.sp14),
           ),
         ),
       if (bio != null && bio.trim().isNotEmpty)
@@ -682,9 +820,9 @@ class _ProfileViewState extends State<_ProfileView> {
             maxLines: 2,
             softWrap: true,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               color: Colors.white70,
-              fontSize: 14,
+              fontSize: AppSizes.sp14,
               height: 1.5,
             ),
           ),
@@ -707,19 +845,19 @@ class _ProfileViewState extends State<_ProfileView> {
     ];
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
           SizedBox(height: AppSizes.h8),
           if (sections.isEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 24),
+              padding: EdgeInsets.only(top: AppSizes.ph24),
               child: Center(
                 child: Text(
                   'No profile details to display',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.5),
-                    fontSize: 14,
+                    fontSize: AppSizes.sp14,
                   ),
                 ),
               ),
