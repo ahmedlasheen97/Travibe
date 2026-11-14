@@ -18,6 +18,7 @@ import 'package:travibe/features/stories/cubit/story_viewer_cubit.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/widgets/story_viewer_canvas.dart';
+import 'package:travibe/features/profile/screens/profile_screen.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   const StoryViewerScreen({
@@ -32,6 +33,7 @@ class StoryViewerScreen extends StatefulWidget {
     this.onViewed,
     this.onDeleted,
     this.imageProvider,
+    this.onOpenProfile,
     this.duration = const Duration(seconds: 5),
   });
   final List<StoryGroup> groups;
@@ -44,6 +46,9 @@ class StoryViewerScreen extends StatefulWidget {
   final void Function(int id, int count)? onViewed;
   final void Function(int id)? onDeleted;
   final ImageProvider Function(String url)? imageProvider;
+
+  /// Opens a mentioned user's profile. Defaults to [ProfileScreen.open].
+  final Future<void> Function(BuildContext context, int userId)? onOpenProfile;
   final Duration duration;
   @override
   State<StoryViewerScreen> createState() => _StoryViewerScreenState();
@@ -74,6 +79,38 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     // Remove sheets/dialogs belonging to this viewer before removing its route.
     navigator.popUntil((candidate) => candidate == route);
     navigator.pop();
+  }
+
+  bool _openingMention = false;
+
+  /// A tap on a resolved mention sticker opens that profile; unresolved
+  /// (blocked/unknown) mentions fall through to normal tap navigation.
+  bool _tapMention(Offset point, Size size) {
+    final state = _viewer.state;
+    final detail = state.detail;
+    if (state.status != StoryViewerStatus.ready || detail == null) {
+      return false;
+    }
+    final mention = StoryViewerCanvas.mentionAt(state.layers, point, size);
+    final userId = mention == null
+        ? null
+        : detail.mentionedUserId(mention.username);
+    if (userId == null) return false;
+    _openMention(userId);
+    return true;
+  }
+
+  Future<void> _openMention(int userId) async {
+    if (_openingMention || _closing) return;
+    _openingMention = true;
+    _viewer.pause(true, reason: 'mention-profile');
+    try {
+      await (widget.onOpenProfile?.call(context, userId) ??
+          ProfileScreen.open(context, userId: userId));
+    } finally {
+      _openingMention = false;
+      if (mounted) _viewer.pause(false, reason: 'mention-profile');
+    }
   }
 
   bool _ownerSheetOpen = false;
@@ -305,10 +342,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     child: GestureDetector(
                       key: const ValueKey('story-viewer-taps'),
                       behavior: HitTestBehavior.opaque,
-                      onTapUp: (details) =>
-                          details.localPosition.dx < constraints.maxWidth / 2
-                          ? _viewer.previous()
-                          : _viewer.next(),
+                      onTapUp: (details) {
+                        if (_tapMention(
+                          details.localPosition,
+                          constraints.biggest,
+                        )) {
+                          return;
+                        }
+                        details.localPosition.dx < constraints.maxWidth / 2
+                            ? _viewer.previous()
+                            : _viewer.next();
+                      },
                       onLongPressStart: (_) => _viewer.pause(true),
                       onLongPressEnd: (_) => _viewer.pause(false),
                       onLongPressCancel: () => _viewer.pause(false),

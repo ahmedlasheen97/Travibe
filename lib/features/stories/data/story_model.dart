@@ -187,6 +187,7 @@ class StoryDetail {
     media = StoryMedia.fromJson((map['media'] as List).single);
     // Preserve arbitrary server elements. Only our v1 text codec interprets them.
     elements = List.unmodifiable(map['elements'] as List);
+    mentions = StoryMention.listFrom(map['mentions']);
     viewsCount = _count(map['views_count']);
     likesCount = _count(map['likes_count']);
     isLiked = _bool(map['is_liked']);
@@ -201,8 +202,44 @@ class StoryDetail {
   late final String visibility;
   late final String? locationName;
   late final List<dynamic> elements;
+
+  /// Server-resolved mentions; blocked or unknown handles are omitted.
+  late final List<StoryMention> mentions;
+
+  /// The user a `@handle` sticker links to, matched case-insensitively.
+  int? mentionedUserId(String username) {
+    final handle = username.toLowerCase();
+    for (final mention in mentions) {
+      if (mention.handle == handle) return mention.userId;
+    }
+    return null;
+  }
+
   late final bool isLiked, isMine, hasSeen;
   late final DateTime? createdAt, expiresAt;
+}
+
+class StoryMention {
+  const StoryMention({required this.handle, required this.userId});
+  final String handle;
+  final int userId;
+
+  /// Optional field: malformed entries are dropped rather than failing a Story.
+  static List<StoryMention> listFrom(dynamic json) {
+    if (json is! List) return const [];
+    return List.unmodifiable([
+      for (final item in json)
+        if (item is Map &&
+            item['handle'] is String &&
+            item['user'] is Map &&
+            item['user']['id'] is int &&
+            (item['user']['id'] as int) > 0)
+          StoryMention(
+            handle: (item['handle'] as String).toLowerCase(),
+            userId: item['user']['id'] as int,
+          ),
+    ]);
+  }
 }
 
 class CreateStoryRequest {

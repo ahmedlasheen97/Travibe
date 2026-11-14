@@ -269,7 +269,7 @@ void main() {
   });
 
   testWidgets(
-    'selection opens local editor; future tools and publication stay disabled without network',
+    'selection opens local editor; no placeholder tools and publication stays disabled without network',
     (tester) async {
       var networkAttempts = 0;
       await HttpOverrides.runZoned(
@@ -295,13 +295,22 @@ void main() {
                 .onPressed,
             isNull,
           );
-          final tools = tester
-              .widgetList<IconButton>(find.byType(IconButton))
-              .where(
-                (button) => button.tooltip?.contains('coming soon') ?? false,
-              );
-          expect(tools.length, 4);
-          expect(tools.every((button) => button.onPressed == null), isTrue);
+          // Mention, emoji and draw are live tools; Location was removed.
+          expect(
+            tester
+                .widgetList<IconButton>(find.byType(IconButton))
+                .where(
+                  (button) => button.tooltip?.contains('coming soon') ?? false,
+                ),
+            isEmpty,
+          );
+          for (final key in [
+            'story-mention-tool',
+            'story-emoji-tool',
+            'story-draw-tool',
+          ]) {
+            expect(find.byKey(ValueKey(key)), findsOneWidget);
+          }
           await tester.tap(find.byKey(const ValueKey('story-post')));
           await tester.pump();
           expect(find.byType(StoryEditorScreen), findsOneWidget);

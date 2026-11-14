@@ -28,7 +28,7 @@ class StoryViewerState {
   });
   final StoryViewerStatus status;
   final StoryDetail? detail;
-  final List<StoryTextLayer> layers;
+  final List<StoryEditorLayer> layers;
   final int index, count, request;
   final int? viewsCount;
   final double progress;
@@ -326,7 +326,7 @@ class StoryViewerCubit extends Cubit<StoryViewerState> {
       if (likeRevision != null) {
         likes?.accept(detail, requestRevision: likeRevision);
       }
-      List<StoryTextLayer> layers;
+      List<StoryEditorLayer> layers;
       try {
         layers = StoryElements.decode(detail.elements);
       } on FormatException {

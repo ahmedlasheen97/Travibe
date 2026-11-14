@@ -193,7 +193,7 @@ void main() {
   );
 
   testWidgets(
-    'Followers survives text creation, dragging, editing and disabled tool taps',
+    'Followers survives text creation, dragging, editing and draw mode',
     (tester) async {
       await show(tester);
       await choose(tester, StoryAudience.followers);
@@ -221,7 +221,9 @@ void main() {
       );
       await tester.tap(find.byKey(const ValueKey('story-text-done')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Mention — coming soon'));
+      await tester.tap(find.byKey(const ValueKey('story-draw-tool')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('story-draw-done')));
       await tester.pumpAndSettle();
       expect(current(tester).audience, StoryAudience.followers);
       expect(current(tester).image, same(image));

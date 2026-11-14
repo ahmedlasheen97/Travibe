@@ -13,6 +13,8 @@ import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/screens/story_editor_screen.dart';
 import 'package:travibe/features/stories/widgets/story_canvas.dart';
+import 'package:travibe/features/stories/widgets/story_image_exporter.dart';
+import 'package:travibe/features/stories/cubit/story_publish_cubit.dart';
 import 'fixtures.dart';
 import 'story_publishing_test.dart' show storyDetail;
 
@@ -34,6 +36,20 @@ class _Uploads extends MediaUploadService {
     stage = onStage;
     return result.future;
   }
+}
+
+/// Instant export so fake-async pumps drive the publish flow.
+class _Exporter extends StoryImageExporter {
+  @override
+  Future<StoryExportedImage> export(StoryEditorDraft draft, Size? viewport) =>
+      Future.value(
+        StoryExportedImage(
+          Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xD9]),
+          1,
+          1,
+          flattened: false,
+        ),
+      );
 }
 
 class _Repo extends StoriesRepo {
@@ -84,6 +100,7 @@ void main() {
                     draft: value,
                     uploads: uploads,
                     storiesRepo: repo,
+                    exporter: _Exporter(),
                     onPublished: onPublished,
                   ),
                 ),
@@ -188,9 +205,11 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.byType(StoryEditorScreen), findsOneWidget);
+      // Plain wording only, never the raw upload error.
+      expect(find.text(StoryPublishCubit.failureMessage), findsOneWidget);
       expect(
         find.text('Photo upload failed. Tap Post to retry.'),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
       final retained = tester

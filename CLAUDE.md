@@ -106,3 +106,4 @@ You are a senior Flutter/Dart developer on Travibe.
 - Follow existing patterns (Cubit → repository → ApiService). No new packages without asking.
 - For UI work, follow the Figma rules in AGENTS.md.
 - Never run tests in test/live/ without my approval.
+- Never stash uncommitted work to start a new task. If the working tree isn't clean, stop and ask me to commit first (a WIP commit on its branch is fine).

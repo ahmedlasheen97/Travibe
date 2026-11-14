@@ -54,12 +54,14 @@ import 'package:travibe/features/home/widgets/home_top_bar.dart';
 import 'package:travibe/features/home/widgets/pinned_tabs_delegate.dart';
 import 'package:travibe/features/home/widgets/suggested_users_section.dart';
 import 'package:travibe/features/search/screens/search_screen.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
     this.postsRepo,
     this.publicationSignal,
+    this.storyPublicationSignal,
     this.refreshSignal,
     this.accountRepo,
     this.storiesRepo,
@@ -68,6 +70,9 @@ class HomeScreen extends StatelessWidget {
 
   final PostsRepo? postsRepo;
   final Listenable? publicationSignal;
+
+  /// Fires when a background Story upload is published (Root).
+  final Listenable? storyPublicationSignal;
   final Listenable? refreshSignal;
   final HomeAccountRepo? accountRepo;
   final StoriesRepo? storiesRepo;
@@ -78,6 +83,7 @@ class HomeScreen extends StatelessWidget {
     return _HomeView(
       postsRepo: postsRepo,
       publicationSignal: publicationSignal,
+      storyPublicationSignal: storyPublicationSignal,
       refreshSignal: refreshSignal,
       accountRepo: accountRepo,
       storiesRepo: storiesRepo,
@@ -90,6 +96,7 @@ class _HomeView extends StatefulWidget {
   const _HomeView({
     this.postsRepo,
     this.publicationSignal,
+    this.storyPublicationSignal,
     this.refreshSignal,
     this.accountRepo,
     this.storiesRepo,
@@ -98,6 +105,9 @@ class _HomeView extends StatefulWidget {
 
   final PostsRepo? postsRepo;
   final Listenable? publicationSignal;
+
+  /// Fires when a background Story upload is published (Root).
+  final Listenable? storyPublicationSignal;
   final Listenable? refreshSignal;
   final HomeAccountRepo? accountRepo;
   final StoriesRepo? storiesRepo;
@@ -363,6 +373,7 @@ class _HomeViewState extends State<_HomeView> {
       if (_feeds[1].state is! PostsInitial) _refreshFollowing();
     });
     widget.publicationSignal?.addListener(_onPostPublished);
+    widget.storyPublicationSignal?.addListener(_onStoryUploaded);
     widget.refreshSignal?.addListener(_onHomeRetap);
     _toasts = TravibeToastScope.maybeOf(context);
     for (final feed in _feeds) {
@@ -437,6 +448,9 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
+  /// Root already shows the success toast for background uploads.
+  void _onStoryUploaded() => unawaited(_stories.refresh());
+
   void _onPostPublished() {
     for (final feed in _feeds) {
       unawaited(feed.refreshAfterPublication());
@@ -449,6 +463,10 @@ class _HomeViewState extends State<_HomeView> {
     if (oldWidget.refreshSignal != widget.refreshSignal) {
       oldWidget.refreshSignal?.removeListener(_onHomeRetap);
       widget.refreshSignal?.addListener(_onHomeRetap);
+    }
+    if (oldWidget.storyPublicationSignal != widget.storyPublicationSignal) {
+      oldWidget.storyPublicationSignal?.removeListener(_onStoryUploaded);
+      widget.storyPublicationSignal?.addListener(_onStoryUploaded);
     }
     if (oldWidget.publicationSignal != widget.publicationSignal) {
       oldWidget.publicationSignal?.removeListener(_onPostPublished);
@@ -478,6 +496,7 @@ class _HomeViewState extends State<_HomeView> {
     _stories.close();
     _storyLikes.close();
     widget.publicationSignal?.removeListener(_onPostPublished);
+    widget.storyPublicationSignal?.removeListener(_onStoryUploaded);
     widget.refreshSignal?.removeListener(_onHomeRetap);
     _explicitRefreshes.clear();
     _followSubscription?.cancel();
@@ -621,6 +640,9 @@ class _HomeViewState extends State<_HomeView> {
                                   avatarUrl: owner?.avatarUrl,
                                   storiesRepo: _stories.repo,
                                   onPublished: _onStoryPublished,
+                                  onSubmit: context
+                                      .read<StoryUploadCubit?>()
+                                      ?.enqueue,
                                   builder: (context, onAddStory) =>
                                       BlocBuilder<StoriesCubit, StoriesState>(
                                         bloc: _stories,

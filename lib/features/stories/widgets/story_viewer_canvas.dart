@@ -1,8 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/widgets/story_canvas.dart';
 
-/// Read-only photo and v1 text. Geometry, font, bounds, padding and cover crop
+/// Read-only photo and v1 text/mention elements. Geometry, font, bounds, padding and cover crop
 /// match StoryCanvas, without installing any editor gesture/delete controls.
 class StoryViewerCanvas extends StatelessWidget {
   const StoryViewerCanvas({
@@ -13,7 +15,7 @@ class StoryViewerCanvas extends StatelessWidget {
     required this.onError,
   });
   final ImageProvider image;
-  final List<StoryTextLayer> layers;
+  final List<StoryEditorLayer> layers;
   final VoidCallback onReady, onError;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -42,14 +44,40 @@ class StoryViewerCanvas extends StatelessWidget {
                 return const SizedBox.shrink();
               },
             ),
-            for (final layer in layers) _text(layer, size),
+            for (final layer in layers) _layer(layer, size),
           ],
         ),
       );
     },
   );
-  Widget _text(StoryTextLayer layer, Size size) {
-    final geometry = StoryTextGeometry(layer, size);
+
+  /// The mention sticker under [point] (canvas-local), topmost first.
+  static StoryMentionLayer? mentionAt(
+    List<StoryEditorLayer> layers,
+    Offset point,
+    Size size,
+  ) {
+    for (final layer in layers.reversed.whereType<StoryMentionLayer>()) {
+      final geometry = StoryMentionGeometry(layer, size);
+      final scale = geometry.fitScale(layer.scale);
+      final center = geometry.bound(layer.center, scale, size);
+      final rect = geometry.rect(center, scale, size);
+      // Undo the sticker rotation around its center before testing.
+      final local = point - rect.center;
+      final cos = math.cos(-layer.rotation), sin = math.sin(-layer.rotation);
+      final unrotated =
+          rect.center +
+          Offset(
+            local.dx * cos - local.dy * sin,
+            local.dx * sin + local.dy * cos,
+          );
+      if (rect.contains(unrotated)) return layer;
+    }
+    return null;
+  }
+
+  Widget _layer(StoryEditorLayer layer, Size size) {
+    final geometry = StoryLayerGeometry.of(layer, size);
     final scale = geometry.fitScale(layer.scale);
     final center = geometry.bound(layer.center, scale, size);
     return Positioned(
@@ -58,16 +86,9 @@ class StoryViewerCanvas extends StatelessWidget {
       top: center.dy * size.height - geometry.size.height / 2,
       width: geometry.size.width,
       height: geometry.size.height,
-      child: Transform.scale(
-        scale: scale,
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: RichText(
-            textDirection: TextDirection.ltr,
-            text: TextSpan(text: layer.text, style: geometry.style),
-            textAlign: TextAlign.center,
-          ),
-        ),
+      child: Transform.rotate(
+        angle: layer.rotation,
+        child: Transform.scale(scale: scale, child: geometry.content()),
       ),
     );
   }

@@ -436,7 +436,9 @@ void main() {
           await gesture.up();
           await tester.pumpAndSettle();
           final before = textLayer(tester);
-          await tester.tap(find.byTooltip('Mention — coming soon'));
+          await tester.tap(find.byKey(const ValueKey('story-draw-tool')));
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(const ValueKey('story-draw-done')));
           await tester.pumpAndSettle();
           expect(textLayer(tester), same(before));
           expect(current(tester).image, same(original.image));

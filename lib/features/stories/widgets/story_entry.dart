@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/stories/cubit/story_picker_cubit.dart';
+import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/data/story_photo_repo.dart';
 import 'package:travibe/features/stories/screens/story_editor_screen.dart';
@@ -18,6 +19,7 @@ class StoryEntry extends StatefulWidget {
     this.avatarUrl,
     this.storiesRepo,
     this.onPublished,
+    this.onSubmit,
   });
 
   final Widget Function(BuildContext context, VoidCallback onAddStory) builder;
@@ -25,6 +27,9 @@ class StoryEntry extends StatefulWidget {
   final String? avatarUrl;
   final StoriesRepo? storiesRepo;
   final Future<void> Function()? onPublished;
+
+  /// Background publishing; see [StoryEditorScreen.onSubmit].
+  final ValueChanged<StoryUploadJob>? onSubmit;
 
   @override
   State<StoryEntry> createState() => _StoryEntryState();
@@ -79,6 +84,7 @@ class _StoryEntryState extends State<StoryEntry> {
             avatarUrl: widget.avatarUrl,
             storiesRepo: widget.storiesRepo,
             onPublished: widget.onPublished,
+            onSubmit: widget.onSubmit,
           ),
         ),
       );

@@ -10,6 +10,9 @@ class PersonResultTile extends StatelessWidget {
   final bool followsYou;
   final Widget? trailing;
 
+  /// False hides the follow pill (e.g. when the tile is a picker row).
+  final bool showFollow;
+
   const PersonResultTile({
     super.key,
     required this.user,
@@ -18,6 +21,7 @@ class PersonResultTile extends StatelessWidget {
     this.isFollowingPending = false,
     this.followsYou = false,
     this.trailing,
+    this.showFollow = true,
   });
 
   @override
@@ -80,49 +84,53 @@ class PersonResultTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: trailing == null
-                      ? constraints.maxWidth / 2
-                      : (constraints.maxWidth / 2).clamp(0, 112),
-                ),
-                child: InkWell(
-                  onTap: onFollowTap,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2A2A2A),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      isFollowingPending
-                          ? 'Updating…'
-                          : user.isFollowing
-                          ? 'Following'
-                          : user.followRequested
-                          ? 'Requested'
-                          : 'Follow',
-                      maxLines: trailing == null ? null : 1,
-                      overflow: trailing == null ? null : TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color:
-                            !isFollowingPending &&
-                                !user.isFollowing &&
-                                user.followRequested
-                            ? const Color(0xFF989693)
-                            : Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+              if (showFollow) ...[
+                const SizedBox(width: 12),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: trailing == null
+                        ? constraints.maxWidth / 2
+                        : (constraints.maxWidth / 2).clamp(0, 112),
+                  ),
+                  child: InkWell(
+                    onTap: onFollowTap,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2A2A2A),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        isFollowingPending
+                            ? 'Updating…'
+                            : user.isFollowing
+                            ? 'Following'
+                            : user.followRequested
+                            ? 'Requested'
+                            : 'Follow',
+                        maxLines: trailing == null ? null : 1,
+                        overflow: trailing == null
+                            ? null
+                            : TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color:
+                              !isFollowingPending &&
+                                  !user.isFollowing &&
+                                  user.followRequested
+                              ? const Color(0xFF989693)
+                              : Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
               ?trailing,
             ],
           ),
