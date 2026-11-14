@@ -1,163 +1,264 @@
-import 'package:travibe/core/constants/app_sizes.dart';
-import 'package:travibe/core/theme/action_button_style.dart';
-import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/features/create_post/data/post_image.dart';
+import 'package:travibe/features/create_post/data/post_image_picker.dart';
+import 'package:travibe/features/profile/cubit/report_problem_cubit.dart';
+import 'package:travibe/features/profile/data/support_repo.dart';
+import 'package:travibe/features/profile/widgets/settings_form.dart';
 
 class ReportProblemScreen extends StatefulWidget {
-  const ReportProblemScreen({super.key});
+  const ReportProblemScreen({super.key, this.repo, this.picker});
+
+  final SupportRepo? repo;
+  final PostImagePicker? picker;
 
   @override
   State<ReportProblemScreen> createState() => _ReportProblemScreenState();
 }
 
 class _ReportProblemScreenState extends State<ReportProblemScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _descriptionController = TextEditingController();
-  String? _selectedCategory;
-  File? _screenshot;
-  bool _isSubmitting = false;
+  final _description = TextEditingController();
+  late final _cubit = ReportProblemCubit(repo: widget.repo);
+  late final _picker = widget.picker ?? PostImagePicker();
+  final _screenshots = <PostImage>[];
+  ProblemCategory? _category;
+  bool _picking = false;
 
-  static const int _descMaxLength = 24;
+  bool get _canSubmit =>
+      _category != null && _description.text.trim().isNotEmpty;
 
-  static const _categories = [
-    'Bug / Technical Issue',
-    'Harassment or Bullying',
-    'Spam',
-    'Inappropriate Content',
-    'Other',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _description.addListener(() => setState(() {}));
+  }
 
   @override
   void dispose() {
-    _descriptionController.dispose();
+    _description.dispose();
+    _cubit.close();
     super.dispose();
   }
 
-  Future<void> _pickScreenshot() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      setState(() => _screenshot = File(picked.path));
-    }
-  }
-
-  Future<void> _showCategoryPicker() async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: const Color(0xFF141414),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.r24)),
-      ),
-      builder: (context) => SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(height: AppSizes.h12),
-            Container(
-              width: AppSizes.w40,
-              height: AppSizes.h4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(AppSizes.r2),
+  Future<void> _chooseCategory() async {
+    FocusScope.of(context).unfocus();
+    final picked = await showOptionsSheet<ProblemCategory>(
+      context,
+      builder: (sheet) => OptionsSheetBody(
+        children: [
+          for (final category in SupportRepo.categories)
+            OptionSheetTile(
+              key: ValueKey('problem-category-${category.slug}'),
+              icon: Icon(
+                category == _category
+                    ? Icons.radio_button_checked_rounded
+                    : Icons.radio_button_unchecked_rounded,
+                color: category == _category
+                    ? DarkColors.primaryColor
+                    : Colors.white54,
               ),
+              label: category.label,
+              onTap: () => Navigator.pop(sheet, category),
             ),
-            SizedBox(height: AppSizes.h16),
-            for (final category in _categories)
-              ListTile(
-                title: Text(
-                  category,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: AppSizes.sp14,
-                  ),
-                ),
-                trailing: _selectedCategory == category
-                    ? Icon(Icons.check_rounded, color: DarkColors.primaryColor)
-                    : null,
-                onTap: () => Navigator.pop(context, category),
-              ),
-            SizedBox(height: AppSizes.h8),
-          ],
-        ),
+        ],
       ),
     );
+    if (picked != null && mounted) setState(() => _category = picked);
+  }
 
-    if (result != null) {
-      setState(() => _selectedCategory = result);
+  Future<void> _addScreenshots() async {
+    final remaining = SupportRepo.maxScreenshots - _screenshots.length;
+    if (_picking || remaining < 1) return;
+    _picking = true;
+    final toast = TravibeToast.of(context);
+    try {
+      final pick = await _picker.pickGallery(limit: remaining);
+      if (!mounted) return;
+      final added = pick.images.take(remaining).toList();
+      setState(() => _screenshots.addAll(added));
+      if (pick.rejected > 0 || pick.images.length > added.length) {
+        toast.present(
+          TravibeToastData.error(
+            pick.rejected > 0
+                ? 'Some photos were skipped. Use JPEG, PNG, GIF or WebP up to 20 MB.'
+                : 'You can add up to ${SupportRepo.maxScreenshots} screenshots.',
+          ),
+        );
+      }
+    } on PostImagePermissionDenied {
+      toast.present(
+        const TravibeToastData.error('Allow photo access to add a screenshot.'),
+      );
+    } catch (_) {
+      toast.present(
+        const TravibeToastData.error('Unable to open your photos.'),
+      );
+    } finally {
+      _picking = false;
     }
   }
 
-  Future<void> _submitReport() async {
-    if (!_formKey.currentState!.validate()) return;
-    if (_selectedCategory == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a problem category')),
-      );
-      return;
-    }
-
-    setState(() => _isSubmitting = true);
-    try {
-      // TODO: wire to your repo, e.g.:
-      // await SupportRepo().reportProblem(
-      //   category: _selectedCategory!,
-      //   description: _descriptionController.text,
-      //   screenshot: _screenshot,
-      // );
-      debugPrint(
-        'Submitting report: $_selectedCategory / ${_descriptionController.text}',
-      );
-      if (!mounted) return;
-      Navigator.of(context).pop();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to submit report: $e')));
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
+  void _submit() {
+    final category = _category;
+    if (category == null || !_canSubmit) return;
+    FocusScope.of(context).unfocus();
+    _cubit.submit(
+      category: category.slug,
+      description: _description.text,
+      screenshots: List.of(_screenshots),
+    );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DarkColors.backgroundColor,
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
+  Widget build(BuildContext context) =>
+      BlocConsumer<ReportProblemCubit, ReportProblemState>(
+        bloc: _cubit,
+        listener: (context, state) {
+          if (state.sent) {
+            final toast = TravibeToast.of(context);
+            Navigator.of(context).pop();
+            toast.present(
+              const TravibeToastData.success('Thanks, we received your report'),
+            );
+          } else if (state.error case final message?) {
+            TravibeToast.show(context, TravibeToastData.error(message));
+          }
+        },
+        builder: (context, state) {
+          final busy = state.submitting || state.sent;
+          return SettingsFormScaffold(
+            title: 'Report a Problem',
+            busy: busy,
+            button: SettingsActionButton(
+              key: const ValueKey('submit-report'),
+              label: 'Submit Report',
+              loading: busy,
+              loadingLabel: 'Sending report',
+              onPressed: _canSubmit ? _submit : null,
+            ),
             children: [
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: _CategoryPill(
+                  label: _category?.label,
+                  onTap: busy ? null : _chooseCategory,
+                ),
+              ),
+              SizedBox(height: AppSizes.adaptiveHeight(28)),
+              const SettingsFieldLabel('Problem', required: true),
+              SettingsMultilineField(
+                fieldKey: const ValueKey('problem-description'),
+                controller: _description,
+                hintText: 'Describe your problem',
+                maxLength: SupportRepo.maxDescription,
+                enabled: !busy,
+              ),
+              SizedBox(height: AppSizes.h24),
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppSizes.sp16,
+                  ),
                   children: [
-                    SizedBox(height: AppSizes.h8),
-                    _buildTopBar(),
-                    SizedBox(height: AppSizes.h24),
-                    _buildCategoryField(),
-                    SizedBox(height: AppSizes.h24),
-                    _buildLabel('Problem', required: true),
-                    SizedBox(height: AppSizes.h8),
-                    _buildDescriptionField(),
-                    SizedBox(height: AppSizes.h24),
-                    _buildLabel('Add Screenshot (optional)'),
-                    SizedBox(height: AppSizes.h10),
-                    _buildScreenshotPicker(),
+                    const TextSpan(text: 'Add Screenshot '),
+                    TextSpan(
+                      text: '(optional)',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .55),
+                        fontSize: AppSizes.sp14,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.pw20,
-                  AppSizes.ph12,
-                  AppSizes.pw20,
-                  AppSizes.ph20,
+              SizedBox(height: AppSizes.h12),
+              Wrap(
+                spacing: AppSizes.adaptiveWidth(12),
+                runSpacing: AppSizes.adaptiveHeight(12),
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  for (final shot in _screenshots)
+                    _Thumbnail(
+                      key: ValueKey('screenshot-${shot.localId}'),
+                      image: shot,
+                      onRemove: busy
+                          ? null
+                          : () => setState(() => _screenshots.remove(shot)),
+                    ),
+                  if (_screenshots.length < SupportRepo.maxScreenshots)
+                    IconButton(
+                      key: const ValueKey('add-screenshot'),
+                      tooltip: 'Add screenshot',
+                      onPressed: busy ? null : _addScreenshots,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(44),
+                      ),
+                      icon: SvgPicture.asset(
+                        'assets/images/icons/gallery-add.svg',
+                        width: 28,
+                        height: 28,
+                        colorFilter: const ColorFilter.mode(
+                          Colors.white70,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          );
+        },
+      );
+}
+
+class _CategoryPill extends StatelessWidget {
+  const _CategoryPill({required this.label, required this.onTap});
+  final String? label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(999);
+    return Material(
+      color: settingsFieldFill,
+      shape: RoundedRectangleBorder(
+        borderRadius: radius,
+        side: const BorderSide(color: settingsFieldBorder),
+      ),
+      child: InkWell(
+        key: const ValueKey('problem-category'),
+        borderRadius: radius,
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppSizes.adaptiveWidth(20),
+            vertical: AppSizes.adaptiveHeight(14),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  label ?? 'Problem category',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: label == null
+                        ? Colors.white.withValues(alpha: .7)
+                        : Colors.white,
+                    fontSize: AppSizes.sp16,
+                  ),
                 ),
-                child: _buildSubmitButton(),
+              ),
+              SizedBox(width: AppSizes.adaptiveWidth(24)),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white,
               ),
             ],
           ),
@@ -165,188 +266,61 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
       ),
     );
   }
+}
 
-  Widget _buildTopBar() {
-    return SizedBox(
-      height: AppSizes.h40,
+class _Thumbnail extends StatelessWidget {
+  const _Thumbnail({super.key, required this.image, required this.onRemove});
+  final PostImage image;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = AppSizes.adaptiveRadius(72);
+    return SizedBox.square(
+      dimension: size + 8,
       child: Stack(
-        alignment: Alignment.center,
         children: [
-          Text(
-            'Report a Problem',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: AppSizes.sp17,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: BackButtonWidget(
-              onTap: () => Navigator.of(context).maybePop(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLabel(String text, {bool required = false}) {
-    return RichText(
-      text: TextSpan(
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: AppSizes.sp14,
-          fontWeight: FontWeight.w600,
-        ),
-        children: [
-          TextSpan(text: text),
-          if (required)
-            const TextSpan(
-              text: ' *',
-              style: TextStyle(color: Color(0xFFDB4A3D)),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryField() {
-    return InkWell(
-      onTap: _showCategoryPicker,
-      borderRadius: BorderRadius.circular(AppSizes.r28),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: AppSizes.pw20,
-          vertical: AppSizes.ph14,
-        ),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(AppSizes.r28),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                _selectedCategory ?? 'Problem category',
-                style: TextStyle(
-                  color: _selectedCategory != null
-                      ? Colors.white
-                      : Colors.white.withValues(alpha: 0.4),
-                  fontSize: AppSizes.sp14,
-                ),
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(12)),
+              child: Image.memory(
+                image.bytes,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
               ),
-            ),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: Colors.white54,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDescriptionField() {
-    return TextFormField(
-      controller: _descriptionController,
-      maxLength: _descMaxLength,
-      maxLines: 4,
-      style: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
-      onChanged: (_) => setState(() {}),
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please describe your problem';
-        }
-        return null;
-      },
-      decoration: InputDecoration(
-        hintText: 'Describe your problem',
-        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        filled: true,
-        fillColor: const Color(0xFF1C1C1C),
-        counterText: '${_descriptionController.text.length}/$_descMaxLength',
-        counterStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        contentPadding: EdgeInsets.all(AppSizes.pw16),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSizes.r20),
-          borderSide: BorderSide.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildScreenshotPicker() {
-    if (_screenshot != null) {
-      return Stack(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppSizes.r16),
-            child: Image.file(
-              _screenshot!,
-              height: AppSizes.h100,
-              width: AppSizes.w100,
-              fit: BoxFit.cover,
             ),
           ),
           Positioned(
-            top: -6,
-            right: -6,
-            child: InkWell(
-              onTap: () => setState(() => _screenshot = null),
-              child: CircleAvatar(
-                radius: 12,
-                backgroundColor: Colors.black87,
-                child: Icon(
-                  Icons.close_rounded,
-                  color: Colors.white,
-                  size: AppSizes.w14,
+            top: 0,
+            right: 0,
+            child: Semantics(
+              button: true,
+              label: 'Remove screenshot',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onRemove,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.black87,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ),
           ),
         ],
-      );
-    }
-
-    return InkWell(
-      onTap: _pickScreenshot,
-      borderRadius: BorderRadius.circular(AppSizes.r16),
-      child: Container(
-        width: AppSizes.w56,
-        height: AppSizes.h56,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(AppSizes.r16),
-        ),
-        child: Icon(
-          Icons.add_photo_alternate_outlined,
-          color: Colors.white54,
-          size: AppSizes.w24,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSubmitButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: AppSizes.h56,
-      child: ElevatedButton(
-        onPressed: _isSubmitting ? null : _submitReport,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: DarkColors.primaryColor,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: ActionButtonStyle.shape,
-        ),
-        child: _isSubmitting
-            ? SizedBox(
-                width: AppSizes.w22,
-                height: AppSizes.h22,
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              )
-            : const Text('Submit Report', style: ActionButtonStyle.label),
       ),
     );
   }
