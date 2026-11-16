@@ -20,6 +20,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/cubit/edit_profile_cubit.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
@@ -778,13 +779,14 @@ void main() {
     },
   );
   test(
-    'uploaded avatar and committed PATCH are not repeated after location fails',
+    'a picture saved on its own is not repeated when a later city save fails',
     () async {
       final uploads = Uploads();
+      final pictures = ProfilePictureUploadCubit(uploads: () => uploads);
       final editor = EditProfileCubit(
         owner,
         avatarRepo: Photos(),
-        mediaUpload: uploads,
+        pictures: pictures,
       );
       await editor.pickAvatar();
       final draft = ProfileDraft(getProfile())..selectCity(paris);
@@ -792,12 +794,13 @@ void main() {
       expect(await editor.save(draft), false);
       expect(uploads.calls, 1);
       expect(api.patches.single, {'avatar_media_id': 77});
-      expect(editor.state.avatar, isNull);
+      expect(pictures.state, isA<ProfilePictureDone>());
       api.locationError = null;
       expect(await editor.save(draft), true);
       expect(uploads.calls, 1);
       expect(api.patches, hasLength(1));
       await editor.close();
+      await pictures.close();
       uploads.close();
     },
   );

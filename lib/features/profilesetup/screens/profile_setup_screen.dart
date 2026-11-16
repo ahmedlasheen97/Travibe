@@ -6,6 +6,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'dart:typed_data';
+
+import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'package:travibe/features/profilesetup/widgets/step1_basic_info.dart';
@@ -22,6 +25,33 @@ class ProfileSetupScreen extends StatefulWidget {
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   static const int _totalSteps = 3;
+  Uint8List? _announcedPreview;
+
+  bool _avatarUploadChanged(ProfileSetupState a, ProfileSetupState b) =>
+      a.uploadingAvatar != b.uploadingAvatar ||
+      a.avatarUploadFailed != b.avatarUploadFailed ||
+      !identical(a.avatarPreview, b.avatarPreview);
+
+  /// Same floating toast as post uploads: progress, then success or failure.
+  void _onAvatarUpload(BuildContext context, ProfileSetupState state) {
+    final cubit = context.read<ProfileSetupCubit>();
+    final toast = TravibeToast.of(context);
+    final data = profilePictureToast(
+      uploading: state.uploadingAvatar,
+      failed: state.avatarUploadFailed,
+      onRetry: cubit.uploadAvatar,
+      onDiscard: cubit.discardAvatar,
+    );
+    final preview = state.avatarPreview;
+    if (data != null) {
+      toast.present(data);
+    } else if (preview != null && !identical(preview, _announcedPreview)) {
+      _announcedPreview = preview;
+      toast.present(profilePictureUpdatedToast);
+    } else {
+      toast.dismiss();
+    }
+  }
 
   void _goHome(BuildContext context) {
     Navigator.pushAndRemoveUntil(
@@ -41,97 +71,103 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                 ))
             ..restore()
             ..loadCatalogs(),
-      child: BlocConsumer<ProfileSetupCubit, ProfileSetupState>(
-        listenWhen: (previous, current) => previous.status != current.status,
-        listener: (context, state) {
-          if (state.status == ProfileSetupStatus.completed) {
-            _goHome(context);
-          } else if (state.status == ProfileSetupStatus.failure) {
-            TravibeToast.show(
-              context,
-              TravibeToastData.error(state.errorMessage),
-            );
-          }
-        },
-        builder: (context, state) {
-          final cubit = context.read<ProfileSetupCubit>();
+      child: BlocListener<ProfileSetupCubit, ProfileSetupState>(
+        listenWhen: _avatarUploadChanged,
+        listener: _onAvatarUpload,
+        child: BlocConsumer<ProfileSetupCubit, ProfileSetupState>(
+          listenWhen: (previous, current) => previous.status != current.status,
+          listener: (context, state) {
+            if (state.status == ProfileSetupStatus.completed) {
+              _goHome(context);
+            } else if (state.status == ProfileSetupStatus.failure) {
+              TravibeToast.show(
+                context,
+                TravibeToastData.error(state.errorMessage),
+              );
+            }
+          },
+          builder: (context, state) {
+            final cubit = context.read<ProfileSetupCubit>();
 
-          // The account already exists, so setup never pops back to Signup or
-          // OTP. Back moves to the previous step; on step 1 it does nothing.
-          return PopScope(
-            canPop: false,
-            onPopInvokedWithResult: (didPop, result) {
-              if (!didPop) cubit.goBack();
-            },
-            child: SafeArea(
-              child: Scaffold(
-                backgroundColor: DarkColors.backgroundColor,
-                appBar: AppBar(
+            // The account already exists, so setup never pops back to Signup or
+            // OTP. Back moves to the previous step; on step 1 it does nothing.
+            return PopScope(
+              canPop: false,
+              onPopInvokedWithResult: (didPop, result) {
+                if (!didPop) cubit.goBack();
+              },
+              child: SafeArea(
+                child: Scaffold(
                   backgroundColor: DarkColors.backgroundColor,
-                  surfaceTintColor: Colors.transparent,
-                  scrolledUnderElevation: 0,
-                  elevation: 0,
-                  centerTitle: true,
-                  automaticallyImplyLeading: false,
-                  leading: state.step > 0
-                      ? BackButtonWidget(onTap: cubit.goBack)
-                      : null,
-                  title: const Text(
-                    'Profile Setup',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
+                  appBar: AppBar(
+                    backgroundColor: DarkColors.backgroundColor,
+                    surfaceTintColor: Colors.transparent,
+                    scrolledUnderElevation: 0,
+                    elevation: 0,
+                    centerTitle: true,
+                    automaticallyImplyLeading: false,
+                    leading: state.step > 0
+                        ? BackButtonWidget(onTap: cubit.goBack)
+                        : null,
+                    title: const Text(
+                      'Profile Setup',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-                body: Column(
-                  children: [
-                    const SizedBox(height: 12),
-                    SmoothPageIndicator(
-                      controller: cubit.pageController,
-                      count: _totalSteps,
-                      effect: const ExpandingDotsEffect(
-                        dotHeight: 8,
-                        dotWidth: 8,
-                        activeDotColor: DarkColors.primaryColor,
-                        dotColor: Color(0xFF303030),
-                      ),
-                    ),
-                    SizedBox(height: AppSizes.h12),
-                    Expanded(
-                      child: PageView(
+                  body: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      SmoothPageIndicator(
                         controller: cubit.pageController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        onPageChanged: cubit.onPageChanged,
-                        children: [
-                          Step1BasicInfo(cubit: cubit),
-                          Step2LanguagesInterests(
-                            selectedLanguages: state.languages,
-                            onLanguagesChanged: cubit.setLanguages,
-                            selectedInterests: state.interests,
-                            onInterestsChanged: cubit.setInterests,
-                            isSaving: state.isSaving,
-                            onNext: cubit.saveLanguagesAndInterests,
-                          ),
-                          Step3TravelStyle(
-                            catalog: state.catalog(ReferenceKind.travelStyles),
-                            onRetry: () =>
-                                cubit.loadCatalog(ReferenceKind.travelStyles),
-                            selectedTravelStyles: state.travelStyles,
-                            onTravelStylesChanged: cubit.setTravelStyles,
-                            onFinish: state.isSaving ? null : cubit.finish,
-                            isSubmitting: state.isSaving,
-                          ),
-                        ],
+                        count: _totalSteps,
+                        effect: const ExpandingDotsEffect(
+                          dotHeight: 8,
+                          dotWidth: 8,
+                          activeDotColor: DarkColors.primaryColor,
+                          dotColor: Color(0xFF303030),
+                        ),
                       ),
-                    ),
-                  ],
+                      SizedBox(height: AppSizes.h12),
+                      Expanded(
+                        child: PageView(
+                          controller: cubit.pageController,
+                          physics: const NeverScrollableScrollPhysics(),
+                          onPageChanged: cubit.onPageChanged,
+                          children: [
+                            Step1BasicInfo(cubit: cubit),
+                            Step2LanguagesInterests(
+                              selectedLanguages: state.languages,
+                              onLanguagesChanged: cubit.setLanguages,
+                              selectedInterests: state.interests,
+                              onInterestsChanged: cubit.setInterests,
+                              isSaving: state.isSaving,
+                              onNext: cubit.saveLanguagesAndInterests,
+                            ),
+                            Step3TravelStyle(
+                              catalog: state.catalog(
+                                ReferenceKind.travelStyles,
+                              ),
+                              onRetry: () =>
+                                  cubit.loadCatalog(ReferenceKind.travelStyles),
+                              selectedTravelStyles: state.travelStyles,
+                              onTravelStylesChanged: cubit.setTravelStyles,
+                              onFinish: state.isSaving ? null : cubit.finish,
+                              isSubmitting: state.isSaving,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

@@ -5,6 +5,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/features/profile/cubit/edit_profile_cubit.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/features/profile/data/profile_update.dart';
@@ -55,44 +56,66 @@ class Photos extends ProfileAvatarRepo {
   );
 }
 
+typedef _Rig = ({
+  ProfileCubit owner,
+  EditProfileCubit editor,
+  ProfilePictureUploadCubit pictures,
+  ProfileAvatarDraft source,
+});
+
 void main() {
+  final source = Photos();
+
+  Future<_Rig> rig(PipelineApi api, StorageAdapter storage) async {
+    final service = MediaUploadService(
+      api: api,
+      storageAdapter: storage,
+      now: () => DateTime.utc(2026),
+      wait: (_) async {},
+    );
+    final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
+    await owner.loadProfile();
+    final pictures = ProfilePictureUploadCubit(uploads: () => service);
+    final editor = EditProfileCubit(
+      owner,
+      avatarRepo: source,
+      pictures: pictures,
+    );
+    addTearDown(() async {
+      await editor.close();
+      await pictures.close();
+      await owner.close();
+      service.close();
+    });
+    return (
+      owner: owner,
+      editor: editor,
+      pictures: pictures,
+      source: (await source.pick())!,
+    );
+  }
+
+  /// Picks a photo and waits for its background upload + attach.
+  Future<void> pickAndSettle(_Rig r) async {
+    await r.editor.pickAvatar();
+    await r.pictures.settled();
+  }
+
   test(
-    'full real pipeline preserves source metadata then refreshes canonical avatar',
+    'full real pipeline uploads on pick, attaches the avatar, then saves fields',
     () async {
       final api = PipelineApi();
       final storage = StorageAdapter()
         ..onRequest = () => api.calls.add('PUT storage');
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      final source = editor.state.avatar!;
-      expect(api.calls, ['GET profile']); // Selection never uploads.
-      final draft = ProfileDraft((owner.state as ProfileLoaded).profile)
-        ..set('bio', 'New bio');
-      expect(await editor.save(draft), true);
+      final r = await rig(api, storage);
+      await pickAndSettle(r);
       expect(api.presignBody, {
-        'filename': source.name,
+        'filename': r.source.name,
         'content_type': 'image/png',
-        'size': source.bytes.length,
+        'size': r.source.bytes.length,
       });
-      expect(storage.bytes, source.bytes);
-      expect(api.patchBody, {'bio': 'New bio', 'avatar_media_id': 19});
+      expect(storage.bytes, r.source.bytes);
+      expect(api.patchBody, {'avatar_media_id': 19});
       expect(api.calls, [
         'GET profile',
         'POST media/presign',
@@ -104,60 +127,52 @@ void main() {
         'PATCH profile',
         'GET profile',
       ]);
+      expect(r.pictures.state, isA<ProfilePictureDone>());
       expect(
-        (owner.state as ProfileLoaded).profile.avatarUrl,
+        (r.owner.state as ProfileLoaded).profile.avatarUrl,
         'https://example.invalid/new-avatar.png',
       );
-      expect((owner.state as ProfileLoaded).profile.bio, 'New bio');
-      expect(editor.state.saved, true);
+      final draft = ProfileDraft((r.owner.state as ProfileLoaded).profile)
+        ..set('bio', 'New bio');
+      expect(await r.editor.save(draft), true);
+      expect(api.patchBody, {'bio': 'New bio'});
+      expect((r.owner.state as ProfileLoaded).profile.bio, 'New bio');
+      expect(r.editor.state.saved, true);
       expect(draft.isDirty, false);
     },
   );
 
   test(
-    'ambiguous storage timeout preserves preview and fields; Save retries reconcile without writes',
+    'ambiguous storage timeout keeps preview and fields; Retry reconciles without writes',
     () async {
       final api = PipelineApi()..statuses = ['pending'];
       final storage = StorageAdapter()..receiveTimeout = true;
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final original = (owner.state as ProfileLoaded).profile;
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      final photo = editor.state.avatar;
+      final r = await rig(api, storage);
+      final original = (r.owner.state as ProfileLoaded).profile;
+      await pickAndSettle(r);
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
+      expect(r.pictures.state.preview, r.source.bytes);
       final draft = ProfileDraft(original)..set('bio', 'Keep this draft');
-      expect(await editor.save(draft), false);
-      expect((owner.state as ProfileLoaded).profile, same(original));
-      expect(editor.state.avatar, same(photo));
+      // Save never goes ahead over a failed picture.
+      expect(await r.editor.save(draft), false);
+      expect((r.owner.state as ProfileLoaded).profile, same(original));
       expect(draft.changes, {'bio': 'Keep this draft'});
       expect(api.patchBody, isNull);
-      expect(await editor.save(draft), false);
+      await r.pictures.retry();
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(storage.requests, 1);
       expect(api.calls.where((e) => e.startsWith('POST')), [
         'POST media/presign',
       ]);
-      expect(editor.state.avatar, same(photo));
       // Only an authoritative server ready result permits claiming this ID.
       api.statuses = ['ready'];
-      expect(await editor.save(draft), true);
-      expect(api.patchBody, {'bio': 'Keep this draft', 'avatar_media_id': 19});
+      await r.pictures.retry();
+      expect(r.pictures.state, isA<ProfilePictureDone>());
+      expect(api.patchBody, {'avatar_media_id': 19});
       expect(storage.requests, 1);
       expect(api.calls.where((e) => e.contains('finalize')), isEmpty);
+      expect(await r.editor.save(draft), true);
+      expect(api.patchBody, {'bio': 'Keep this draft'});
     },
   );
 
@@ -169,40 +184,19 @@ void main() {
         ..statusEnvelope = 'media'
         ..statuses = ['ready'];
       final storage = StorageAdapter();
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final original = (owner.state as ProfileLoaded).profile;
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      final photo = editor.state.avatar;
-      final draft = ProfileDraft(original)..set('bio', 'Keep edits');
-      expect(await editor.save(draft), false);
-      expect(editor.state.avatar, same(photo));
-      expect(draft.changes, {'bio': 'Keep edits'});
+      final r = await rig(api, storage);
+      await pickAndSettle(r);
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(api.patchBody, isNull);
-      expect(await editor.save(draft), true);
-      expect(api.patchBody, {'bio': 'Keep edits', 'avatar_media_id': 19});
+      await r.pictures.retry();
+      expect(r.pictures.state, isA<ProfilePictureDone>());
+      expect(api.patchBody, {'avatar_media_id': 19});
       expect(storage.requests, 1);
       expect(api.calls.where((c) => c == 'POST media/presign'), hasLength(1));
       expect(api.calls.where((c) => c.contains('finalize')), hasLength(1));
       expect(api.calls.last, 'GET profile');
       expect(
-        (owner.state as ProfileLoaded).profile.avatarUrl,
+        (r.owner.state as ProfileLoaded).profile.avatarUrl,
         'https://example.invalid/new-avatar.png',
       );
     },
@@ -218,29 +212,9 @@ void main() {
         )
         ..statuses = ['processing', 'ready'];
       final storage = StorageAdapter();
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      expect(
-        await editor.save(ProfileDraft((owner.state as ProfileLoaded).profile)),
-        true,
-      );
+      final r = await rig(api, storage);
+      await pickAndSettle(r);
+      expect(r.pictures.state, isA<ProfilePictureDone>());
       expect(api.patchBody, {'avatar_media_id': 19});
       expect(api.calls.where((c) => c.contains('finalize')), [
         'POST media/19/finalize',
@@ -248,14 +222,14 @@ void main() {
       expect(storage.requests, 1);
       expect(api.calls.last, 'GET profile');
       expect(
-        (owner.state as ProfileLoaded).profile.avatarUrl,
+        (r.owner.state as ProfileLoaded).profile.avatarUrl,
         'https://example.invalid/new-avatar.png',
       );
     },
   );
 
   test(
-    'finalize 422 preserves existing profile, selected image, fields and validation error',
+    'finalize 422 fails the picture and keeps the existing profile and fields',
     () async {
       final validation = ApiError(
         message: 'Invalid uploaded image',
@@ -266,33 +240,15 @@ void main() {
       );
       final api = PipelineApi()..finalizeError = validation;
       final storage = StorageAdapter();
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final original = (owner.state as ProfileLoaded).profile;
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      final photo = editor.state.avatar;
+      final r = await rig(api, storage);
+      final original = (r.owner.state as ProfileLoaded).profile;
+      await pickAndSettle(r);
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
+      expect(r.pictures.state.preview, r.source.bytes);
       final draft = ProfileDraft(original)..set('bio', 'Keep my changes');
-      expect(await editor.save(draft), false);
-      expect(editor.state.error, same(validation));
-      expect(editor.state.avatar, same(photo));
+      expect(await r.editor.save(draft), false);
       expect(draft.changes, {'bio': 'Keep my changes'});
-      expect((owner.state as ProfileLoaded).profile, same(original));
+      expect((r.owner.state as ProfileLoaded).profile, same(original));
       expect(api.patchBody, isNull);
       expect(api.calls.where((c) => c.startsWith('GET media')), isEmpty);
       expect(storage.requests, 1);
@@ -304,40 +260,22 @@ void main() {
     () async {
       final api = PipelineApi()..statuses = ['failed'];
       final storage = StorageAdapter();
-      final service = MediaUploadService(
-        api: api,
-        storageAdapter: storage,
-        now: () => DateTime.utc(2026),
-        wait: (_) async {},
-      );
-      final owner = ProfileCubit(profileRepo: ProfileRepo(apiService: api));
-      await owner.loadProfile();
-      final original = (owner.state as ProfileLoaded).profile;
-      final editor = EditProfileCubit(
-        owner,
-        avatarRepo: Photos(),
-        mediaUpload: service,
-      );
-      addTearDown(() async {
-        await editor.close();
-        await owner.close();
-        service.close();
-      });
-      await editor.pickAvatar();
-      final photo = editor.state.avatar;
-      final draft = ProfileDraft(original)..set('bio', 'Unsaved');
-      expect(await editor.save(draft), false);
+      final r = await rig(api, storage);
+      final original = (r.owner.state as ProfileLoaded).profile;
+      await pickAndSettle(r);
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(api.patchBody, isNull);
-      expect((owner.state as ProfileLoaded).profile, same(original));
-      expect(editor.state.avatar, same(photo));
+      expect((r.owner.state as ProfileLoaded).profile, same(original));
       api.statuses = ['ready'];
       api.patchError = ApiError(message: 'Invalid', statusCode: 422);
-      expect(await editor.save(draft), false);
+      await r.pictures.retry();
+      expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(storage.requests, 2);
       api.patchError = null;
-      expect(await editor.save(draft), true);
+      await r.pictures.retry();
+      expect(r.pictures.state, isA<ProfilePictureDone>());
       expect(storage.requests, 2);
-      expect(api.patchBody, {'bio': 'Unsaved', 'avatar_media_id': 19});
+      expect(api.patchBody, {'avatar_media_id': 19});
     },
   );
 }

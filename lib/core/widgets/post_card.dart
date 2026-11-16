@@ -235,7 +235,28 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _buildAvatar() {
-    final avatar = widget.avatar;
+    final current = context.read<CurrentUserCubit?>();
+    if (widget.authorId == null || current == null) {
+      return _avatarImage(widget.avatar);
+    }
+    // My own posts follow my current picture, so a new upload shows here
+    // without reloading the feed.
+    return BlocBuilder<CurrentUserCubit, CurrentUserState>(
+      bloc: current,
+      buildWhen: (a, b) => a.profile?.avatarUrl != b.profile?.avatarUrl,
+      builder: (context, state) {
+        final mine = state.profile?.avatarUrl;
+        final own =
+            mine != null &&
+            mine.isNotEmpty &&
+            normalizeUserId(widget.authorId) ==
+                normalizeUserId(state.profile?.id);
+        return _avatarImage(own ? mine : widget.avatar);
+      },
+    );
+  }
+
+  Widget _avatarImage(String? avatar) {
     final radius = widget.avatarSize == null ? _r(20) : widget.avatarSize! / 2;
     if (avatar == null || avatar.isEmpty) {
       return CircleAvatar(

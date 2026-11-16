@@ -8,6 +8,9 @@ import 'package:country_picker/country_picker.dart';
 import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
+import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
@@ -29,12 +32,19 @@ class EditProfileScreen extends StatefulWidget {
     required this.owner,
     this.selectionRepo,
     this.avatarRepo,
+    this.pictureUploads,
     this.mediaUpload,
   });
   final ProfileModel profile;
   final ProfileCubit owner;
   final ProfileSetupRepo? selectionRepo;
   final ProfileAvatarRepo? avatarRepo;
+
+  /// Root's background picture upload; it keeps going after this screen
+  /// closes. Without one (e.g. tests), the screen owns a private uploader.
+  final ProfilePictureUploadCubit? pictureUploads;
+
+  /// Only used for the private uploader when [pictureUploads] is null.
   final MediaUploadService? mediaUpload;
 
   @override
@@ -49,6 +59,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _bioController;
   late final ProfileDraft _draft;
   late final EditProfileCubit _editor;
+  late final ProfilePictureUploadCubit _pictures;
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
   late final ProfileSetupRepo _selectionRepo;
   Country? _nationalityCountry;
   late final ProfileModel _initialProfile;
@@ -60,7 +72,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   bool _allowPop = false;
   bool _selecting = false;
   bool _confirming = false;
-  bool get _isDirty => _draft.isDirty || _editor.state.avatar != null;
+  bool get _isDirty => _draft.isDirty;
   bool get _isSaving => _editor.state.saving;
   bool get _pickingAvatar => _editor.state.selectingAvatar;
   Map<String, List<String>> _errors = {};
@@ -110,10 +122,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ? loaded.profile
         : widget.profile;
     _draft = ProfileDraft(_initialProfile);
+    _pictures =
+        widget.pictureUploads ??
+        ProfilePictureUploadCubit(
+          uploads: widget.mediaUpload == null
+              ? null
+              : () => widget.mediaUpload!,
+        );
     _editor = EditProfileCubit(
       widget.owner,
+      pictures: _pictures,
       avatarRepo: widget.avatarRepo,
-      mediaUpload: widget.mediaUpload,
     );
     _selectionRepo = widget.selectionRepo ?? ProfileSetupRepo();
     _fullNameController = TextEditingController(
@@ -167,6 +186,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void dispose() {
     _editor.close();
+    if (widget.pictureUploads == null) _pictures.close();
     _fullNameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
@@ -325,7 +345,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       });
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        _messenger.currentState?.showSnackBar(
           const SnackBar(
             content: Text('Unable to load options. Tap Edit to retry.'),
           ),
@@ -375,7 +395,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() => _errors = Map.of(failure?.fieldErrors ?? {}));
       _formKey.currentState!.validate();
       if (failure != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        _messenger.currentState?.showSnackBar(
           SnackBar(
             content: Text(failure.message),
             behavior: SnackBarBehavior.floating,
@@ -415,7 +435,41 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  void _onPictureUpload(BuildContext context, ProfilePictureUploadState state) {
+    // Float above the bottom Save Changes button instead of covering it.
+    final toast = TravibeToast.of(
+      context,
+      bottomMargin: AppSizes.h56 + AppSizes.ph12 + AppSizes.ph20 + AppSizes.h8,
+    );
+    final data = state is ProfilePictureDone
+        ? profilePictureUpdatedToast
+        : profilePictureToast(
+            uploading: state is ProfilePictureUploading,
+            failed: state is ProfilePictureFailed,
+            onRetry: _pictures.retry,
+            onDiscard: _pictures.discard,
+          );
+    data == null ? toast.dismiss() : toast.present(data);
+  }
+
   Widget _buildForm(BuildContext context) {
+    // Own messenger: the toast (a floating SnackBar here, since this route
+    // covers Root's toast slot) disappears with the screen, leaving Root's.
+    return ScaffoldMessenger(
+      key: _messenger,
+      child: BlocListener<ProfilePictureUploadCubit, ProfilePictureUploadState>(
+        bloc: _pictures,
+        listener: _onPictureUpload,
+        child:
+            BlocBuilder<ProfilePictureUploadCubit, ProfilePictureUploadState>(
+              bloc: _pictures,
+              builder: (context, _) => _buildPage(context),
+            ),
+      ),
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
     return PopScope(
       canPop:
           _allowPop ||
@@ -434,8 +488,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               absorbing: _isSaving || _selecting || _pickingAvatar,
               child: Column(
                 children: [
-                  if (_selecting || _pickingAvatar)
-                    const LinearProgressIndicator(),
+                  if (_selecting) const LinearProgressIndicator(),
                   SizedBox(height: AppSizes.h8),
                   _buildTopBar(),
                   Expanded(
@@ -444,36 +497,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       children: [
                         SizedBox(height: AppSizes.h20),
                         Center(child: _buildAvatar()),
-                        if (_pickingAvatar)
-                          const Text(
-                            'Opening photo library…',
-                            textAlign: TextAlign.center,
-                          ),
-                        if (_editor.state.avatar != null) ...[
-                          SizedBox(height: AppSizes.h8),
-                          Text(
-                            switch (_editor.state.uploadStage) {
-                              MediaUploadStage.uploading => 'Uploading photo…',
-                              MediaUploadStage.finalizing => 'Verifying photo…',
-                              MediaUploadStage.processing =>
-                                'Processing photo…',
-                              null =>
-                                _isSaving
-                                    ? 'Saving profile…'
-                                    : 'Photo selected. Save Changes to upload.',
-                            },
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: AppSizes.sp12,
-                            ),
-                          ),
-                          TextButton(
-                            key: const ValueKey('discard-avatar-preview'),
-                            onPressed: _editor.discardAvatarPreview,
-                            child: const Text('Discard preview'),
-                          ),
-                        ],
                         if (_editor.state.avatarError != null)
                           Text(
                             _editor.state.avatarError!,
@@ -680,9 +703,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Widget _buildAvatar() {
-    final preview = _editor.state.avatar;
+    // The picked photo stays on screen while uploading and after success.
+    final preview = _pictures.state.preview;
     final ImageProvider? image = preview != null
-        ? MemoryImage(preview.bytes)
+        ? MemoryImage(preview)
         : _initialProfile.avatarUrl?.isNotEmpty == true
         ? NetworkImage(_initialProfile.avatarUrl!)
         : null;

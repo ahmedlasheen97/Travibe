@@ -156,12 +156,15 @@ class TravibeToastScope extends InheritedNotifier<TravibeToastController> {
 /// uses Root's toast slot; elsewhere (auth, pushed routes) the same
 /// [TravibeToastView] floats in a transparent SnackBar.
 class TravibeToast {
-  TravibeToast.of(BuildContext context)
+  /// [bottomMargin] lifts the SnackBar fallback above bottom-pinned controls
+  /// (e.g. a Save button); Root's toast slot ignores it.
+  TravibeToast.of(BuildContext context, {this.bottomMargin = 16})
     : _controller = TravibeToastScope.maybeOf(context),
       _messenger = ScaffoldMessenger.maybeOf(context);
 
   final TravibeToastController? _controller;
   final ScaffoldMessengerState? _messenger;
+  final double bottomMargin;
 
   static void show(BuildContext context, TravibeToastData data) =>
       TravibeToast.of(context).present(data);
@@ -180,8 +183,10 @@ class TravibeToast {
             messenger.hideCurrentSnackBar();
             callback();
           };
+    // One toast at a time: also drop queued ones, so a quick
+    // uploading → success sequence can't leave a sticky toast behind.
     messenger
-      ..hideCurrentSnackBar()
+      ..clearSnackBars()
       ..showSnackBar(
         SnackBar(
           content: TravibeToastView(
@@ -194,8 +199,8 @@ class TravibeToast {
           backgroundColor: Colors.transparent,
           elevation: 0,
           padding: EdgeInsets.zero,
-          // Constant: present() may run before ScreenUtil is initialised.
-          margin: const EdgeInsets.only(bottom: 16),
+          // Plain pixels: present() may run before ScreenUtil is initialised.
+          margin: EdgeInsets.only(bottom: bottomMargin),
         ),
       );
   }

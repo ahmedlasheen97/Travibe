@@ -116,7 +116,10 @@ class HomeStories extends StatelessWidget {
             }
             final isYou = index == 0;
             final group = isYou ? own : others[index - 1];
-            final url = group?.user.avatarUrl ?? (isYou ? avatarUrl : null);
+            // "You" prefers my current picture over the (possibly stale) story feed.
+            final url = isYou
+                ? avatarUrl ?? group?.user.avatarUrl
+                : group!.user.avatarUrl;
             final label = isYou ? 'You' : group!.user.name;
             final bubble = SizedBox(
               width: ringDiameter + AppSizes.adaptiveWidth(8),

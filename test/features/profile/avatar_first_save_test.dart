@@ -110,7 +110,7 @@ class _PipelineAdapter implements HttpClientAdapter {
 
 void main() {
   testWidgets(
-    'one Save tap completes presign 201 PUT 200 finalize processing 200 ready 200 PATCH 200 refresh 200',
+    'picking completes presign 201 PUT 200 finalize 200 ready 200 PATCH 200 refresh 200; Save then sends fields only',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -171,17 +171,9 @@ void main() {
       );
       await tester.tap(find.text('Open editor'));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('full_name')),
-        'Updated name',
-      );
       await tester.ensureVisible(
         find.byKey(const ValueKey('pick-profile-avatar')),
       );
-      await tester.tap(find.byKey(const ValueKey('pick-profile-avatar')));
-      await tester.pumpAndSettle();
-      expect(events, ['GET profile 200']);
-      final save = find.widgetWithText(ElevatedButton, 'Save Changes');
       await tester.runAsync(() async {
         final refreshed = owner.stream.firstWhere(
           (state) =>
@@ -189,10 +181,12 @@ void main() {
               state.profile.avatarUrl ==
                   'https://example.invalid/updated-avatar.png',
         );
-        await tester.tap(save); // Exactly one Save tap for the entire pipeline.
+        // Picking alone runs the whole pipeline in the background.
+        await tester.tap(find.byKey(const ValueKey('pick-profile-avatar')));
         await refreshed.timeout(const Duration(seconds: 5));
       });
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
       expect(events, [
         'GET profile 200',
         'POST media/presign 201',
@@ -202,6 +196,24 @@ void main() {
         'PATCH profile 200',
         'GET profile 200',
       ]);
+      expect(apiAdapter.patch, {'avatar_media_id': 41});
+      expect(find.text('Picture updated successfully'), findsOneWidget);
+      await tester.enterText(
+        find.byKey(const ValueKey('full_name')),
+        'Updated name',
+      );
+      await tester.pump();
+      final save = find.widgetWithText(ElevatedButton, 'Save Changes');
+      await tester.runAsync(() async {
+        final saved = owner.stream.firstWhere(
+          (state) =>
+              state is ProfileLoaded && state.profile.name == 'Updated name',
+        );
+        await tester.tap(save);
+        await saved.timeout(const Duration(seconds: 5));
+      });
+      await tester.pumpAndSettle();
+      expect(events.skip(7), ['PATCH profile 200', 'GET profile 200']);
       expect(storage.requests, 1);
       expect(storage.bytes, photos.photo.bytes);
       expect(
@@ -213,10 +225,7 @@ void main() {
         'content_type': 'image/png',
         'size': photos.photo.bytes.length,
       });
-      expect(apiAdapter.patch, {
-        'full_name': 'Updated name',
-        'avatar_media_id': 41,
-      });
+      expect(apiAdapter.patch, {'full_name': 'Updated name'});
       expect(find.byType(EditProfileScreen), findsNothing);
       expect(find.text('Open editor'), findsOneWidget);
       expect(find.textContaining('uncertain'), findsNothing);

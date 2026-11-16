@@ -17,6 +17,13 @@ class ProfileSetupState {
   final String normalizedUsername;
   final String? currentLocation;
   final ProfileAvatarDraft? avatar;
+
+  /// Bytes of the last uploaded photo, kept on screen after success so the
+  /// avatar doesn't flicker back to a loading network image.
+  final Uint8List? avatarPreview;
+
+  /// The last upload failed; shown as a toast with Retry and X.
+  final bool avatarUploadFailed;
   final String? avatarUrl;
   final String? avatarError;
   final bool selectingAvatar;
@@ -42,6 +49,8 @@ class ProfileSetupState {
     this.normalizedUsername = '',
     this.currentLocation,
     this.avatar,
+    this.avatarPreview,
+    this.avatarUploadFailed = false,
     this.avatarUrl,
     this.avatarError,
     this.selectingAvatar = false,
@@ -68,6 +77,8 @@ class ProfileSetupState {
     String? normalizedUsername,
     String? currentLocation,
     ProfileAvatarDraft? avatar,
+    Uint8List? avatarPreview,
+    bool? avatarUploadFailed,
     String? avatarUrl,
     String? avatarError,
     bool? selectingAvatar,
@@ -94,6 +105,8 @@ class ProfileSetupState {
       normalizedUsername: normalizedUsername ?? this.normalizedUsername,
       currentLocation: currentLocation ?? this.currentLocation,
       avatar: clearAvatar ? null : avatar ?? this.avatar,
+      avatarPreview: avatarPreview ?? this.avatarPreview,
+      avatarUploadFailed: avatarUploadFailed ?? this.avatarUploadFailed,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarError: clearAvatarError ? null : avatarError ?? this.avatarError,
       selectingAvatar: selectingAvatar ?? this.selectingAvatar,
