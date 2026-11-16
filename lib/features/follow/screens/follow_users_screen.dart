@@ -443,7 +443,7 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
   }
 
   Widget _empty(FollowListType type) => ProfileEmptyState(
-    asset: 'assets/images/profile/emptypic.svg',
+    asset: 'assets/images/profile/emptypic.png',
     title: switch (type) {
       FollowListType.followers => 'No followers yet',
       FollowListType.following => 'Not following anyone yet',

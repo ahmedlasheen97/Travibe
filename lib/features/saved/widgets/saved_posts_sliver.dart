@@ -74,7 +74,7 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
               state.paginationError == null &&
               !state.hasMore) {
             return ProfileEmptyStateSliver(
-              asset: 'assets/images/profile/emptyitems.svg',
+              asset: 'assets/images/profile/emptyitems.png',
               title: 'No saved items yet',
               description: kShowSavedHotels
                   ? 'Save posts and hotels to find them here.'

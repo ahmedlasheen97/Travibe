@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
 /// Only used for Profile and its connection lists. No fabricated model data.
@@ -12,12 +11,15 @@ class ProfileEmptyState extends StatelessWidget {
     super.key,
     required this.asset,
     required this.title,
-    required this.description,
+    this.description,
     this.actionLabel,
     this.onAction,
     this.padding,
   });
-  final String asset, title, description;
+  final String asset, title;
+
+  /// Optional line under [title].
+  final String? description;
   final String? actionLabel;
   final VoidCallback? onAction;
 
@@ -37,7 +39,9 @@ class ProfileEmptyState extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ExcludeSemantics(
-            child: SvgPicture.asset(
+            // Raster art (1x/2x/3x): Figma exports these as PNGs wrapped in
+            // SVG pattern fills, which flutter_svg draws as nothing.
+            child: Image.asset(
               asset,
               height: AppSizes.h121,
               fit: BoxFit.contain,
@@ -53,19 +57,21 @@ class ProfileEmptyState extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: AppSizes.h10),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: AppSizes.w300),
-            child: Text(
-              description,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: DarkColors.greyColor,
-                fontSize: AppSizes.sp14,
-                height: 1.5,
+          if (description case final description?) ...[
+            SizedBox(height: AppSizes.h10),
+            ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: AppSizes.w300),
+              child: Text(
+                description,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: DarkColors.greyColor,
+                  fontSize: AppSizes.sp14,
+                  height: 1.5,
+                ),
               ),
             ),
-          ),
+          ],
           if (actionLabel != null && onAction != null) ...[
             SizedBox(height: AppSizes.h24),
             FilledButton(
@@ -95,10 +101,11 @@ class ProfileEmptyStateSliver extends StatelessWidget {
     super.key,
     required this.asset,
     required this.title,
-    required this.description,
+    this.description,
     this.bottomInset = 0,
   });
-  final String asset, title, description;
+  final String asset, title;
+  final String? description;
   final double bottomInset;
 
   @override

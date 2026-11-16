@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/features/profile/widgets/profile_saved_sub_tabs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -125,9 +124,6 @@ void main() {
           'Plus Jakarta Sans',
         )..addFont(rootBundle.load('assets/fonts/PlusJakartaSans-Regular.ttf')))
         .load();
-    for (final name in ['emptypic', 'emptypost', 'emptyitems']) {
-      await SvgAssetLoader('assets/images/profile/$name.svg').loadBytes(null);
-    }
   });
   late _People people;
   late _Blocks blocks;
@@ -228,9 +224,14 @@ void main() {
     );
   }
 
-  String? svgAsset(WidgetTester tester) {
-    final svg = tester.widget<SvgPicture>(find.byType(SvgPicture).last);
-    return (svg.bytesLoader as SvgAssetLoader).assetName;
+  String? emptyAsset(WidgetTester tester) {
+    final image = tester.widget<Image>(
+      find.descendant(
+        of: find.byType(ProfileEmptyState),
+        matching: find.byType(Image),
+      ),
+    );
+    return (image.image as AssetImage).assetName;
   }
 
   testWidgets(
@@ -408,7 +409,7 @@ void main() {
       people.empty = true;
       var explored = 0;
       await show(tester, type: type, explore: () => explored++);
-      expect(svgAsset(tester), 'assets/images/profile/emptypic.svg');
+      expect(emptyAsset(tester), 'assets/images/profile/emptypic.png');
       expect(
         find.text(
           type == FollowListType.followers
@@ -479,15 +480,15 @@ void main() {
         child: ProfileScreen(profileRepo: profiles, postsRepo: posts),
       );
       expect(find.text('No posts yet'), findsOneWidget);
-      expect(svgAsset(tester), 'assets/images/profile/emptypost.svg');
-      expect(find.text('Share your first trip'), findsOneWidget);
+      expect(emptyAsset(tester), 'assets/images/profile/emptypost.png');
+      expect(find.text('Share your first trip'), findsNothing);
       // The nav bar's + creates posts; the empty state has no button.
       expect(find.text('Create Post'), findsNothing);
       await tester.ensureVisible(find.text('Saved'));
       await tester.tap(find.text('Saved'));
       await tester.pumpAndSettle();
       expect(find.text('No saved items yet'), findsOneWidget);
-      expect(svgAsset(tester), 'assets/images/profile/emptyitems.svg');
+      expect(emptyAsset(tester), 'assets/images/profile/emptyitems.png');
       expect(find.text('Save posts to find them here.'), findsOneWidget);
       // Hotels stays hidden behind kShowSavedHotels until Explore returns.
       expect(find.byType(ProfileSavedSubTabs), findsNothing);
