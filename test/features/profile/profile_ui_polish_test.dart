@@ -24,6 +24,7 @@ import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/profile/widgets/profile_avatar.dart';
+import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
 import 'package:travibe/features/profile/widgets/profile_header_info.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:travibe/features/profile/widgets/profile_stats.dart';
@@ -234,6 +235,108 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
     },
+  );
+
+  ScrollPosition profileScroll(WidgetTester tester) =>
+      Scrollable.of(tester.element(find.byType(ProfileHeaderInfo))).position;
+
+  for (final size in const [Size(390, 844), Size(430, 932)]) {
+    testWidgets(
+      'no posts on $size: empty profile fits, never scrolls or bounces',
+      (tester) async {
+        posts.authors[7] = [];
+        await show(tester, size: size);
+        expect(find.text('No posts yet'), findsOneWidget);
+        expect(find.text('Create Post'), findsNothing);
+        final position = profileScroll(tester);
+        expect(position.physics, isA<AlwaysScrollableScrollPhysics>());
+        expect(position.physics.parent, isA<ClampingScrollPhysics>());
+        expect(position.maxScrollExtent, 0);
+        await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+        await tester.pump(const Duration(milliseconds: 16));
+        // Clamped: no rubber-band movement while dragging past the content.
+        expect(position.pixels, 0);
+        await tester.pumpAndSettle();
+        expect(position.pixels, 0);
+        // Centered in the space left below the tabs.
+        final top = tester.getBottomLeft(find.byType(ProfileTabs)).dy;
+        final bottom = tester.getBottomLeft(find.byType(CustomScrollView)).dy;
+        final empty = tester.getRect(find.byType(ProfileEmptyState));
+        expect(empty.top, greaterThanOrEqualTo(top));
+        expect(empty.bottom, lessThanOrEqualTo(bottom));
+        // The header ends 8 below the tabs; centered in what remains.
+        expect(empty.center.dy, closeTo((top + AppSizes.h8 + bottom) / 2, 1));
+        expect(tester.takeException(), isNull);
+      },
+      variant: TargetPlatformVariant.mobile(),
+    );
+
+    testWidgets('empty Saved tab on $size fits and does not scroll', (
+      tester,
+    ) async {
+      posts.authors[7] = [];
+      posts.stored = [];
+      await show(tester, size: size);
+      await tester.tap(find.text('Saved'));
+      await tester.pumpAndSettle();
+      expect(find.text('No saved items yet'), findsOneWidget);
+      expect(profileScroll(tester).maxScrollExtent, 0);
+    });
+  }
+
+  testWidgets(
+    'pull-to-refresh with no posts shows the white overlay and reloads',
+    (tester) async {
+      posts.authors[7] = [];
+      await show(tester);
+      final profileReads = profiles.reads.length;
+      final postReads = posts.authorReads.length;
+      profiles.hold = true;
+      posts.holdAuthors = true;
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 500));
+      for (var frame = 0; frame < 6; frame++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      final overlay = find.byKey(const ValueKey('profile-refresh-indicator'));
+      expect(overlay, findsOneWidget);
+      expect(
+        tester
+            .widget<CupertinoActivityIndicator>(
+              find.descendant(
+                of: overlay,
+                matching: find.byType(CupertinoActivityIndicator),
+              ),
+            )
+            .color,
+        DarkColors.whiteColor,
+      );
+      expect(find.byType(RefreshProgressIndicator), findsNothing);
+      expect(profiles.reads.length, profileReads + 1);
+      expect(posts.authorReads.length, postReads + 1);
+      profiles.reads.last.result.complete(profile());
+      posts.authorReads.last.result.complete(authorPage(7, []));
+      await tester.pumpAndSettle();
+      expect(overlay, findsNothing);
+      expect(profileScroll(tester).pixels, 0);
+    },
+    variant: TargetPlatformVariant.mobile(),
+  );
+
+  testWidgets(
+    'iPhone SE: taller content scrolls as one page and clamps at the end',
+    (tester) async {
+      posts.authors[7] = [];
+      await show(tester, size: const Size(320, 568));
+      final position = profileScroll(tester);
+      expect(position.maxScrollExtent, greaterThan(0));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.pixels, position.maxScrollExtent);
+      await tester.pumpAndSettle();
+      expect(position.pixels, position.maxScrollExtent);
+      expect(find.text('No posts yet'), findsOneWidget);
+    },
+    variant: TargetPlatformVariant.mobile(),
   );
 
   testWidgets(

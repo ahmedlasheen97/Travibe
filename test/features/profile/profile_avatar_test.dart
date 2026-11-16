@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
@@ -694,6 +695,31 @@ void main() {
       await tester.pump(const Duration(seconds: 4));
       await tester.pumpAndSettle();
       expect(find.text(successText), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Edit Profile uses the Setup dashed orange 128 ring and the whole circle picks',
+    (tester) async {
+      final photos = _Photos()..result = _photo();
+      final upload = _Upload()..pending = Completer<int>();
+      await show(tester, photos, _AvatarRepo(), upload: upload);
+      final ring = find.ancestor(
+        of: avatar(),
+        matching: find.byType(DottedBorder),
+      );
+      final border = tester.widget<DottedBorder>(ring);
+      expect(border.options, isA<CircularDottedBorderOptions>());
+      expect(border.options.color, const Color(0xFFE45C10));
+      expect(tester.getSize(ring), const Size(128, 128));
+      expect(tester.getSize(pick()), const Size(32, 32));
+      await tester.tap(avatar());
+      await pumpUploading(tester);
+      expect(find.text(uploadingText), findsOneWidget);
+      upload.pending!.complete(5);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
     },
   );
 

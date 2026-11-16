@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/features/profile/widgets/profile_saved_sub_tabs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -412,7 +413,7 @@ void main() {
         find.text(
           type == FollowListType.followers
               ? 'No followers yet'
-              : 'You don’t follow anyone yet.',
+              : 'Not following anyone yet',
         ),
         findsOneWidget,
       );
@@ -473,26 +474,24 @@ void main() {
       final posts = AuthorPostsRepo()
         ..authors[7] = []
         ..stored = [];
-      var created = 0;
       await show(
         tester,
-        child: ProfileScreen(
-          profileRepo: profiles,
-          postsRepo: posts,
-          onCreatePost: () => created++,
-        ),
+        child: ProfileScreen(profileRepo: profiles, postsRepo: posts),
       );
       expect(find.text('No posts yet'), findsOneWidget);
       expect(svgAsset(tester), 'assets/images/profile/emptypost.svg');
-      await tester.ensureVisible(find.text('Create Post'));
-      await tester.tap(find.text('Create Post'));
-      await tester.pumpAndSettle();
-      expect(created, 1);
+      expect(find.text('Share your first trip'), findsOneWidget);
+      // The nav bar's + creates posts; the empty state has no button.
+      expect(find.text('Create Post'), findsNothing);
       await tester.ensureVisible(find.text('Saved'));
       await tester.tap(find.text('Saved'));
       await tester.pumpAndSettle();
       expect(find.text('No saved items yet'), findsOneWidget);
       expect(svgAsset(tester), 'assets/images/profile/emptyitems.svg');
+      expect(find.text('Save posts to find them here.'), findsOneWidget);
+      // Hotels stays hidden behind kShowSavedHotels until Explore returns.
+      expect(find.byType(ProfileSavedSubTabs), findsNothing);
+      expect(find.text('Hotels'), findsNothing);
       expect(find.text('Create Post'), findsNothing);
     },
   );

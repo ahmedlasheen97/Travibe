@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:flutter/material.dart';
@@ -13,17 +15,23 @@ class ProfileEmptyState extends StatelessWidget {
     required this.description,
     this.actionLabel,
     this.onAction,
+    this.padding,
   });
   final String asset, title, description;
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// Defaults to 16 horizontal × 28 vertical.
+  final EdgeInsetsGeometry? padding;
+
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.symmetric(
-      horizontal: AppSizes.pw16,
-      vertical: AppSizes.ph28,
-    ),
+    padding:
+        padding ??
+        EdgeInsets.symmetric(
+          horizontal: AppSizes.pw16,
+          vertical: AppSizes.ph28,
+        ),
     child: Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -73,6 +81,53 @@ class ProfileEmptyState extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    ),
+  );
+}
+
+/// A Profile tab's empty state: fills only the space left below the header
+/// and centers [ProfileEmptyState] in it, so an empty profile that fits the
+/// screen does not scroll. [bottomInset] keeps it centered above Root's
+/// bottom nav bar; the owning tab then skips Profile's own inset sliver.
+class ProfileEmptyStateSliver extends StatelessWidget {
+  const ProfileEmptyStateSliver({
+    super.key,
+    required this.asset,
+    required this.title,
+    required this.description,
+    this.bottomInset = 0,
+  });
+  final String asset, title, description;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) => SliverLayoutBuilder(
+    builder: (context, constraints) => SliverToBoxAdapter(
+      // At least the space left below the header (stable while scrolling);
+      // grows with its content instead of squeezing it on short screens.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: math.max(
+            0,
+            constraints.viewportMainAxisExtent -
+                constraints.precedingScrollExtent,
+          ),
+        ),
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Center(
+            child: ProfileEmptyState(
+              asset: asset,
+              title: title,
+              description: description,
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSizes.pw16,
+                vertical: AppSizes.ph12,
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );

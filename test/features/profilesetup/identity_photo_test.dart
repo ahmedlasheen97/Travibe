@@ -611,7 +611,7 @@ void main() {
       expect(icon.size, 48);
       expect(icon.color, Colors.grey);
       final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
-      expect(avatar.radius, 56);
+      expect(avatar.radius, 58); // 128 outer − 2 × 6 ring padding
       expect(avatar.backgroundColor, const Color(0xFFE0E0E0));
       expect(
         tester.getCenter(placeholder()),
@@ -645,8 +645,8 @@ void main() {
         expect(border.options.strokeWidth, 1.5);
         expect(border.options.padding, const EdgeInsets.all(6));
         final bounds = tester.getRect(find.byType(DottedBorder));
-        expect(bounds.width, closeTo(124, .001));
-        expect(bounds.height, closeTo(124, .001));
+        expect(bounds.width, closeTo(128, .001));
+        expect(bounds.height, closeTo(128, .001));
         final period = border.options.dashPattern.reduce((a, b) => a + b);
         // DottedBorder's existing painter fits a whole number of equal periods
         // to the circular path, avoiding a separate seam gap.
