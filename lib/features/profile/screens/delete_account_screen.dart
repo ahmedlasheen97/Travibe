@@ -30,10 +30,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
   @override
   void initState() {
     super.initState();
-    _password.addListener(_passwordChanged);
+    _password.addListener(_fieldChanged);
+    _reason.addListener(_fieldChanged);
   }
 
-  void _passwordChanged() => setState(() {});
+  /// Rebuilds the submit button and the unsaved-changes guard.
+  void _fieldChanged() => setState(() {});
 
   bool _canSubmit(AccountDeletionState state) =>
       _password.text.isNotEmpty &&
@@ -65,7 +67,8 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
 
   @override
   void dispose() {
-    _password.removeListener(_passwordChanged);
+    _password.removeListener(_fieldChanged);
+    _reason.removeListener(_fieldChanged);
     _password.clear();
     _password.dispose();
     _reason.dispose();
@@ -91,6 +94,12 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       return SettingsFormScaffold(
         title: 'Delete Account',
         busy: state.loading,
+        // Only a form that can still be sent has changes worth guarding.
+        dirty:
+            !state.deleted &&
+            !state.sessionChanged &&
+            error?.outcomeUncertain != true &&
+            (_password.text.isNotEmpty || _reason.text.isNotEmpty),
         button: SettingsActionButton(
           key: const ValueKey('delete-account-submit'),
           label: 'Delete my Account',

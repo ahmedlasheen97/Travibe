@@ -310,7 +310,7 @@ void main() {
       expect(find.byType(ProfilePictureViewer), findsOneWidget);
     }
 
-    final drag = find.byKey(const ValueKey('profile-picture-drag'));
+    final drag = find.byKey(const ValueKey('swipe-down-dismiss'));
 
     testWidgets('swipe down closes it; a short drag springs back', (
       tester,
@@ -354,10 +354,11 @@ void main() {
       });
     });
 
-    testWidgets('back button closes it', (tester) async {
+    testWidgets('X button closes it', (tester) async {
       await withFakeNetworkImages(() async {
         await showViewer(tester);
-        await tester.tap(find.byTooltip('Back'));
+        expect(find.byTooltip('Back'), findsNothing);
+        await tester.tap(find.byTooltip('Close'));
         await _settle(tester);
         expect(find.byType(ProfilePictureViewer), findsNothing);
       });

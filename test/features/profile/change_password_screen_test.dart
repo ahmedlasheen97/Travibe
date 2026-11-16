@@ -127,6 +127,34 @@ void main() {
     _toasts.dismiss();
   });
 
+  testWidgets('back with typed passwords asks before discarding', (
+    tester,
+  ) async {
+    final api = _PasswordApi();
+    await _open(tester, api);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChangePasswordScreen), findsNothing);
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(_field(0), 'OldPass123!');
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard Changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChangePasswordScreen), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ChangePasswordScreen), findsNothing);
+    expect(api.patches, isEmpty);
+  });
+
   testWidgets('wrong current password shows under that field', (tester) async {
     const message = 'The current password is incorrect.';
     final api = _PasswordApi()
