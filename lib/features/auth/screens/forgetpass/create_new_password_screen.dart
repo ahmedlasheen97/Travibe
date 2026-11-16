@@ -5,7 +5,8 @@ import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
-import 'package:travibe/features/auth/screens/login_screen.dart';
+import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
 
 class CreateNewPasswordScreen extends StatefulWidget {
   final String email;
@@ -15,7 +16,9 @@ class CreateNewPasswordScreen extends StatefulWidget {
     super.key,
     required this.email,
     required this.token,
+    this.authRepo,
   });
+  final AuthRepo? authRepo;
 
   @override
   State<CreateNewPasswordScreen> createState() =>
@@ -26,7 +29,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final AuthRepo _authRepo = AuthRepo();
+  late final AuthRepo _authRepo = widget.authRepo ?? AuthRepo();
 
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
@@ -63,12 +66,39 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
     }
   }
 
+  bool _confirmOpen = false;
+
+  void _toLogin() => AuthNavigation.toLogin(context, email: widget.email);
+
+  /// The reset code is spent, so back never returns to OTP: before the new
+  /// password is saved it asks to cancel the reset; afterwards it goes to Login.
+  Future<void> _back() async {
+    if (_isSuccess) return _toLogin();
+    if (_confirmOpen) return;
+    _confirmOpen = true;
+    final cancel = await showGlassConfirmDialog(
+      context,
+      title: 'Cancel password reset?',
+      message: "Your new password won't be saved. You'll return to Login.",
+      confirmLabel: 'Cancel reset',
+      cancelLabel: 'Continue',
+    );
+    _confirmOpen = false;
+    if (cancel && mounted) _toLogin();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DarkColors.backgroundColor,
-      body: SafeArea(
-        child: _isSuccess ? _buildSuccessView() : _buildFormView(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        backgroundColor: DarkColors.backgroundColor,
+        body: SafeArea(
+          child: _isSuccess ? _buildSuccessView() : _buildFormView(),
+        ),
       ),
     );
   }
@@ -83,7 +113,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(height: AppSizes.adaptiveHeight(8)),
-              _buildBackButton(),
+              BackButtonWidget(onTap: _back),
               SizedBox(height: AppSizes.adaptiveHeight(40)),
               Center(
                 child: Text(
@@ -239,14 +269,6 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
     );
   }
 
-  Widget _buildBackButton() {
-    return BackButtonWidget(
-      onTap: () => Navigator.of(context).maybePop(),
-      size: AppSizes.adaptiveRadius(44),
-      iconSize: AppSizes.adaptiveRadius(18),
-    );
-  }
-
   Widget _buildSuccessView() {
     return SingleChildScrollView(
       child: Padding(
@@ -254,9 +276,9 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: AppSizes.adaptiveHeight(8)),
-            _buildBackButton(),
-            SizedBox(height: AppSizes.adaptiveHeight(60)),
+            // Reset finished: no back button (Android back goes to Login);
+            // keep the space it used so the layout doesn't shift.
+            SizedBox(height: AppSizes.adaptiveHeight(8 + 44 + 60)),
             Center(
               child: Container(
                 width: AppSizes.adaptiveRadius(96),
@@ -309,16 +331,7 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
               ),
             ),
             SizedBox(height: AppSizes.adaptiveHeight(32)),
-            CustomButton(
-              title: 'Log In Now',
-              onPressed: () {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => LoginScreen()),
-                  (route) => false,
-                );
-              },
-            ),
+            CustomButton(title: 'Log In Now', onPressed: _toLogin),
           ],
         ),
       ),

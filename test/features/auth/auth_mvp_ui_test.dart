@@ -72,7 +72,8 @@ void main() {
         expect(find.byType(CustomOrLoginWidget), findsNothing);
         expect(find.text('Google'), findsNothing);
         expect(find.text('Apple'), findsNothing);
-        expect(find.byType(BackButtonWidget), findsOneWidget);
+        // Login is the bottom of the auth stack: no back button.
+        expect(find.byType(BackButtonWidget), findsNWidgets(signup ? 1 : 0));
         final title = find.descendant(
           of: find.byType(AppBar),
           matching: find.text(signup ? 'Sign Up' : 'Login'),

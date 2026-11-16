@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/routing/app_routes.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -370,7 +371,7 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  for (final path in ['/register', '/login']) {
+  for (final path in [AppRoutes.register, '/login']) {
     testWidgets(
       'duplicate Login action uses existing router from $path without stacking',
       (tester) async {
@@ -471,8 +472,8 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  // Login has no back button (auth_back_navigation_test.dart).
   for (final screen in [
-    const LoginScreen(),
     const SignUpScreen(),
     DeleteAccountScreen(repo: account.MockAccountRepo()),
   ]) {

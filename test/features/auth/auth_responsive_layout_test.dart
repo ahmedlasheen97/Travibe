@@ -7,8 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/auth/screens/login_screen.dart';
 import 'package:travibe/features/auth/screens/sign_up_screen.dart';
-import 'package:travibe/features/auth/screens/enter_email_screen.dart';
-import 'package:travibe/features/auth/screens/verify_otp_screen.dart';
 import 'package:travibe/features/auth/screens/otp_verification_screen.dart';
 import 'package:travibe/features/auth/screens/forgetpass/forget_password_screen.dart';
 import 'package:travibe/features/auth/screens/forgetpass/reset_new_password_screen.dart';
@@ -40,8 +38,6 @@ void main() {
     ),
     'Verification': () =>
         const OtpVerificationScreen(email: 'test@example.invalid'),
-    'Legacy email': () => const CreateNewPassScreen(),
-    'Legacy OTP': () => const VerifyOtpScreen(),
   };
   for (final size in const [
     Size(320, 568),

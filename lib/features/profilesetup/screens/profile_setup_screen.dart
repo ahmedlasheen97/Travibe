@@ -1,5 +1,4 @@
 import 'package:travibe/core/widgets/back_button_widget.dart';
-import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -21,48 +20,6 @@ class ProfileSetupScreen extends StatefulWidget {
 }
 
 class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
-  bool _backDialogOpen = false;
-  Future<void> _back(BuildContext context, ProfileSetupCubit cubit) async {
-    if (_backDialogOpen) return;
-    if (cubit.goBack()) return;
-    if (cubit.state.avatar != null ||
-        cubit.state.selectingAvatar ||
-        cubit.state.uploadingAvatar) {
-      _backDialogOpen = true;
-      final session = PreferencesManager().sessionRevision;
-      final leave = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Leave without saving photo?'),
-          content: const Text(
-            'Your selected photo has not been confirmed as saved. Leaving cancels the pending upload.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Stay'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Leave'),
-            ),
-          ],
-        ),
-      );
-      _backDialogOpen = false;
-      if (!context.mounted ||
-          leave != true ||
-          cubit.isClosed ||
-          session != PreferencesManager().sessionRevision) {
-        return;
-      }
-      cubit.discardAvatar();
-      Navigator.of(context).pop();
-    } else {
-      Navigator.of(context).maybePop();
-    }
-  }
-
   static const int _totalSteps = 3;
 
   void _goHome(BuildContext context) {
@@ -97,14 +54,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         builder: (context, state) {
           final cubit = context.read<ProfileSetupCubit>();
 
+          // The account already exists, so setup never pops back to Signup or
+          // OTP. Back moves to the previous step; on step 1 it does nothing.
           return PopScope(
-            canPop:
-                state.step == 0 &&
-                state.avatar == null &&
-                !state.selectingAvatar &&
-                !state.uploadingAvatar,
+            canPop: false,
             onPopInvokedWithResult: (didPop, result) {
-              if (!didPop) _back(context, cubit);
+              if (!didPop) cubit.goBack();
             },
             child: SafeArea(
               child: Scaffold(
@@ -115,11 +70,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   scrolledUnderElevation: 0,
                   elevation: 0,
                   centerTitle: true,
-                  leading: BackButtonWidget(
-                    onTap: () => _back(context, cubit),
-                    size: 44,
-                    iconSize: 18,
-                  ),
+                  automaticallyImplyLeading: false,
+                  leading: state.step > 0
+                      ? BackButtonWidget(onTap: cubit.goBack)
+                      : null,
                   title: const Text(
                     'Profile Setup',
                     style: TextStyle(

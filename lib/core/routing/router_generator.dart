@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
 import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:go_router/go_router.dart';
@@ -53,11 +54,21 @@ class RouterGenerator {
         name: AppRoutes.login,
         builder: (context, state) =>
             LoginScreen(initialEmail: state.uri.queryParameters['email'] ?? ''),
-      ),
-      GoRoute(
-        path: AppRoutes.register,
-        name: AppRoutes.register,
-        builder: (context, state) => const SignUpScreen(),
+        routes: [
+          GoRoute(
+            path: 'register',
+            name: AppRoutes.register,
+            // Explicit MaterialPage: go_router's default page here has no
+            // transition, which also disables the iOS swipe back to Login.
+            pageBuilder: (context, state) => MaterialPage<void>(
+              key: state.pageKey,
+              name: AppRoutes.register,
+              child: SignUpScreen(
+                initialEmail: state.uri.queryParameters['email'] ?? '',
+              ),
+            ),
+          ),
+        ],
       ),
       // Public legal documents must remain readable before authentication.
       GoRoute(

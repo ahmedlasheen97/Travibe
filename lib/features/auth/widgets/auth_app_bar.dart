@@ -5,9 +5,18 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 
 /// Auth-only surface: scrolling must not tint or elevate this dark header.
 class AuthAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const AuthAppBar({super.key, required this.title});
+  const AuthAppBar({
+    super.key,
+    required this.title,
+    this.showBack = true,
+    this.onBack,
+  });
 
   final String title;
+
+  /// Login is the bottom of the auth stack and shows no back button.
+  final bool showBack;
+  final VoidCallback? onBack;
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -21,7 +30,8 @@ class AuthAppBar extends StatelessWidget implements PreferredSizeWidget {
     scrolledUnderElevation: 0,
     shadowColor: Colors.transparent,
     systemOverlayStyle: SystemUiOverlayStyle.light,
-    leading: const BackButtonWidget(),
+    automaticallyImplyLeading: false,
+    leading: showBack ? BackButtonWidget(onTap: onBack) : null,
     centerTitle: true,
     title: Text(title, style: const TextStyle(color: Colors.white)),
   );

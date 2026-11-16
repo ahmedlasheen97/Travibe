@@ -7,7 +7,7 @@ import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/auth/screens/forgetpass/reset_new_password_screen.dart';
-import 'package:travibe/features/auth/screens/login_screen.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -68,7 +68,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   SizedBox(height: AppSizes.adaptiveHeight(8)),
-                  _buildBackButton(),
+                  const BackButtonWidget(),
                   SizedBox(height: AppSizes.adaptiveHeight(40)),
                   Center(
                     child: Text(
@@ -135,14 +135,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => LoginScreen(),
-                              ),
-                            );
-                          },
+                          // Login sits beneath; don't stack a second one.
+                          onTap: () => AuthNavigation.backToLogin(context),
                           child: Text(
                             'Log In',
                             style: TextStyle(
@@ -161,14 +155,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return BackButtonWidget(
-      onTap: () => Navigator.of(context).maybePop(),
-      size: AppSizes.adaptiveRadius(44),
-      iconSize: AppSizes.adaptiveRadius(18),
     );
   }
 }

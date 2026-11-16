@@ -4,12 +4,10 @@ import 'package:slider_button/slider_button.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
-import 'package:go_router/go_router.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
-import 'package:travibe/core/routing/app_routes.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
-import 'package:travibe/features/auth/screens/sign_up_screen.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
 import 'package:travibe/features/onboarding/data/onboarding_repo.dart';
 import 'package:travibe/features/onboarding/data/models/onboarding_model.dart';
 import 'package:travibe/features/onboarding/widgets/language_button.dart';
@@ -51,14 +49,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     try {
       await PreferencesManager().completeOnboarding();
       if (!mounted) return false;
-      final router = GoRouter.maybeOf(context);
-      if (router != null) {
-        router.go(AppRoutes.register);
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute<void>(builder: (_) => const SignUpScreen()),
-        );
-      }
+      // Opens Signup with Login beneath it.
+      AuthNavigation.toSignup(context);
       return true;
     } catch (_) {
       if (mounted) {
@@ -101,10 +93,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    // Slide 1 lets Android back close the app; later slides step back.
+    canPop: currentPage == 0,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop && pageController.hasClients) {
+        pageController.previousPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    },
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
+          automaticallyImplyLeading: false,
           actions: [LanguageButton(repo: _repo, onChanged: _reload)],
         ),
         body: FutureBuilder<List<OnboardingModel>>(

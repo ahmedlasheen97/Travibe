@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:travibe/features/auth/screens/login_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -71,7 +72,7 @@ void main() {
     expect(preferences.onboardingCompleted, false);
   });
   testWidgets(
-    'explicit skip persists completion and replaces onboarding with Sign Up',
+    'explicit skip persists completion and opens Sign Up above Login',
     (tester) async {
       await show(tester, FakeOnboardingRepo());
       await tester.ensureVisible(find.text('Skip'));
@@ -80,10 +81,36 @@ void main() {
       expect(preferences.onboardingCompleted, true);
       expect(find.byType(SignUpScreen), findsOneWidget);
       expect(find.byType(OnboardingScreen), findsNothing);
+      // Back from Signup goes to Login, never to onboarding.
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(OnboardingScreen), findsNothing);
       expect(
-        Navigator.of(tester.element(find.byType(SignUpScreen))).canPop(),
+        Navigator.of(tester.element(find.byType(LoginScreen))).canPop(),
         false,
       );
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+  testWidgets(
+    'Android back returns to the previous slide, not out of the app',
+    (tester) async {
+      await show(tester, FakeOnboardingRepo());
+      await tester.ensureVisible(find.text('Next'));
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('Plan journeys from the server'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsNothing);
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      expect(find.text('Discover places from the server'), findsOneWidget);
+      expect(find.byType(OnboardingScreen), findsOneWidget);
+      // Slide 1 is the first route: Android back is left to close the app.
+      final route = ModalRoute.of(
+        tester.element(find.byType(OnboardingScreen)),
+      )!;
+      expect(route.popDisposition, RoutePopDisposition.bubble);
       await tester.pumpWidget(const SizedBox());
     },
   );

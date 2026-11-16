@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/routing/app_routes.dart';
 import 'package:travibe/features/auth/widgets/auth_app_bar.dart';
@@ -15,7 +14,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
-import 'package:travibe/features/auth/screens/login_screen.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
 import 'package:travibe/features/auth/screens/otp_verification_screen.dart';
 import 'package:travibe/features/auth/widgets/custom_or_login_widget.dart';
 import 'package:travibe/features/auth/widgets/social_login_button.dart';
@@ -23,8 +22,11 @@ import 'package:travibe/features/auth/widgets/terms_privacy_checkbox.dart';
 import 'package:travibe/root.dart';
 
 class SignUpScreen extends StatefulWidget {
-  const SignUpScreen({super.key, this.authRepo});
+  const SignUpScreen({super.key, this.authRepo, this.initialEmail = ''});
   final AuthRepo? authRepo;
+
+  /// Prefilled when returning from the OTP step.
+  final String initialEmail;
 
   @override
   State<SignUpScreen> createState() => _SignUpScreenState();
@@ -32,7 +34,9 @@ class SignUpScreen extends StatefulWidget {
 
 class _SignUpScreenState extends State<SignUpScreen> {
   TextEditingController nameController = TextEditingController();
-  TextEditingController emailController = TextEditingController();
+  late final TextEditingController emailController = TextEditingController(
+    text: widget.initialEmail,
+  );
   TextEditingController passwordController = TextEditingController();
   TextEditingController confirmPasswordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
@@ -84,19 +88,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
         if (!mounted) return;
 
-        if (authResponse.emailVerificationRequired) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => OtpVerificationScreen(email: email),
-            ),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => Root()),
-          );
-        }
+        _continue(
+          verificationRequired: authResponse.emailVerificationRequired,
+          email: email,
+        );
       } catch (e) {
         if (!mounted) return;
         if (e is ApiError && isDuplicateEmailError(e)) {
@@ -125,46 +120,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       final action = await showEmailExistsDialog(context);
       if (!mounted) return;
       if (action == EmailExistsAction.login) {
-        final email = emailController.text.trim();
-        final router = GoRouter.maybeOf(context);
-        if (router != null &&
-            router.routerDelegate.currentConfiguration.uri.path !=
-                AppRoutes.login) {
-          final previousRoute = ModalRoute.of(context);
-          final navigator = Navigator.of(context);
-          router.go(
-            Uri(
-              path: AppRoutes.login,
-              queryParameters: {'email': email},
-            ).toString(),
-          );
-          // A Navigator replacement may sit above the router's former signup
-          // page. Remove that old imperative route after Login is installed.
-          if (previousRoute != null && previousRoute.settings is! Page) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (navigator.mounted && previousRoute.isActive) {
-                navigator.removeRoute(previousRoute);
-              }
-            });
-          }
-        } else if (router != null) {
-          // Signup may have imperatively replaced the /login page. Reset that
-          // navigator instead of reusing a missing GoRouter page or stacking it.
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute<void>(
-              builder: (_) => LoginScreen(initialEmail: email),
-            ),
-            (_) => false,
-          );
-        } else {
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute<void>(
-              builder: (_) => LoginScreen(initialEmail: email),
-              settings: const RouteSettings(name: AppRoutes.login),
-            ),
-            (_) => false,
-          );
-        }
+        // TODO(back-button-auth): if this email is still unverified, return
+        // to OTP with "Resend code" instead (docs/AUTH_BACK_NAVIGATION.md).
+        AuthNavigation.toLogin(context, email: emailController.text.trim());
       } else if (action == EmailExistsAction.anotherEmail) {
         _emailFocus.requestFocus();
         emailController.selection = TextSelection.collapsed(
@@ -176,20 +134,40 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
+  /// OTP is pushed so back returns here with the form intact; a finished
+  /// signup clears the auth stack.
+  void _continue({required bool verificationRequired, required String email}) {
+    if (verificationRequired) {
+      Navigator.push(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => OtpVerificationScreen(email: email),
+        ),
+      );
+    } else {
+      AuthNavigation.resetTo(context, (_) => Root(), name: AppRoutes.root);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    // Login normally sits beneath Signup; if not, back still leads to Login.
+    canPop: ModalRoute.of(context)?.canPop ?? false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) AuthNavigation.toLogin(context);
+    },
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     return BlocListener<AuthCubit, AuthState>(
       bloc: _googleCubit,
       listener: (context, state) {
         if (state is AuthSuccess) {
           final response = state.response!;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => response.emailVerificationRequired
-                  ? OtpVerificationScreen(email: response.user.email)
-                  : Root(),
-            ),
+          _continue(
+            verificationRequired: response.emailVerificationRequired,
+            email: response.user.email,
           );
         } else if (state is AuthFailure) {
           ScaffoldMessenger.of(
@@ -202,7 +180,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
         child: SafeArea(
           child: Scaffold(
             backgroundColor: DarkColors.backgroundColor,
-            appBar: const AuthAppBar(title: 'Sign Up'),
+            appBar: AuthAppBar(
+              title: 'Sign Up',
+              onBack: () => AuthNavigation.backToLogin(context),
+            ),
             body: SingleChildScrollView(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -326,7 +307,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           });
                         },
                       ),
-                      SizedBox(height:AppSizes.adaptiveHeight(24)),
+                      SizedBox(height: AppSizes.adaptiveHeight(24)),
                       CustomButton(
                         title: 'Sign Up',
                         onPressed: _registering || _emailDialogOpen
@@ -376,14 +357,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: () {
-                                Navigator.pushReplacement(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => LoginScreen(),
-                                  ),
-                                );
-                              },
+                              onPressed: () =>
+                                  AuthNavigation.backToLogin(context),
                               child: Text(
                                 'Login',
                                 style: TextStyle(

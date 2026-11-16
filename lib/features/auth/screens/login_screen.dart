@@ -12,6 +12,8 @@ import 'package:travibe/features/auth/cubit/auth_cubit.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/auth/screens/forgetpass/forget_password_screen.dart';
 import 'package:travibe/features/auth/screens/sign_up_screen.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
+import 'package:travibe/core/routing/app_routes.dart';
 import 'package:travibe/features/auth/widgets/custom_or_login_widget.dart';
 import 'package:travibe/features/auth/widgets/social_login_button.dart';
 import 'package:travibe/root.dart';
@@ -25,6 +27,8 @@ class LoginScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider<AuthCubit>(
+      // Returning to Login with a different email must refill the form.
+      key: ValueKey(initialEmail),
       create: (context) =>
           AuthCubit(repo: authRepo)..emailController.text = initialEmail,
       child: Builder(
@@ -36,21 +40,27 @@ class LoginScreen extends StatelessWidget {
             child: SafeArea(
               child: Scaffold(
                 backgroundColor: DarkColors.backgroundColor,
-                appBar: const AuthAppBar(title: 'Login'),
+                appBar: const AuthAppBar(title: 'Login', showBack: false),
                 body: BlocListener<AuthCubit, AuthState>(
                   listener: (context, state) {
                     if (state is AuthSuccess) {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              state.response?.emailVerificationRequired == true
-                              ? OtpVerificationScreen(
-                                  email: state.response!.user.email,
-                                )
-                              : Root(),
-                        ),
-                      );
+                      if (state.response?.emailVerificationRequired == true) {
+                        // Pushed so back returns to Login with the email.
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => OtpVerificationScreen(
+                              email: state.response!.user.email,
+                            ),
+                          ),
+                        );
+                      } else {
+                        AuthNavigation.resetTo(
+                          context,
+                          (_) => Root(),
+                          name: AppRoutes.root,
+                        );
+                      }
                     } else if (state is AuthFailure) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text(state.errorMessage)),
@@ -184,14 +194,13 @@ class LoginScreen extends StatelessWidget {
                                     ),
                                   ),
                                   TextButton(
-                                    onPressed: () {
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => SignUpScreen(),
-                                        ),
-                                      );
-                                    },
+                                    onPressed: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute<void>(
+                                        builder: (context) =>
+                                            const SignUpScreen(),
+                                      ),
+                                    ),
                                     child: Text(
                                       'Sign Up',
                                       style: AppStyles.orange16MediumStyle

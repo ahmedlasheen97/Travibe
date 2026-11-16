@@ -803,7 +803,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'Back asks before discarding an unconfirmed photo and cancels safely',
+    'step 1 has no back button and system back keeps setup and pending photo',
     (tester) async {
       final api = SetupApi();
       final upload = Upload()..gate = Completer<int>();
@@ -838,27 +838,52 @@ void main() {
       final pending = cubit.pickAvatar();
       await tester.pump();
       await tester.pump();
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pump();
+      expect(find.byTooltip('Back'), findsNothing);
+      await tester.binding.handlePopRoute();
       await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Leave without saving photo?'), findsOneWidget);
-      await tester.tap(find.text('Stay'));
-      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(ProfileSetupScreen), findsOneWidget);
+      expect(find.text('Open setup'), findsNothing);
       expect(cubit.state.avatar, isNotNull);
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.tap(find.text('Leave'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-      expect(find.text('Open setup'), findsOneWidget);
-      expect(upload.cancel!.isCancelled, true);
+      expect(upload.cancel!.isCancelled, false);
       upload.gate!.complete(19);
       await pending;
-      expect(api.patches, isEmpty);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('back between setup steps returns to the previous step', (
+    tester,
+  ) async {
+    final cubit = make(SetupApi());
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: darkTheme,
+          home: ProfileSetupScreen(createCubit: (_) => cubit),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back'), findsNothing);
+    cubit.pageController.jumpToPage(2);
+    await tester.pumpAndSettle();
+    expect(cubit.state.step, 2);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(cubit.state.step, 1);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(cubit.state.step, 0);
+    expect(find.byTooltip('Back'), findsNothing);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(cubit.state.step, 0);
+    expect(find.byType(ProfileSetupScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'country sheet error retries real catalog load and handles landscape keyboard',
     (tester) async {

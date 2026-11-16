@@ -128,7 +128,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: AppSizes.adaptiveHeight(8)),
-                _buildBackButton(),
+                const BackButtonWidget(),
                 SizedBox(height: AppSizes.adaptiveHeight(40)),
                 Center(
                   child: Text(
@@ -206,14 +206,6 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return BackButtonWidget(
-      onTap: () => Navigator.of(context).maybePop(),
-      size: AppSizes.adaptiveRadius(44),
-      iconSize: AppSizes.adaptiveRadius(18),
     );
   }
 

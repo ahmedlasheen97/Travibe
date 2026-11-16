@@ -8,6 +8,8 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
+import 'package:travibe/core/routing/app_routes.dart';
+import 'package:travibe/features/auth/screens/auth_navigation.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 
 /// 4-digit code entry. Defaults to signup verification (then Profile setup);
@@ -106,9 +108,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       }
       await _authRepo.verifyEmailCode(email: widget.email, code: _enteredOtp);
       if (!mounted) return;
-      Navigator.pushReplacement(
+      // The account now exists: no way back to Signup or OTP.
+      AuthNavigation.resetTo(
         context,
-        MaterialPageRoute(builder: (context) => const ProfileSetupScreen()),
+        (_) => const ProfileSetupScreen(),
+        name: AppRoutes.profileSetup,
       );
     } catch (e) {
       _pinController.triggerError();
@@ -171,8 +175,23 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     }
   }
 
+  /// Back returns to the step that opened OTP (Signup or Login keep the
+  /// email). Opened at startup there is none, so Signup is rebuilt with it.
+  void _back() => AuthNavigation.back(
+    context,
+    () => AuthNavigation.toSignup(context, email: widget.email),
+  );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    canPop: ModalRoute.of(context)?.canPop ?? false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) _back();
+    },
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
     return Scaffold(
       backgroundColor: DarkColors.backgroundColor,
       body: SafeArea(
@@ -185,7 +204,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(height: AppSizes.adaptiveHeight(8)),
-                _buildBackButton(),
+                BackButtonWidget(onTap: _back),
                 SizedBox(height: AppSizes.adaptiveHeight(40)),
                 Center(
                   child: Text(
@@ -263,14 +282,6 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildBackButton() {
-    return BackButtonWidget(
-      onTap: () => Navigator.of(context).maybePop(),
-      size: AppSizes.adaptiveRadius(44),
-      iconSize: AppSizes.adaptiveRadius(18),
     );
   }
 

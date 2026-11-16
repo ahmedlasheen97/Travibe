@@ -5,7 +5,8 @@ class AppRoutes {
   static const String splash = '/splash';
   static const String onboarding = '/onboarding';
   static const String login = '/login';
-  static const String register = '/register';
+  // Signup is nested under Login so Login is always the page beneath it.
+  static const String register = '/login/register';
   static const String otpVerification = '/otp-verification';
   static const String profileSetup = '/profile-setup';
 
