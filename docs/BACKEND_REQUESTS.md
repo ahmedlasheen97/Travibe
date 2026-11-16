@@ -203,3 +203,38 @@ the client validates before sending.
 
 **Client today:** the client only checks for at least 8 characters and relies
 on the server's 422.
+
+## OTP: separate error codes for wrong and expired codes
+
+`POST /email/verify-code` and `POST /email/verify-reset-code` answer both a
+wrong code and an expired one with the same 422 and the same message,
+"Invalid or expired code.", so the app cannot tell the user which one happened.
+
+**Ask:** add a machine-readable code to the 422 body, for example:
+
+```json
+{
+  "message": "Invalid or expired code.",
+  "code": "otp_invalid",
+  "errors": { "code": ["Invalid or expired code."] }
+}
+```
+
+- `otp_invalid`: the code is wrong (the attempts left could also be returned).
+- `otp_expired`: the code is past its 10-minute lifetime, or was invalidated
+  after five wrong attempts.
+- Document both in `docs/openapi.json`. The user-facing `message` can stay
+  generic if account enumeration is a concern; only the code needs to differ.
+
+**Client today:** the message text is ignored and every 422 shows "Wrong OTP
+Try Again", including expired codes (the app cannot tell them apart). Wrong
+attempts are counted on the device (`OtpAttempts` in
+`lib/features/auth/screens/otp_verification_screen.dart`): the fifth shows
+"Too many attempts. Tap Resend OTP" and disables Verify until a resend, which
+resets the counter. This mirrors the server's five-attempt rule but can drift
+from it (e.g. attempts made on another device, or after the app restarts).
+
+**Client after:** map `otp_expired` / `otp_invalid` (and an
+`otp_too_many_attempts` code, ideally with `attempts_remaining`) directly and
+drop the device counter. With `otp_expired` the app can show "Code expired.
+Tap Resend OTP" again.

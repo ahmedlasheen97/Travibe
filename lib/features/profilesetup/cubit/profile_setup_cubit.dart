@@ -762,8 +762,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     }
   }
 
-  String _messageFrom(Object e) =>
-      e is ApiError ? e.message : 'Something went wrong';
+  String _messageFrom(Object e) => ApiError.messageOf(e);
 
   @override
   Future<void> close() {

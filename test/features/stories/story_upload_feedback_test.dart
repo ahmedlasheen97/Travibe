@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -90,22 +91,25 @@ void main() {
     // Construct the pending result inside the widget test's fake-async zone.
     uploads.result = Completer<int>();
     await tester.pumpWidget(
-      MaterialApp(
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => StoryEditorScreen(
-                    draft: value,
-                    uploads: uploads,
-                    storiesRepo: repo,
-                    exporter: _Exporter(),
-                    onPublished: onPublished,
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => StoryEditorScreen(
+                      draft: value,
+                      uploads: uploads,
+                      storiesRepo: repo,
+                      exporter: _Exporter(),
+                      onPublished: onPublished,
+                    ),
                   ),
                 ),
+                child: const Text('Open editor'),
               ),
-              child: const Text('Open editor'),
             ),
           ),
         ),

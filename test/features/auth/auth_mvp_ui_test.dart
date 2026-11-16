@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
+import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
@@ -237,6 +239,67 @@ void main() {
     expect(api.body!['password_confirmation'], 'Password1');
     expect(api.body!['terms_accepted'], true);
     expect(find.byType(OtpVerificationScreen), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Sign Up without consent shows the red toast, not a SnackBar', (
+    tester,
+  ) async {
+    final api = google.FakeApi();
+    await show(tester, SignUpScreen(authRepo: AuthRepo(apiService: api)));
+    for (final entry in {
+      'Email': 'new@example.invalid',
+      'Password': 'Password1',
+      'Confirm Password': 'Password1',
+    }.entries) {
+      await tester.ensureVisible(glass.input(entry.key));
+      await tester.enterText(glass.input(entry.key), entry.value);
+    }
+    await tester.ensureVisible(find.byType(CustomButton));
+    await tester.tap(find.byType(CustomButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(api.calls, isEmpty);
+    final toast = find.byType(TravibeToastView);
+    expect(toast, findsOneWidget);
+    expect(
+      tester.widget<TravibeToastView>(toast).data.variant,
+      TravibeToastVariant.error,
+    );
+    expect(
+      find.descendant(
+        of: toast,
+        matching: find.text('Please accept the Terms & Privacy Policy'),
+      ),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Login failure toasts the server message, never ApiError{', (
+    tester,
+  ) async {
+    final api = google.FakeApi()
+      ..handler = () async => throw ApiError(
+        message: 'These credentials do not match our records.',
+        statusCode: 422,
+      );
+    await show(tester, LoginScreen(authRepo: AuthRepo(apiService: api)));
+    await tester.enterText(glass.input('Email'), 'test@example.invalid');
+    await tester.enterText(glass.input('Password'), 'Password1');
+    await tester.ensureVisible(find.byType(CustomButton));
+    await tester.tap(find.byType(CustomButton));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(
+      find.descendant(
+        of: find.byType(TravibeToastView),
+        matching: find.text('These credentials do not match our records.'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('ApiError'), findsNothing);
+    expect(find.textContaining('unexpected'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

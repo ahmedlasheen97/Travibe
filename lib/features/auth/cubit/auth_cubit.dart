@@ -40,7 +40,7 @@ class AuthCubit extends Cubit<AuthState> {
       emit(
         AuthFailure(
           error is ApiError
-              ? error.message
+              ? ApiError.messageOf(error)
               : 'Unable to sign in with Google. Please retry.',
         ),
       );
@@ -82,12 +82,8 @@ class AuthCubit extends Cubit<AuthState> {
       // Keep the backend's verification requirement available to LoginScreen.
       emit(AuthSuccess(response: response));
     } catch (e) {
-      String errorMessage = 'something went wrong';
-      // If login fails, emit AuthFailure with an error message
-      if (e is ApiError) {
-        errorMessage = e.toString();
-      }
-      emit(AuthFailure(errorMessage));
+      if (isClosed) return;
+      emit(AuthFailure(ApiError.messageOf(e)));
     }
   }
 

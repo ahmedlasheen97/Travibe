@@ -5,45 +5,48 @@ class ApiExceptions {
   static ApiError handleError(DioException error) {
     switch (error.type) {
       case DioExceptionType.cancel:
-        return ApiError(message: 'Request to API server was cancelled');
+        return ApiError(
+          message: 'The request was cancelled. Please try again.',
+        );
 
       case DioExceptionType.connectionTimeout:
         return ApiError(
-          message: 'Connection timeout with API server',
+          message: 'The connection timed out. Please try again.',
           isConnectionError: true,
           isTimeout: true,
         );
 
       case DioExceptionType.sendTimeout:
         return ApiError(
-          message: 'Send timeout in connection with API server',
+          message: 'The connection timed out. Please try again.',
           isTimeout: true,
         );
 
       case DioExceptionType.receiveTimeout:
         return ApiError(
-          message: 'Receive timeout with API server',
+          message: 'The server took too long to respond. Please try again.',
           isTimeout: true,
         );
 
       case DioExceptionType.transformTimeout:
-        return ApiError(message: 'Response transformation timeout');
+        return ApiError(message: ApiError.fallbackMessage);
 
       case DioExceptionType.badResponse:
         return _handleBadResponse(error);
 
       case DioExceptionType.connectionError:
         return ApiError(
-          message:
-              'Connection to API server failed. Check your internet connection.',
+          message: 'No internet connection. Check your connection and retry.',
           isConnectionError: true,
         );
 
       case DioExceptionType.badCertificate:
-        return ApiError(message: 'Bad SSL certificate');
+        return ApiError(
+          message: 'Unable to connect securely. Please try again.',
+        );
 
       case DioExceptionType.unknown:
-        return ApiError(message: 'Unexpected error occurred');
+        return ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -51,7 +54,7 @@ class ApiExceptions {
     final response = error.response;
 
     if (response == null) {
-      return ApiError(message: 'No response from server');
+      return ApiError(message: ApiError.fallbackMessage);
     }
 
     final data = response.data;
@@ -78,7 +81,7 @@ class ApiExceptions {
         return ApiError(
           message: fields.isNotEmpty
               ? fields.values.first.first
-              : message ?? 'Validation failed',
+              : _nonEmpty(message) ?? ApiError.fallbackMessage,
           statusCode: response.statusCode,
           fieldErrors: Map.unmodifiable(fields),
         );
@@ -87,27 +90,35 @@ class ApiExceptions {
       // 403
       if (response.statusCode == 403) {
         return ApiError(
-          message: message ?? 'Forbidden',
+          message: _nonEmpty(message) ?? ApiError.fallbackMessage,
           statusCode: response.statusCode,
         );
       }
 
       // Other errors
       return ApiError(
-        message:
-            message ?? 'Received invalid status code: ${response.statusCode}',
+        message: _nonEmpty(message) ?? ApiError.fallbackMessage,
         statusCode: response.statusCode,
       );
     }
 
     // If API returned a String instead of JSON
     if (data is String && data.isNotEmpty) {
-      return ApiError(message: data, statusCode: response.statusCode);
+      // Raw bodies (HTML error pages, stack traces) are not user-facing.
+      return ApiError(
+        message: ApiError.fallbackMessage,
+        statusCode: response.statusCode,
+      );
     }
 
     return ApiError(
-      message: 'Received invalid status code: ${response.statusCode}',
+      message: ApiError.fallbackMessage,
       statusCode: response.statusCode,
     );
+  }
+
+  static String? _nonEmpty(String? value) {
+    final text = value?.trim();
+    return text == null || text.isEmpty ? null : text;
   }
 }
