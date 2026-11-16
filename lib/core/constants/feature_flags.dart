@@ -8,3 +8,7 @@ const bool kShowCurrencySetting = false;
 /// `POST /support/problems` (docs/BACKEND_REQUESTS.md); `ReportProblemScreen`
 /// and `SupportRepo.reportProblem` stay intact.
 const bool kShowReportProblem = false;
+
+/// MVP: hide social controls and disable their callbacks. Native providers,
+/// repositories and configuration remain available for a later release.
+const bool kEnableSocialAuthentication = false;

@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
@@ -73,97 +74,99 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
   }
 
   Widget _buildFormView() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Form(
-        key: _formKey,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            _buildBackButton(),
-            const SizedBox(height: 40),
-            const Center(
-              child: Text(
-                'Create new password',
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSizes.adaptiveWidth(24)),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: AppSizes.adaptiveHeight(8)),
+              _buildBackButton(),
+              SizedBox(height: AppSizes.adaptiveHeight(40)),
+              Center(
+                child: Text(
+                  'Create new password',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppSizes.adaptiveFont(22),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              SizedBox(height: AppSizes.adaptiveHeight(12)),
+              Center(
+                child: Text(
+                  'Your new password must be different from your previous password.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: AppSizes.adaptiveFont(14),
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              SizedBox(height: AppSizes.adaptiveHeight(32)),
+              Text(
+                'New Password',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
+                  fontSize: AppSizes.adaptiveFont(14),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Center(
-              child: Text(
-                'Your new password must be different from your previous password.',
-                textAlign: TextAlign.center,
+              SizedBox(height: AppSizes.adaptiveHeight(8)),
+              _passwordField(
+                controller: _passwordController,
+                hint: 'enter your password',
+                obscure: _obscurePassword,
+                onToggle: () =>
+                    setState(() => _obscurePassword = !_obscurePassword),
+                onChanged: (_) => setState(() {}),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a new password';
+                  }
+                  if (value.length < 8) {
+                    return 'Password must be at least 8 characters';
+                  }
+                  return null;
+                },
+              ),
+              SizedBox(height: AppSizes.adaptiveHeight(20)),
+              Text(
+                'Confirm Password',
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontSize: 14,
-                  height: 1.4,
+                  color: Colors.white,
+                  fontSize: AppSizes.adaptiveFont(14),
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'New Password',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              SizedBox(height: AppSizes.adaptiveHeight(8)),
+              _passwordField(
+                controller: _confirmPasswordController,
+                hint: 'renter your password',
+                obscure: _obscureConfirm,
+                onToggle: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+                onChanged: (_) => setState(() {}),
+                validator: (value) {
+                  if (value != _passwordController.text) {
+                    return 'Passwords do not match';
+                  }
+                  return null;
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            _passwordField(
-              controller: _passwordController,
-              hint: 'enter your password',
-              obscure: _obscurePassword,
-              onToggle: () =>
-                  setState(() => _obscurePassword = !_obscurePassword),
-              onChanged: (_) => setState(() {}),
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter a new password';
-                }
-                if (value.length < 8) {
-                  return 'Password must be at least 8 characters';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Confirm Password',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              SizedBox(height: AppSizes.adaptiveHeight(10)),
+              _buildPasswordHint(),
+              SizedBox(height: AppSizes.adaptiveHeight(24)),
+              CustomButton(
+                title: _isSubmitting ? 'Resetting...' : 'Reset Password',
+                onPressed: _isSubmitting ? null : _resetPassword,
               ),
-            ),
-            const SizedBox(height: 8),
-            _passwordField(
-              controller: _confirmPasswordController,
-              hint: 'renter your password',
-              obscure: _obscureConfirm,
-              onToggle: () =>
-                  setState(() => _obscureConfirm = !_obscureConfirm),
-              onChanged: (_) => setState(() {}),
-              validator: (value) {
-                if (value != _passwordController.text) {
-                  return 'Passwords do not match';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 10),
-            _buildPasswordHint(),
-            const SizedBox(height: 24),
-            CustomButton(
-              title: _isSubmitting ? 'Resetting...' : 'Reset Password',
-              onPressed: _isSubmitting ? null : _resetPassword,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -176,14 +179,16 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
         Icon(
           meetsLength ? Icons.check_circle : Icons.info_outline,
           color: meetsLength ? Colors.greenAccent : Colors.white54,
-          size: 16,
+          size: AppSizes.adaptiveRadius(16),
         ),
-        const SizedBox(width: 6),
-        Text(
-          'At least 8 characters',
-          style: TextStyle(
-            color: meetsLength ? Colors.greenAccent : Colors.white54,
-            fontSize: 13,
+        SizedBox(width: AppSizes.adaptiveWidth(6)),
+        Expanded(
+          child: Text(
+            'At least 8 characters',
+            style: TextStyle(
+              color: meetsLength ? Colors.greenAccent : Colors.white54,
+              fontSize: AppSizes.adaptiveFont(13),
+            ),
           ),
         ),
       ],
@@ -202,16 +207,16 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
       controller: controller,
       obscureText: obscure,
       onChanged: onChanged,
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: AppSizes.adaptiveFont(14),
+      ),
       validator: validator,
       cursorColor: Colors.white,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-        prefixIcon: const Icon(
-          Icons.lock_outline_rounded,
-          color: Colors.white54,
-        ),
+        prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.white54),
         suffixIcon: IconButton(
           tooltip: obscure ? 'Show password' : 'Hide password',
           icon: PasswordEye.icon(obscured: obscure),
@@ -219,13 +224,15 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
         ),
         filled: true,
         fillColor: const Color(0xFF1C1C1C),
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        contentPadding: EdgeInsets.symmetric(
+          vertical: AppSizes.adaptiveHeight(14),
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(28)),
           borderSide: BorderSide.none,
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(28)),
           borderSide: const BorderSide(color: Color(0xFFDB4A3D)),
         ),
       ),
@@ -235,83 +242,85 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
   Widget _buildBackButton() {
     return BackButtonWidget(
       onTap: () => Navigator.of(context).maybePop(),
-      size: 44,
-      iconSize: 18,
+      size: AppSizes.adaptiveRadius(44),
+      iconSize: AppSizes.adaptiveRadius(18),
     );
   }
 
   Widget _buildSuccessView() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 8),
-          _buildBackButton(),
-          const SizedBox(height: 60),
-          Center(
-            child: Container(
-              width: 96,
-              height: 96,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.greenAccent.withValues(alpha: 0.4),
-                  width: 1.5,
-                ),
-              ),
-              child: Center(
-                child: Container(
-                  width: 72,
-                  height: 72,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.green,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Colors.white,
-                    size: 36,
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSizes.adaptiveWidth(24)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: AppSizes.adaptiveHeight(8)),
+            _buildBackButton(),
+            SizedBox(height: AppSizes.adaptiveHeight(60)),
+            Center(
+              child: Container(
+                width: AppSizes.adaptiveRadius(96),
+                height: AppSizes.adaptiveRadius(96),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.greenAccent.withValues(alpha: 0.4),
+                    width: 1.5,
                   ),
                 ),
+                child: Center(
+                  child: Container(
+                    width: AppSizes.adaptiveRadius(72),
+                    height: AppSizes.adaptiveRadius(72),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.green,
+                    ),
+                    child: Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: AppSizes.adaptiveRadius(36),
+                    ),
+                  ),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-          const Center(
-            child: Text(
-              'Password updated!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
+            SizedBox(height: AppSizes.adaptiveHeight(24)),
+            Center(
+              child: Text(
+                'Password updated!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: AppSizes.adaptiveFont(22),
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Center(
-            child: Text(
-              'Your password has been changed successfully. You can now log in with your new password.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 14,
-                height: 1.4,
+            SizedBox(height: AppSizes.adaptiveHeight(12)),
+            Center(
+              child: Text(
+                'Your password has been changed successfully. You can now log in with your new password.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.6),
+                  fontSize: AppSizes.adaptiveFont(14),
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 32),
-          CustomButton(
-            title: 'Log In Now',
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => LoginScreen()),
-                (route) => false,
-              );
-            },
-          ),
-        ],
+            SizedBox(height: AppSizes.adaptiveHeight(32)),
+            CustomButton(
+              title: 'Log In Now',
+              onPressed: () {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginScreen()),
+                  (route) => false,
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

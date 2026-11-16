@@ -1,3 +1,5 @@
+import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
+import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:go_router/go_router.dart';
 import 'package:travibe/core/routing/app_routes.dart';
 import 'package:travibe/features/auth/screens/login_screen.dart';
@@ -56,6 +58,17 @@ class RouterGenerator {
         path: AppRoutes.register,
         name: AppRoutes.register,
         builder: (context, state) => const SignUpScreen(),
+      ),
+      // Public legal documents must remain readable before authentication.
+      GoRoute(
+        path: AppRoutes.termsOfService,
+        name: AppRoutes.termsOfService,
+        builder: (context, state) => const TermsOfServiceScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.privacyPolicy,
+        name: AppRoutes.privacyPolicy,
+        builder: (context, state) => const PrivacyPolicyScreen(),
       ),
       GoRoute(
         path: AppRoutes.root,

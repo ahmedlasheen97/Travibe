@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/app_styles.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
@@ -27,6 +28,7 @@ class CustomTextField extends StatefulWidget {
     this.keyboardType,
     this.textInputAction,
     this.prefixIcon,
+    this.reservePrefixSpace = true,
     this.suffixIcon,
     this.obscureText = false,
     this.enabled = true,
@@ -58,6 +60,10 @@ class CustomTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
 
   final Widget? prefixIcon;
+
+  /// Preserve the historical empty prefix slot for existing consumers.
+  /// Icon-free fields can opt out to use the normal content inset instead.
+  final bool reservePrefixSpace;
   final Widget? suffixIcon;
 
   final bool obscureText;
@@ -161,10 +167,29 @@ class _CustomTextFieldState extends State<CustomTextField> {
               fontSize: 16,
             ),
 
-            prefixIcon: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: widget.prefixIcon,
-            ),
+            // Material 3 adds 4px after prefixIcon. Count it toward the gap,
+            // and don't let the default 48px width stretch smaller icons.
+            prefixIconConstraints: widget.prefixIcon == null
+                ? null
+                : const BoxConstraints(
+                    minWidth: 0,
+                    minHeight: kMinInteractiveDimension,
+                  ),
+            prefixIcon: widget.prefixIcon == null && !widget.reservePrefixSpace
+                ? null
+                : Padding(
+                    padding: widget.prefixIcon == null
+                        ? const EdgeInsets.all(16)
+                        : EdgeInsetsDirectional.fromSTEB(
+                            16,
+                            16,
+                            (AppSizes.adaptiveWidth(8) -
+                                    (Theme.of(context).useMaterial3 ? 4 : 0))
+                                .clamp(0, double.infinity),
+                            16,
+                          ),
+                    child: widget.prefixIcon,
+                  ),
 
             suffixIcon: widget.passwordVisibilityToggle
                 ? _eye()

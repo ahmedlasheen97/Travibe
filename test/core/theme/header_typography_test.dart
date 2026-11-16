@@ -14,39 +14,42 @@ void main() {
     await fonts.load();
   });
   for (final title in ['Login', 'Sign Up']) {
-    testWidgets('$title AppBar renders without inherited strikethrough', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(390, 844);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await tester.pumpWidget(
-        ScreenUtilInit(
-          designSize: const Size(390, 844),
-          builder: (_, _) => MaterialApp(
-            theme: darkTheme,
-            home: title == 'Login' ? const LoginScreen() : const SignUpScreen(),
+    testWidgets(
+      '$title AppBar renders centered text without inherited strikethrough',
+      (tester) async {
+        tester.view.physicalSize = const Size(390, 844);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          ScreenUtilInit(
+            designSize: const Size(390, 844),
+            builder: (_, _) => MaterialApp(
+              theme: darkTheme,
+              home: title == 'Login'
+                  ? const LoginScreen()
+                  : const SignUpScreen(),
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final text = find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text(title),
-      );
-      final rich = tester.widget<RichText>(
-        find.descendant(of: text, matching: find.byType(RichText)),
-      );
-      expect(rich.text.style!.decoration, TextDecoration.none);
-      expect(rich.text.style!.color, Colors.white);
-      expect(rich.text.style!.fontFamily, 'Plus Jakarta Sans');
-      expect(rich.text.style!.fontSize, 16);
-      expect(rich.text.style!.fontWeight, FontWeight.w400);
-      expect(tester.getCenter(text).dx, closeTo(195, .01));
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    });
+        );
+        await tester.pumpAndSettle();
+        final text = find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text(title),
+        );
+        final rich = tester.widget<RichText>(
+          find.descendant(of: text, matching: find.byType(RichText)),
+        );
+        expect(rich.text.style!.decoration, TextDecoration.none);
+        expect(rich.text.style!.color, Colors.white);
+        expect(rich.text.style!.fontFamily, 'Plus Jakarta Sans');
+        expect(rich.text.style!.fontSize, 16);
+        expect(rich.text.style!.fontWeight, FontWeight.w400);
+        expect(tester.getCenter(text).dx, closeTo(195, .01));
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
   }
   testWidgets(
     'shared AppBar keeps explicit header size/weight and no decoration across route titles',

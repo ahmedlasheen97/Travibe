@@ -1,4 +1,6 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -18,14 +20,16 @@ class SocialLoginButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: SizedBox(
-        height: 50,
+        height: AppSizes.adaptiveHeight(50).clamp(50, 58),
         child: ElevatedButton(
-          onPressed: onPressed,
+          onPressed: kEnableSocialAuthentication ? onPressed : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFF303030),
             foregroundColor: Colors.white,
             elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSizes.adaptiveWidth(12),
+            ),
             shape: ActionButtonStyle.shape,
           ),
           child: FittedBox(
@@ -34,11 +38,15 @@ class SocialLoginButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                SvgPicture.asset(iconPath, width: 24, height: 24),
-                const SizedBox(width: 12),
+                SvgPicture.asset(
+                  iconPath,
+                  width: AppSizes.adaptiveWidth(24),
+                  height: AppSizes.adaptiveHeight(24),
+                ),
+                SizedBox(width: AppSizes.adaptiveWidth(12)),
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: ActionButtonStyle.fontSize,
                     fontWeight: FontWeight.w500,
                   ),

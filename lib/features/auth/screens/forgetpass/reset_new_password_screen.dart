@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:async';
@@ -118,86 +119,90 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
     return Scaffold(
       backgroundColor: DarkColors.backgroundColor,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              _buildBackButton(),
-              const SizedBox(height: 40),
-              const Center(
-                child: Text(
-                  'Verify your email',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Center(
-                child: Column(
-                  children: [
-                    Text(
-                      'Please enter the 4-digit code we sent to your email',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _maskedEmail,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              Center(
-                child: MaterialPinField(
-                  length: 4,
-                  pinController: _pinController,
-                  autoFocus: true,
-                  onChanged: (value) => _enteredOtp = value,
-                  onCompleted: (value) {
-                    _enteredOtp = value;
-                    _verify();
-                  },
-                  theme: MaterialPinTheme(
-                    shape: MaterialPinShape.circle,
-                    cellSize: const Size(60, 60),
-                    spacing: 16,
-                    borderWidth: 1,
-                    focusedBorderWidth: 1.5,
-                    borderColor: const Color(0xFF2E2E2E),
-                    focusedBorderColor: DarkColors.primaryColor,
-                    filledBorderColor: DarkColors.primaryColor,
-                    fillColor: const Color(0xFF1C1C1C),
-                    focusedFillColor: const Color(0xFF1C1C1C),
-                    filledFillColor: const Color(0xFF1C1C1C),
-                    textStyle: const TextStyle(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSizes.adaptiveWidth(24),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: AppSizes.adaptiveHeight(8)),
+                _buildBackButton(),
+                SizedBox(height: AppSizes.adaptiveHeight(40)),
+                Center(
+                  child: Text(
+                    'Verify your email',
+                    style: TextStyle(
                       color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                      fontSize: AppSizes.adaptiveFont(22),
+                      fontWeight: FontWeight.w700,
                     ),
-                    errorColor: Colors.redAccent,
-                    enableErrorShake: true,
                   ),
                 ),
-              ),
-              const SizedBox(height: 40),
-              _buildVerifyButton(),
-              const SizedBox(height: 24),
-              Center(child: _buildResendRow()),
-            ],
+                SizedBox(height: AppSizes.adaptiveHeight(12)),
+                Center(
+                  child: Column(
+                    children: [
+                      Text(
+                        'Please enter the 4-digit code we sent to your email',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: AppSizes.adaptiveFont(14),
+                        ),
+                      ),
+                      SizedBox(height: AppSizes.adaptiveHeight(4)),
+                      Text(
+                        _maskedEmail,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: AppSizes.adaptiveFont(14),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: AppSizes.adaptiveHeight(40)),
+                Center(
+                  child: MaterialPinField(
+                    length: 4,
+                    pinController: _pinController,
+                    autoFocus: true,
+                    onChanged: (value) => _enteredOtp = value,
+                    onCompleted: (value) {
+                      _enteredOtp = value;
+                      _verify();
+                    },
+                    theme: MaterialPinTheme(
+                      shape: MaterialPinShape.circle,
+                      cellSize: Size.square(AppSizes.adaptiveRadius(60)),
+                      spacing: AppSizes.adaptiveWidth(16),
+                      borderWidth: 1,
+                      focusedBorderWidth: 1.5,
+                      borderColor: const Color(0xFF2E2E2E),
+                      focusedBorderColor: DarkColors.primaryColor,
+                      filledBorderColor: DarkColors.primaryColor,
+                      fillColor: const Color(0xFF1C1C1C),
+                      focusedFillColor: const Color(0xFF1C1C1C),
+                      filledFillColor: const Color(0xFF1C1C1C),
+                      textStyle: TextStyle(
+                        color: Colors.white,
+                        fontSize: AppSizes.adaptiveFont(22),
+                        fontWeight: FontWeight.w600,
+                      ),
+                      errorColor: Colors.redAccent,
+                      enableErrorShake: true,
+                    ),
+                  ),
+                ),
+                SizedBox(height: AppSizes.adaptiveHeight(40)),
+                _buildVerifyButton(),
+                SizedBox(height: AppSizes.adaptiveHeight(24)),
+                Center(child: _buildResendRow()),
+              ],
+            ),
           ),
         ),
       ),
@@ -207,15 +212,15 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   Widget _buildBackButton() {
     return BackButtonWidget(
       onTap: () => Navigator.of(context).maybePop(),
-      size: 44,
-      iconSize: 18,
+      size: AppSizes.adaptiveRadius(44),
+      iconSize: AppSizes.adaptiveRadius(18),
     );
   }
 
   Widget _buildVerifyButton() {
     return SizedBox(
       width: double.infinity,
-      height: 56,
+      height: AppSizes.adaptiveHeight(56).clamp(56, 64),
       child: ElevatedButton(
         onPressed: _isVerifying ? null : _verify,
         style: ElevatedButton.styleFrom(
@@ -225,12 +230,12 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
           shape: ActionButtonStyle.shape,
         ),
         child: _isVerifying
-            ? const SizedBox(
-                width: 22,
-                height: 22,
+            ? SizedBox(
+                width: AppSizes.adaptiveRadius(22),
+                height: AppSizes.adaptiveRadius(22),
                 child: CircularProgressIndicator(strokeWidth: 2.5),
               )
-            : const Text('Verify', style: ActionButtonStyle.label),
+            : Text('Verify', style: ActionButtonStyle.label),
       ),
     );
   }
@@ -238,39 +243,47 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   Widget _buildResendRow() {
     return Column(
       children: [
-        RichText(
-          text: TextSpan(
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: 14,
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(
+              "Didn't get OTP? ",
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.7),
+                fontSize: AppSizes.adaptiveFont(14),
+              ),
             ),
-            children: [
-              const TextSpan(text: "Didn't get OTP? "),
-              WidgetSpan(
-                alignment: PlaceholderAlignment.middle,
-                child: GestureDetector(
-                  onTap: _resendOtp,
-                  child: Text(
-                    'Resend OTP',
-                    style: TextStyle(
-                      color: _canResend
-                          ? DarkColors.primaryColor
-                          : DarkColors.primaryColor.withValues(alpha: 0.4),
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+            TextButton(
+              onPressed: _resendOtp,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSizes.adaptiveWidth(2),
+                ),
+                minimumSize: const Size(
+                  kMinInteractiveDimension,
+                  kMinInteractiveDimension,
                 ),
               ),
-            ],
-          ),
+              child: Text(
+                'Resend OTP',
+                style: TextStyle(
+                  color: _canResend
+                      ? DarkColors.primaryColor
+                      : DarkColors.primaryColor.withValues(alpha: 0.4),
+                  fontSize: AppSizes.adaptiveFont(14),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
+        SizedBox(height: AppSizes.adaptiveHeight(6)),
         Text(
           _formattedTime,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.6),
-            fontSize: 14,
+            fontSize: AppSizes.adaptiveFont(14),
           ),
         ),
       ],

@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -21,49 +22,57 @@ class EmailExistsDialog extends StatelessWidget {
   Widget build(BuildContext context) => Dialog(
     backgroundColor: Colors.transparent,
     surfaceTintColor: Colors.transparent,
-    insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+    insetPadding: EdgeInsets.symmetric(
+      horizontal: AppSizes.adaptiveWidth(24),
+      vertical: AppSizes.adaptiveHeight(20),
+    ),
     child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 340),
+      constraints: BoxConstraints(maxWidth: AppSizes.adaptiveWidth(340)),
       child: GlassSurface(
-        radius: 30,
+        radius: AppSizes.adaptiveRadius(30),
         opacity: .82,
         surfaceKey: const ValueKey('email-exists-glass'),
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.adaptiveWidth(24),
+              AppSizes.adaptiveHeight(24),
+              AppSizes.adaptiveWidth(24),
+              AppSizes.adaptiveHeight(16),
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SvgPicture.asset(
                   warningAsset,
-                  width: 80,
-                  height: 80,
+                  width: AppSizes.adaptiveRadius(80),
+                  height: AppSizes.adaptiveRadius(80),
                   excludeFromSemantics: true,
                 ),
-                const SizedBox(height: 18),
+                SizedBox(height: AppSizes.adaptiveHeight(18)),
                 Semantics(
                   header: true,
-                  child: const Text(
+                  child: Text(
                     'Email already exists',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 20,
+                      fontSize: AppSizes.adaptiveFont(20),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                const Text(
+                SizedBox(height: AppSizes.adaptiveHeight(12)),
+                Text(
                   'An account with this email exists. Please log in or use another email.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: DarkColors.greyColor,
-                    fontSize: 14,
+                    fontSize: AppSizes.adaptiveFont(14),
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: AppSizes.adaptiveHeight(24)),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
@@ -74,19 +83,16 @@ class EmailExistsDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       shape: ActionButtonStyle.shape,
                       textStyle: ActionButtonStyle.label,
-                      minimumSize: const Size(0, 48),
-                      padding: const EdgeInsets.symmetric(
+                      minimumSize: Size(0, 48),
+                      padding: EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 14,
                       ),
                     ),
-                    child: const Text(
-                      'Log In Instead',
-                      textAlign: TextAlign.center,
-                    ),
+                    child: Text('Log In Instead', textAlign: TextAlign.center),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: AppSizes.adaptiveHeight(8)),
                 SizedBox(
                   width: double.infinity,
                   child: TextButton(
@@ -96,9 +102,9 @@ class EmailExistsDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       shape: ActionButtonStyle.shape,
                       textStyle: ActionButtonStyle.label,
-                      minimumSize: const Size(0, 48),
+                      minimumSize: Size(0, 48),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Try Another Email',
                       textAlign: TextAlign.center,
                     ),

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/routing/app_routes.dart';
-import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/features/auth/widgets/auth_app_bar.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/auth/data/registration_error.dart';
 import 'package:travibe/features/auth/widgets/email_exists_dialog.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -166,9 +167,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
         }
       } else if (action == EmailExistsAction.anotherEmail) {
         _emailFocus.requestFocus();
-        emailController.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: emailController.text.length,
+        emailController.selection = TextSelection.collapsed(
+          offset: emailController.text.length,
         );
       }
     } finally {
@@ -197,193 +197,206 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ).showSnackBar(SnackBar(content: Text(state.errorMessage)));
         }
       },
-      child: SafeArea(
-        child: Scaffold(
-          appBar: AppBar(
-            leading: const BackButtonWidget(),
-            title: Text('Sign Up', style: TextStyle(color: Colors.white)),
-          ),
-          body: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Create\nyour account',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    SizedBox(height: 16),
-                    // CustomTextField(
-                    //   controller: nameController,
-                    //   validator: (value) {
-                    //     if (value == null || value.trim().isEmpty) {
-                    //       return 'Please enter your name';
-                    //     }
-
-                    //     return null;
-                    //   },
-                    //   title: 'Name',
-                    //   prefixIcon: SvgPicture.asset(
-                    //     'assets/images/auth/sms.svg',
-                    //     width: 24,
-                    //     height: 24,
-                    //   ),
-                    //   hintText: 'Enter your name',
-                    // ),
-                    SizedBox(height: 16),
-                    CustomTextField(
-                      controller: emailController,
-                      focusNode: _emailFocus,
-                      validator: (value) {
-                        final RegExp emailRegex = RegExp(
-                          r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$',
-                        );
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter your email';
-                        }
-
-                        if (!emailRegex.hasMatch(value.trim())) {
-                          return 'Please enter a valid email address';
-                        }
-
-                        return null;
-                      },
-                      title: 'Email',
-                      prefixIcon: SvgPicture.asset(
-                        'assets/images/auth/sms.svg',
-                        width: 24,
-                        height: 24,
-                      ),
-                      hintText: 'Enter your email',
-                    ),
-                    SizedBox(height: 16),
-                    CustomTextField(
-                      controller: passwordController,
-                      validator: (value) {
-                        final RegExp passwordRegex = RegExp(
-                          r'^(?=.*[A-Za-z])(?=.*\d).{8,}$',
-                        );
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a password';
-                        }
-
-                        if (!passwordRegex.hasMatch(value)) {
-                          return 'Password must be at least 8 characters and contain a letter and a number';
-                        }
-
-                        return null;
-                      },
-                      title: 'Password',
-                      prefixIcon: SvgPicture.asset(
-                        'assets/images/auth/lock.svg',
-                        width: 24,
-                        height: 24,
-                      ),
-                      hintText: 'Enter your password',
-                      obscureText: true,
-                      passwordVisibilityToggle: true,
-                    ),
-                    SizedBox(height: 16),
-                    CustomTextField(
-                      controller: confirmPasswordController,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please confirm your password';
-                        }
-
-                        if (value != passwordController.text) {
-                          return 'Passwords do not match';
-                        }
-
-                        return null;
-                      },
-                      title: 'Confirm Password',
-                      prefixIcon: SvgPicture.asset(
-                        'assets/images/auth/lock.svg',
-                        width: 24,
-                        height: 24,
-                      ),
-                      hintText: 'Re-enter your password',
-                      obscureText: true,
-                      passwordVisibilityToggle: true,
-                    ),
-                    SizedBox(height: 12),
-                    TermsAndPrivacyCheckbox(
-                      onChanged: (value) {
-                        setState(() {
-                          _agreedToTerms = value;
-                        });
-                      },
-                    ),
-                    SizedBox(height: 24),
-                    CustomButton(
-                      title: 'Sign Up',
-                      onPressed: _registering || _emailDialogOpen
-                          ? null
-                          : _register,
-                    ),
-                    SizedBox(height: 32),
-                    CustomOrLoginWidget(),
-                    SizedBox(height: 20),
-                    Row(
-                      children: [
-                        BlocBuilder<AuthCubit, AuthState>(
-                          bloc: _googleCubit,
-                          builder: (_, state) => SocialLoginButton(
-                            title: 'Google',
-                            iconPath: 'assets/images/auth/google.svg',
-                            onPressed: _registering || state is AuthLoading
-                                ? null
-                                : _googleCubit.loginWithGoogle,
-                          ),
+      child: ColoredBox(
+        color: DarkColors.backgroundColor,
+        child: SafeArea(
+          child: Scaffold(
+            backgroundColor: DarkColors.backgroundColor,
+            appBar: const AuthAppBar(title: 'Sign Up'),
+            body: SingleChildScrollView(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSizes.adaptiveWidth(8),
+                  AppSizes.adaptiveHeight(24),
+                  AppSizes.adaptiveWidth(8),
+                  AppSizes.adaptiveHeight(8),
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Create\nyour account',
+                        style: TextStyle(
+                          fontSize: AppSizes.adaptiveFont(24),
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
+                      ),
+                      // CustomTextField(
+                      //   controller: nameController,
+                      //   validator: (value) {
+                      //     if (value == null || value.trim().isEmpty) {
+                      //       return 'Please enter your name';
+                      //     }
 
-                        const SizedBox(width: 16),
+                      //     return null;
+                      //   },
+                      //   title: 'Name',
+                      //   prefixIcon: SvgPicture.asset(
+                      //     'assets/images/auth/sms.svg',
+                      //     width: 24,
+                      //     height: 24,
+                      //   ),
+                      //   hintText: 'Enter your name',
+                      // ),
+                      SizedBox(height: AppSizes.adaptiveHeight(16)),
+                      CustomTextField(
+                        controller: emailController,
+                        focusNode: _emailFocus,
+                        validator: (value) {
+                          final RegExp emailRegex = RegExp(
+                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$',
+                          );
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Please enter your email';
+                          }
 
-                        SocialLoginButton(
-                          title: 'Apple',
-                          iconPath: 'assets/images/auth/apple.svg',
-                          onPressed: () {
-                            // Apple login
-                          },
+                          if (!emailRegex.hasMatch(value.trim())) {
+                            return 'Please enter a valid email address';
+                          }
+
+                          return null;
+                        },
+                        title: 'Email',
+                        prefixIcon: SvgPicture.asset(
+                          'assets/images/auth/sms.svg',
+                          width: AppSizes.adaptiveRadius(24),
+                          height: AppSizes.adaptiveRadius(24),
                         ),
-                      ],
-                    ),
-                    SizedBox(height: AppSizes.h35),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'Already have an account?',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
+                        hintText: 'Enter your email',
+                      ),
+                      SizedBox(height: AppSizes.adaptiveHeight(16)),
+                      CustomTextField(
+                        controller: passwordController,
+                        validator: (value) {
+                          final RegExp passwordRegex = RegExp(
+                            r'^(?=.*[A-Za-z])(?=.*\d).{8,}$',
+                          );
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a password';
+                          }
+
+                          if (!passwordRegex.hasMatch(value)) {
+                            return 'Password must be at least 8 characters and contain a letter and a number';
+                          }
+
+                          return null;
+                        },
+                        title: 'Password',
+                        prefixIcon: SvgPicture.asset(
+                          'assets/images/auth/lock.svg',
+                          width: AppSizes.adaptiveRadius(24),
+                          height: AppSizes.adaptiveRadius(24),
                         ),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => LoginScreen(),
+                        hintText: 'Enter your password',
+                        obscureText: true,
+                        passwordVisibilityToggle: true,
+                      ),
+                      SizedBox(height: AppSizes.adaptiveHeight(16)),
+                      CustomTextField(
+                        controller: confirmPasswordController,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please confirm your password';
+                          }
+
+                          if (value != passwordController.text) {
+                            return 'Passwords do not match';
+                          }
+
+                          return null;
+                        },
+                        title: 'Confirm Password',
+                        prefixIcon: SvgPicture.asset(
+                          'assets/images/auth/lock.svg',
+                          width: AppSizes.adaptiveRadius(24),
+                          height: AppSizes.adaptiveRadius(24),
+                        ),
+                        hintText: 'Re-enter your password',
+                        obscureText: true,
+                        passwordVisibilityToggle: true,
+                      ),
+                      SizedBox(height: AppSizes.adaptiveHeight(12)),
+                      TermsAndPrivacyCheckbox(
+                        onChanged: (value) {
+                          setState(() {
+                            _agreedToTerms = value;
+                          });
+                        },
+                      ),
+                      SizedBox(height:AppSizes.adaptiveHeight(24)),
+                      CustomButton(
+                        title: 'Sign Up',
+                        onPressed: _registering || _emailDialogOpen
+                            ? null
+                            : _register,
+                      ),
+                      if (kEnableSocialAuthentication) ...[
+                        SizedBox(height: AppSizes.adaptiveHeight(32)),
+                        CustomOrLoginWidget(),
+                        SizedBox(height: AppSizes.adaptiveHeight(20)),
+                        Row(
+                          children: [
+                            BlocBuilder<AuthCubit, AuthState>(
+                              bloc: _googleCubit,
+                              builder: (_, state) => SocialLoginButton(
+                                title: 'Google',
+                                iconPath: 'assets/images/auth/google.svg',
+                                onPressed: _registering || state is AuthLoading
+                                    ? null
+                                    : _googleCubit.loginWithGoogle,
                               ),
-                            );
-                          },
-                          child: Text(
-                            'Login',
-                            style: TextStyle(
-                              color: DarkColors.primaryColor,
-                              fontSize: 16,
                             ),
-                          ),
+
+                            SizedBox(width: AppSizes.adaptiveWidth(16)),
+
+                            SocialLoginButton(
+                              title: 'Apple',
+                              iconPath: 'assets/images/auth/apple.svg',
+                              onPressed: () {
+                                // Apple login
+                              },
+                            ),
+                          ],
                         ),
                       ],
-                    ),
-                  ],
+                      SizedBox(height: AppSizes.adaptiveHeight(16)),
+                      Center(
+                        child: Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Text(
+                              'Already have an account?',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: AppSizes.adaptiveFont(16),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => LoginScreen(),
+                                  ),
+                                );
+                              },
+                              child: Text(
+                                'Login',
+                                style: TextStyle(
+                                  color: DarkColors.primaryColor,
+                                  fontSize: AppSizes.adaptiveFont(16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

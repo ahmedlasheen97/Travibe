@@ -319,7 +319,7 @@ void main() {
       expect(field(tester, 'Email').focusNode!.hasFocus, true);
       expect(
         field(tester, 'Email').controller!.selection,
-        const TextSelection(baseOffset: 0, extentOffset: 24),
+        const TextSelection.collapsed(offset: 24),
       );
       expect(
         field(tester, 'Email').controller!.text,
