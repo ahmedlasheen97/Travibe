@@ -1,13 +1,13 @@
 import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
-import 'package:country_picker/country_picker.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/app_styles.dart';
-import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/features/profilesetup/data/profile_identity_validation.dart';
-import 'package:travibe/features/profilesetup/widgets/profile_country_picker.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/places/current_city_picker.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
@@ -26,9 +26,7 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
   ProfileSetupState get state => cubit.state;
   bool _nameTouched = false;
   bool _usernameTouched = false;
-  bool _countryOpen = false;
-  String? _countryName;
-  String? _countryNameCode;
+  bool _cityOpen = false;
   bool _avatarImageFailed = false;
   String? _lastAvatarUrl;
   @override
@@ -59,36 +57,22 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
           null &&
       state.usernameStatus == UsernameStatus.available;
 
-  Future<void> _pickCountry() async {
-    if (_countryOpen || state.isSaving) return;
-    _countryOpen = true;
+  Future<void> _pickCity() async {
+    if (_cityOpen || state.isSaving) return;
+    _cityOpen = true;
     final session = PreferencesManager().sessionRevision;
     try {
-      final selected = await showModalBottomSheet<ReferenceCountry>(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: DarkColors.backgroundColor,
-        builder: (_) => FractionallySizedBox(
-          heightFactor: .85,
-          child: ProfileCountryPicker(
-            load: cubit.loadCountries,
-            locale: Localizations.localeOf(context).languageCode,
-          ),
-        ),
-      );
+      final city = await pickCurrentCity(context);
       if (!mounted ||
-          selected == null ||
+          city == null ||
           cubit.isClosed ||
+          state.isSaving ||
           session != PreferencesManager().sessionRevision) {
         return;
       }
-      setState(() {
-        _countryName = selected.name;
-        _countryNameCode = selected.code;
-      });
-      cubit.setCountry(selected.code);
+      await cubit.setCity(city);
     } finally {
-      _countryOpen = false;
+      _cityOpen = false;
     }
   }
 
@@ -213,11 +197,9 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
         ),
         _buildUsernameStatus(),
         const SizedBox(height: 16),
-        Text('Current Country', style: _fieldLabelStyle),
+        Text('Current City', style: _fieldLabelStyle),
         const SizedBox(height: 8),
-        _buildCountryField(),
-        if (state.fieldErrors['country_code']?.firstOrNull case final error?)
-          Text(error, style: const TextStyle(color: DarkColors.dangerColor)),
+        _buildCityField(),
         const SizedBox(height: 40),
         CustomButton(
           title: state.isSaving ? 'Saving...' : 'Next',
@@ -375,9 +357,12 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
     );
   }
 
-  Widget _buildCountryField() {
+  Widget _buildCityField() {
+    final location =
+        state.currentLocation ??
+        context.read<CurrentUserCubit?>()?.state.profile?.currentLocation;
     return InkWell(
-      onTap: state.isSaving ? null : _pickCountry,
+      onTap: state.isSaving ? null : _pickCity,
       borderRadius: BorderRadius.circular(28),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -389,15 +374,9 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
           children: [
             Expanded(
               child: Text(
-                state.countryCode == null
-                    ? 'Select your current country'
-                    : (_countryNameCode == state.countryCode
-                              ? _countryName
-                              : null) ??
-                          Country.tryParse(state.countryCode!)?.name ??
-                          state.countryCode!,
+                location ?? 'Select your current city',
                 style: TextStyle(
-                  color: state.countryCode != null
+                  color: location != null
                       ? Colors.white
                       : Colors.white.withValues(alpha: 0.4),
                   fontSize: 14,

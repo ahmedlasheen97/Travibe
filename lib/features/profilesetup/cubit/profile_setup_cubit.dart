@@ -6,7 +6,6 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
-import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:travibe/features/profilesetup/data/profile_identity_validation.dart';
 
@@ -52,7 +51,6 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     _readyAvatar = null;
     _restoring = false;
     _identityEdited = false;
-    _countryEdited = false;
     _usernameDebounce?.cancel();
     ++_usernameRequestId;
     fullNameController.clear();
@@ -75,7 +73,6 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   ProfileAvatarDraft? _readyAvatar;
   bool _restoring = false;
   bool _identityEdited = false;
-  bool _countryEdited = false;
   void _identityChanged() {
     _identityEdited = true;
     if (!isClosed && state.fieldErrors.containsKey('full_name')) {
@@ -107,7 +104,6 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         state.copyWith(
           restoring: false,
           avatarUrl: profile.avatarUrl,
-          countryCode: !_countryEdited ? profile.countryCode : null,
           usernameStatus:
               !_identityEdited && (profile.username?.isNotEmpty ?? false)
               ? UsernameStatus.available
@@ -155,21 +151,6 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     } finally {
       if (session == PreferencesManager().sessionRevision) _restoring = false;
     }
-  }
-
-  Future<List<ReferenceCountry>> loadCountries(String locale) =>
-      _repo.loadCountries(locale);
-  void setCountry(String code) {
-    if (isClosed || state.isSaving || !RegExp(r'^[A-Z]{2}$').hasMatch(code)) {
-      return;
-    }
-    _countryEdited = true;
-    emit(
-      state.copyWith(
-        countryCode: code,
-        fieldErrors: Map.of(state.fieldErrors)..remove('country_code'),
-      ),
-    );
   }
 
   CitySelection? _city;
@@ -605,7 +586,6 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
       await _commitCity();
       return _repo.saveSetup(
         fullName: fullNameController.text.trim(),
-        countryCode: state.countryCode,
         username: state.normalizedUsername.isNotEmpty
             ? state.normalizedUsername
             : usernameController.text.trim(),

@@ -15,7 +15,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
-import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -26,7 +25,6 @@ import 'package:travibe/features/profilesetup/data/profile_identity_validation.d
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 import 'package:travibe/features/profilesetup/widgets/step1_basic_info.dart';
-import 'package:travibe/features/profilesetup/widgets/profile_country_picker.dart';
 import '../../core/media/media_upload_test.dart' show MediaApi, StorageAdapter;
 
 class SetupApi extends MediaApi {
@@ -98,14 +96,6 @@ class SetupApi extends MediaApi {
   }
 }
 
-class Countries extends ProfileSetupRepo {
-  Countries({required super.apiService});
-  @override
-  Future<List<ReferenceCountry>> loadCountries(String locale) async => const [
-    ReferenceCountry(code: 'EG', name: 'Egypt', nameEn: 'Egypt', nameAr: 'مصر'),
-  ];
-}
-
 class Photos extends ProfileAvatarRepo {
   int calls = 0;
   Object? error;
@@ -171,7 +161,7 @@ void main() {
   }) {
     final service = upload ?? Upload();
     final cubit = ProfileSetupCubit(
-      repo: Countries(apiService: api),
+      repo: ProfileSetupRepo(apiService: api),
       profileRepo: ProfileRepo(apiService: api),
       avatarRepo: photos ?? Photos(),
       mediaUpload: service,
@@ -218,18 +208,13 @@ void main() {
       );
     },
   );
-  test('country maps only to country_code and identity is trimmed', () async {
+  test('identity is trimmed and setup sends no country_code', () async {
     final api = SetupApi();
     final cubit = make(api);
     cubit.fullNameController.text = '  Alice  ';
     cubit.usernameController.text = ' alice ';
-    cubit.setCountry('EG');
     await cubit.saveBasicInfo();
-    expect(api.patches.single, {
-      'full_name': 'Alice',
-      'username': 'alice',
-      'country_code': 'EG',
-    });
+    expect(api.patches.single, {'full_name': 'Alice', 'username': 'alice'});
     expect(api.profile['current_location'], 'Cairo, EG');
     expect(cubit.state.step, 1);
     expect(cubit.goBack(), true);
@@ -562,7 +547,7 @@ void main() {
             tester.getBottomLeft(find.text('Help others recognize you')).dy,
         closeTo(24, .01),
       );
-      for (final label in ['Full Name *', 'User Name *', 'Current Country']) {
+      for (final label in ['Full Name *', 'User Name *', 'Current City']) {
         final text = tester.widget<Text>(find.text(label));
         expect(text.style!.fontSize, 16);
         expect(text.style!.fontFamily, 'Plus Jakarta Sans');
@@ -709,35 +694,35 @@ void main() {
       },
     );
   }
-  testWidgets(
-    'required labels, Next locking, inline errors and country selection',
-    (tester) async {
-      final api = SetupApi();
-      final cubit = make(api);
-      await show(tester, cubit);
-      expect(find.text('Full Name *'), findsOneWidget);
-      expect(find.text('User Name *'), findsOneWidget);
-      expect(find.text('Skip For Now'), findsNothing);
-      final button = find.byType(CustomButton);
-      expect(tester.widget<CustomButton>(button).onPressed, isNull);
-      await tester.enterText(find.byType(TextFormField).first, '  ');
-      await tester.pump();
-      expect(find.text('Full name is required.'), findsOneWidget);
-      await tester.enterText(find.byType(TextFormField).first, 'Alice');
-      await tester.enterText(find.byType(TextFormField).last, 'alice');
-      await tester.pump(const Duration(milliseconds: 501));
-      await tester.pump();
-      expect(tester.widget<CustomButton>(button).onPressed, isNotNull);
-      await tester.ensureVisible(find.text('Select your current country'));
-      await tester.tap(find.text('Select your current country'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Egypt'));
-      await tester.pumpAndSettle();
-      expect(cubit.state.countryCode, 'EG');
-      expect(api.patches, isEmpty);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  testWidgets('required labels, Next locking, inline errors and city picker', (
+    tester,
+  ) async {
+    final api = SetupApi();
+    final cubit = make(api);
+    await show(tester, cubit);
+    expect(find.text('Full Name *'), findsOneWidget);
+    expect(find.text('User Name *'), findsOneWidget);
+    expect(find.text('Skip For Now'), findsNothing);
+    final button = find.byType(CustomButton);
+    expect(tester.widget<CustomButton>(button).onPressed, isNull);
+    await tester.enterText(find.byType(TextFormField).first, '  ');
+    await tester.pump();
+    expect(find.text('Full name is required.'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField).first, 'Alice');
+    await tester.enterText(find.byType(TextFormField).last, 'alice');
+    await tester.pump(const Duration(milliseconds: 501));
+    await tester.pump();
+    expect(tester.widget<CustomButton>(button).onPressed, isNotNull);
+    expect(find.text('Current City'), findsOneWidget);
+    await tester.ensureVisible(find.text('Select your current city'));
+    await tester.tap(find.text('Select your current city'));
+    await tester.pumpAndSettle();
+    // Opening the shared city sheet never writes the profile.
+    expect(find.text('Search for your current city'), findsOneWidget);
+    expect(api.patches, isEmpty);
+    expect(api.calls.where((call) => call.startsWith('PUT')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('whole wizard removes Skip in both identity and language steps', (
     tester,
   ) async {
@@ -884,49 +869,6 @@ void main() {
     expect(find.byType(ProfileSetupScreen), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets(
-    'country sheet error retries real catalog load and handles landscape keyboard',
-    (tester) async {
-      var calls = 0;
-      final picker = ProfileCountryPicker(
-        locale: 'ar',
-        load: (_) async {
-          calls++;
-          if (calls == 1) throw ApiError(message: 'Offline');
-          return const [
-            ReferenceCountry(
-              code: 'EG',
-              name: 'مصر',
-              nameEn: 'Egypt',
-              nameAr: 'مصر',
-            ),
-          ];
-        },
-      );
-      tester.view.physicalSize = const Size(844, 390);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        ScreenUtilInit(
-          designSize: const Size(390, 844),
-          builder: (_, _) => MaterialApp(
-            theme: darkTheme,
-            home: Scaffold(body: picker),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(calls, 1);
-      await tester.tap(find.text('Unable to load countries. Retry'));
-      await tester.pumpAndSettle();
-      expect(calls, 2);
-      expect(find.text('مصر'), findsOneWidget);
-      tester.view.viewInsets = const FakeViewPadding(bottom: 270);
-      await tester.pumpAndSettle();
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
 
   for (final size in const [
     Size(320, 568),

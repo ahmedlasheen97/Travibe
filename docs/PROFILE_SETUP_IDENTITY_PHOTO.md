@@ -115,18 +115,17 @@ Unconfirmed image drafts are retained in memory while the wizard remains open;
 they are not persisted across OS process termination. No promise of recovering an
 unfinished local draft after an app kill is made.
 
-## Country versus city
+## Current City (country picker removed)
 
-Current Country writes only the documented ISO alpha-2 `country_code`, distinct
-from `nationality_code`. It does not send a country name/code to profile/location,
-current_location or a city parameter. Country is optional. The picker uses the
-localized backend country catalog, supports filtering and genuine retry, and is
-scrollable with keyboard insets.
-
-Existing city/location repository methods are retained for other callers.
-Separately saved location information is preserved. The former Profile Setup UI
-city-picker regression now asserts country selection without a location PUT;
-Edit Profile's city picker/location PUT regression remains intact.
+Step 1 uses the shared Current City picker (`core/places/current_city_picker.dart`),
+the same one Edit Profile uses. Picking a city calls `ProfileSetupCubit.setCity`,
+which saves through `CurrentUserCubit.saveLocation` → `PUT profile/location`
+with `{location: "City, CC"}` (ISO alpha-2 country code inside the location).
+Profile Setup no longer sends `country_code` to `PATCH profile/setup`. The
+short-lived `profile_country_picker.dart` sheet was removed;
+`ProfileSetupRepo.loadCountries` stays because Buddies filters use it.
+`test/core/places/current_city_picker_test.dart` asserts the location PUT for
+both Profile Setup and Edit Profile.
 
 ## Skip and startup safety
 
@@ -164,7 +163,6 @@ production account.
 - `lib/features/profilesetup/screens/profile_setup_screen.dart`
 - `lib/features/profilesetup/widgets/step1_basic_info.dart`
 - `lib/features/profilesetup/widgets/step2_languages_interests.dart`
-- `lib/features/profilesetup/widgets/profile_country_picker.dart` (new)
 - `test/features/profilesetup/identity_photo_test.dart` (new)
 - `test/core/places/current_city_picker_test.dart`
 - This document and `docs/ONBOARDING_API_STARTUP_FLOW.md`.

@@ -132,13 +132,17 @@ ThemeData darkTheme = ThemeData(
     focusColor: Color(0xFFD1DAD6),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: Colors.red, width: 0.5),
+      borderSide: BorderSide(color: DarkColors.dangerColor, width: 0.5),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(35),
+      borderSide: BorderSide(color: DarkColors.dangerColor, width: 0.5),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(35),
       borderSide: BorderSide(color: Color(0xFF595966), width: 0.5),
     ),
-    errorStyle: TextStyle(color: Color(0xFF22C55E)),
+    errorStyle: TextStyle(color: DarkColors.dangerColor),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(35),
       borderSide: BorderSide(color: Color(0xFF595966), width: 0.5),
