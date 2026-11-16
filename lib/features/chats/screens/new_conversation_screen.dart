@@ -34,7 +34,10 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
   late final _session = _preferences.sessionRevision;
   final _text = TextEditingController();
   StreamSubscription<BlockState>? _blocks;
-  bool _creating = false;
+
+  /// The user whose conversation is being created; other rows are disabled.
+  String? _creatingId;
+  bool get _creating => _creatingId != null;
   String? _error;
   bool get _valid =>
       _session == _preferences.sessionRevision && _preferences.hasSession;
@@ -59,7 +62,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
     if (mounted) {
       setState(() {
         _error = null;
-        _creating = false;
+        _creatingId = null;
       });
     }
   }
@@ -75,7 +78,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
       return;
     }
     setState(() {
-      _creating = true;
+      _creatingId = user.id;
       _error = null;
     });
     try {
@@ -101,7 +104,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
         );
       }
     } finally {
-      if (mounted && _valid) setState(() => _creating = false);
+      if (mounted && _valid) setState(() => _creatingId = null);
     }
   }
 
@@ -169,7 +172,6 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
             if (!_valid) const Text('Sign in again to find people.'),
             if (_error != null)
               Text(_error!, style: const TextStyle(color: Colors.white70)),
-            if (_creating) const LinearProgressIndicator(),
             Expanded(
               child: BlocBuilder<ChatDiscoveryCubit, ChatDiscoveryState>(
                 bloc: _discovery,
@@ -226,6 +228,9 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                           subtitle: user.handle.isEmpty
                               ? null
                               : Text(user.handle),
+                          trailing: _creatingId == user.id
+                              ? const AppActivityIndicator()
+                              : null,
                           enabled: !_creating && _repo.capabilities.create,
                           onTap: () => _select(user),
                         ),

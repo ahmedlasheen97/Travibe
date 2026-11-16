@@ -451,42 +451,46 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets(
-    'Home can suppress suggestion spinners while default Search behavior remains',
-    (tester) async {
-      final pending = Completer<UsersPageModel>();
-      final list = FollowUsersCubit(loadPage: (_) => pending.future)..load();
-      addTearDown(list.close);
-      Future<void> section(bool suppress) async {
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: MultiBlocProvider(
-                providers: [
-                  BlocProvider.value(value: follow),
-                  BlocProvider.value(value: block),
-                ],
-                child: suppress
-                    ? SuggestedUsersSection(
-                        compact: true,
-                        cubit: list,
-                        showLoadingIndicators: false,
-                      )
-                    : SuggestedUsersSection(compact: true, cubit: list),
-              ),
+  testWidgets('suggestions first load shows skeleton cards, never a spinner', (
+    tester,
+  ) async {
+    final pending = Completer<UsersPageModel>();
+    final list = FollowUsersCubit(loadPage: (_) => pending.future)..load();
+    addTearDown(list.close);
+    Future<void> section(bool suppress) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MultiBlocProvider(
+              providers: [
+                BlocProvider.value(value: follow),
+                BlocProvider.value(value: block),
+              ],
+              child: suppress
+                  ? SuggestedUsersSection(
+                      compact: true,
+                      cubit: list,
+                      showLoadingIndicators: false,
+                    )
+                  : SuggestedUsersSection(compact: true, cubit: list),
             ),
           ),
-        );
-        await tester.pump();
-      }
+        ),
+      );
+      await tester.pump();
+    }
 
-      await section(true);
+    for (final suppress in [true, false]) {
+      await section(suppress);
       expect(find.byType(CircularProgressIndicator), findsNothing);
-      await section(false);
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(
+        find.byKey(const ValueKey('suggested-users-skeleton')),
+        findsOneWidget,
+      );
+    }
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'initial failure removes skeletons and retry restores skeletons',
     (tester) async {

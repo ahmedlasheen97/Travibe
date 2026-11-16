@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -44,6 +47,38 @@ class QueuedSendRepo extends FakeChatRepository {
     ),
   );
 }
+
+/// Upload that stays at 50% until completed, and aborts when cancelled.
+class CancellableUpload extends WaitingImageUpload {
+  @override
+  Future<int> upload({
+    required String filename,
+    required String contentType,
+    required Uint8List bytes,
+    required bool Function() isActive,
+    required CancelToken cancelToken,
+    required void Function(MediaUploadStage) onStage,
+    void Function(int, int)? onProgress,
+  }) async {
+    uploads++;
+    onStage(MediaUploadStage.uploading);
+    onProgress?.call(1, 2);
+    await Future.any([gate.future, cancelToken.whenCancel]);
+    if (cancelToken.isCancelled) {
+      throw ApiError(message: 'Photo upload was cancelled.');
+    }
+    return 101;
+  }
+}
+
+double? _ringValue(WidgetTester tester) => tester
+    .widget<CircularProgressIndicator>(
+      find.descendant(
+        of: find.byKey(const ValueKey('chat-upload-ring')),
+        matching: find.byType(CircularProgressIndicator),
+      ),
+    )
+    .value;
 
 Finder _inBubbles(Finder matching) =>
     find.descendant(of: find.byType(ChatMessageBubble), matching: matching);
@@ -228,4 +263,94 @@ void main() {
       upload.close();
     },
   );
+
+  for (final kind in [ChatMessageKind.image, ChatMessageKind.audio]) {
+    testWidgets('pending ${kind.name} bubble shows an upload ring with X', (
+      tester,
+    ) async {
+      var cancels = 0;
+      final media = ChatMediaSelection(
+        png,
+        kind == ChatMessageKind.image ? 'fixture.png' : 'recording.m4a',
+        kind == ChatMessageKind.image ? 'image/png' : 'audio/mp4',
+        kind,
+      );
+      Widget bubble({double? progress, bool cancellable = true}) => harness(
+        Scaffold(
+          body: ChatPendingMediaBubble(
+            media: media,
+            sending: true,
+            progress: progress,
+            onRetry: () {},
+            onCancel: cancellable ? () => cancels++ : null,
+          ),
+        ),
+      );
+      await tester.pumpWidget(bubble(progress: .4));
+      await tester.pump();
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(_ringValue(tester), .4);
+      await tester.tap(find.byTooltip('Cancel upload'));
+      expect(cancels, 1);
+
+      await tester.pumpWidget(bubble(cancellable: false));
+      await tester.pump();
+      expect(_ringValue(tester), isNull); // Indeterminate while sending.
+      expect(find.byTooltip('Cancel upload'), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    });
+  }
+
+  testWidgets('X on the upload ring cancels and removes the pending image', (
+    tester,
+  ) async {
+    final repo = MediaRepositoryFake()..failSecond = false;
+    final upload = CancellableUpload();
+    await tester.pumpWidget(
+      harness(
+        ConversationScreen(
+          conversation: conversation,
+          currentUserId: 'self',
+          repository: repo,
+          mediaUploader: upload,
+          pickAttachments: (_) async => [
+            XFile.fromData(png, name: 'fixture.png'),
+          ],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Attachments'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gallery'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send attachments'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(ChatPendingMediaBubble), findsOneWidget);
+    expect(_ringValue(tester), .5);
+    await tester.tap(find.byTooltip('Cancel upload'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ChatPendingMediaBubble), findsNothing);
+    expect(find.text('Attachment failed. Tap to retry.'), findsNothing);
+    expect(repo.sent, isEmpty);
+    expect(upload.uploads, 1);
+
+    // A fresh token: the next upload is not pre-cancelled.
+    await tester.tap(find.byTooltip('Attachments'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gallery'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Send attachments'));
+    await tester.pump();
+    upload.gate.complete();
+    await tester.pumpAndSettle();
+    expect(upload.uploads, 2);
+    expect(repo.sent, [101]);
+    expect(find.byType(ChatPendingMediaBubble), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+    upload.close();
+  });
 }

@@ -13,6 +13,8 @@ import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart
 import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/cubit/edit_profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
@@ -71,6 +73,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   String? _gender;
   bool _allowPop = false;
   bool _selecting = false;
+
+  /// The chip section whose option catalog is loading.
+  ReferenceKind? _loadingCatalog;
   bool _confirming = false;
   bool get _isDirty => _draft.isDirty;
   bool get _isSaving => _editor.state.saving;
@@ -301,10 +306,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     List<ProfileReference> current,
   ) async {
     if (_selecting || _isSaving || _pickingAvatar) return;
-    setState(() => _selecting = true);
+    setState(() {
+      _selecting = true;
+      _loadingCatalog = kind;
+    });
     try {
       final catalog = await _selectionRepo.loadCatalog(kind);
       if (!mounted) return;
+      setState(() => _loadingCatalog = null);
       final options = <String, ProfileReference>{
         for (final item in current) item.slug: item,
         for (final item in catalog)
@@ -352,7 +361,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         );
       }
     } finally {
-      if (mounted) setState(() => _selecting = false);
+      if (mounted) {
+        setState(() {
+          _selecting = false;
+          _loadingCatalog = null;
+        });
+      }
     }
   }
 
@@ -488,7 +502,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               absorbing: _isSaving || _selecting || _pickingAvatar,
               child: Column(
                 children: [
-                  if (_selecting) const LinearProgressIndicator(),
                   SizedBox(height: AppSizes.h8),
                   _buildTopBar(),
                   Expanded(
@@ -635,6 +648,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           _languages,
                           _editLanguages,
                           'languages_spoken',
+                          loading: _loadingCatalog == ReferenceKind.languages,
                         ),
                         SizedBox(height: AppSizes.h20),
                         _buildChipSection(
@@ -642,6 +656,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           _interests,
                           _editInterests,
                           'interests',
+                          loading: _loadingCatalog == ReferenceKind.interests,
                         ),
                         SizedBox(height: AppSizes.h20),
                         _buildChipSection(
@@ -649,6 +664,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           _travelStyles,
                           _editTravelStyle,
                           'travel_styles',
+                          loading:
+                              _loadingCatalog == ReferenceKind.travelStyles,
                         ),
                         SizedBox(height: AppSizes.h12),
                       ],
@@ -958,8 +975,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     String title,
     List<ProfileReference> values,
     VoidCallback onEdit,
-    String field,
-  ) {
+    String field, {
+    bool loading = false,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -991,32 +1009,58 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         if (_error(field) != null)
           Text(_error(field)!, style: const TextStyle(color: Colors.redAccent)),
         SizedBox(height: AppSizes.h10),
-        Wrap(
-          spacing: AppSizes.w8,
-          runSpacing: AppSizes.h8,
-          children: values.map((v) {
-            return Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppSizes.pw14,
-                vertical: AppSizes.ph8,
-              ),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2B1E3D),
-                borderRadius: BorderRadius.circular(AppSizes.r20),
-              ),
-              child: Text(
-                v.name,
-                style: TextStyle(
-                  color: const Color(0xFFC9A9E9),
-                  fontSize: AppSizes.sp13,
+        if (loading)
+          _chipSkeleton(field)
+        else
+          Wrap(
+            spacing: AppSizes.w8,
+            runSpacing: AppSizes.h8,
+            children: values.map((v) {
+              return Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSizes.pw14,
+                  vertical: AppSizes.ph8,
                 ),
-              ),
-            );
-          }).toList(),
-        ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2B1E3D),
+                  borderRadius: BorderRadius.circular(AppSizes.r20),
+                ),
+                child: Text(
+                  v.name,
+                  style: TextStyle(
+                    color: const Color(0xFFC9A9E9),
+                    fontSize: AppSizes.sp13,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
       ],
     );
   }
+
+  /// Placeholder chips shown while a section's option catalog loads.
+  Widget _chipSkeleton(String field) => Shimmer.fromColors(
+    key: ValueKey('chip-skeleton-$field'),
+    enabled: !MediaQuery.disableAnimationsOf(context),
+    baseColor: DarkColors.darkgreyColor,
+    highlightColor: DarkColors.greyColor.withValues(alpha: .25),
+    child: Wrap(
+      spacing: AppSizes.w8,
+      runSpacing: AppSizes.h8,
+      children: [
+        for (final width in const [72.0, 96.0, 64.0, 84.0])
+          Container(
+            width: width.w,
+            height: AppSizes.sp13 * 1.4 + AppSizes.ph8 * 2,
+            decoration: BoxDecoration(
+              color: DarkColors.darkgreyColor,
+              borderRadius: BorderRadius.circular(AppSizes.r20),
+            ),
+          ),
+      ],
+    ),
+  );
 
   Widget _buildSaveButton() {
     return SizedBox(

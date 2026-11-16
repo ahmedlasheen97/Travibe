@@ -5,16 +5,23 @@ import 'package:travibe/core/theme/dark_colors.dart';
 
 /// Shimmer rows shown while a people list loads.
 class PeopleSkeleton extends StatelessWidget {
-  const PeopleSkeleton({super.key});
+  const PeopleSkeleton({super.key, this.count = 4, this.scrollable = true});
+
+  final int count;
+
+  /// False when placed inside another scrollable or an unbounded Column.
+  final bool scrollable;
+
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    child: Shimmer.fromColors(
+  Widget build(BuildContext context) {
+    final rows = Shimmer.fromColors(
       enabled: !MediaQuery.disableAnimationsOf(context),
       baseColor: DarkColors.darkgreyColor,
       highlightColor: DarkColors.greyColor.withValues(alpha: .25),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          for (var i = 0; i < 4; i++)
+          for (var i = 0; i < count; i++)
             Padding(
               padding: EdgeInsets.fromLTRB(
                 AppSizes.pw20,
@@ -32,6 +39,7 @@ class PeopleSkeleton extends StatelessWidget {
             ),
         ],
       ),
-    ),
-  );
+    );
+    return scrollable ? SingleChildScrollView(child: rows) : rows;
+  }
 }

@@ -1,5 +1,6 @@
 import 'dart:ui' show Tristate;
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
@@ -349,9 +350,24 @@ void main() {
     await tester.tap(find.text('More Options'));
     expect(actions.copies, 1);
     expect(actions.nativeCalls, 0);
+    Finder spinnerIn(String label) => find.descendant(
+      of: find.ancestor(
+        of: find.text(label),
+        matching: find.byType(TextButton),
+      ),
+      matching: find.byType(CupertinoActivityIndicator),
+    );
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(spinnerIn('Copy Link'), findsOneWidget);
+    expect(spinnerIn('More Options'), findsNothing);
+    expect(
+      find.bySemanticsLabel(RegExp('Opening share action')),
+      findsOneWidget,
+    );
     actions.gate!.complete();
     await tester.pumpAndSettle();
     expect(find.text('Link copied'), findsOneWidget);
+    expect(spinnerIn('Copy Link'), findsNothing);
   });
 
   testWidgets(

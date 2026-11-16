@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -82,7 +83,10 @@ class _SendPostSheetState extends State<SendPostSheet> {
   late final SendPostCubit _people;
   late final PostShareActions _actions;
   final _message = TextEditingController();
-  bool _busy = false;
+
+  /// The external action in flight: true = Copy Link, false = More Options.
+  bool? _busyCopy;
+  bool get _busy => _busyCopy != null;
   String? _feedback;
 
   @override
@@ -144,7 +148,7 @@ class _SendPostSheetState extends State<SendPostSheet> {
     if (_busy) return;
     if (copy ? !_actions.available : !_actions.canShare) return;
     setState(() {
-      _busy = true;
+      _busyCopy = copy;
       _feedback = null;
     });
     try {
@@ -173,7 +177,7 @@ class _SendPostSheetState extends State<SendPostSheet> {
         );
       }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) setState(() => _busyCopy = null);
     }
   }
 
@@ -416,22 +420,26 @@ class _SendPostSheetState extends State<SendPostSheet> {
           Builder(
             builder: (anchor) => _action(
               'Copy Link',
-              SvgPicture.asset(
-                'assets/images/interactions/link.svg',
-                width: 46,
-                height: 46,
-              ),
+              _busyCopy == true
+                  ? _actionSpinner
+                  : SvgPicture.asset(
+                      'assets/images/interactions/link.svg',
+                      width: 46,
+                      height: 46,
+                    ),
               _busy ? null : () => _external(copy: true, anchor: anchor),
             ),
           ),
           Builder(
             builder: (anchor) => _action(
               'More Options',
-              SvgPicture.asset(
-                'assets/images/interactions/share.svg',
-                width: 32,
-                height: 32,
-              ),
+              _busyCopy == false
+                  ? _actionSpinner
+                  : SvgPicture.asset(
+                      'assets/images/interactions/share.svg',
+                      width: 32,
+                      height: 32,
+                    ),
               _busy || !_actions.canShare
                   ? null
                   : () => _external(copy: false, anchor: anchor),
@@ -447,8 +455,6 @@ class _SendPostSheetState extends State<SendPostSheet> {
         child: Text(_feedback!, style: _text, textAlign: TextAlign.center),
       ),
     ],
-    if (_busy)
-      const LinearProgressIndicator(semanticsLabel: 'Opening share action'),
   ];
 
   List<Widget> _compose(SendPostState state) => [
@@ -517,6 +523,11 @@ class _SendPostSheetState extends State<SendPostSheet> {
       ),
     ),
   ];
+
+  static final _actionSpinner = Semantics(
+    label: 'Opening share action',
+    child: const AppActivityIndicator(),
+  );
 
   Widget _action(String label, Widget icon, VoidCallback? onPressed) =>
       SizedBox(

@@ -106,7 +106,10 @@ class _ConversationScreenState extends State<ConversationScreen>
   final _preferences = PreferencesManager();
   late final _audio = ChatAudioController();
   MediaUploadService? _uploader;
-  final _uploadCancel = CancelToken();
+  CancelToken _uploadCancel = CancelToken();
+
+  /// Set when the user taps X on the pending bubble's upload ring.
+  bool _uploadCancelled = false;
   ChatMediaSelection? _pendingMedia;
   final _selections = ChatMediaSelectionQueue();
   bool _sendingSelections = false;
@@ -710,6 +713,12 @@ class _ConversationScreenState extends State<ConversationScreen>
                                               sending:
                                                   _uploading ||
                                                   _sendingSelections,
+                                              progress: _uploadProgress,
+                                              onCancel:
+                                                  _uploading &&
+                                                      pending.readyId == null
+                                                  ? _cancelUpload
+                                                  : null,
                                               onRetry: () => unawaited(
                                                 _selections.isNotEmpty
                                                     ? _sendSelections()
@@ -1489,13 +1498,33 @@ class _ConversationScreenState extends State<ConversationScreen>
       while (mounted && _valid && _selections.isNotEmpty) {
         _pendingMedia ??= _selections.first;
         await _sendPendingMedia();
-        if (_pendingMedia != null) {
-          break; // Failed item and remaining order retained.
+        if (_pendingMedia != null || _uploadCancelled) {
+          break; // Failed/cancelled item; remaining order retained.
         }
       }
     } finally {
       if (mounted) setState(() => _sendingSelections = false);
     }
+  }
+
+  /// Cancels the in-flight upload (only offered before the media is ready).
+  void _cancelUpload() {
+    final media = _pendingMedia;
+    if (!_uploading || media == null || media.readyId != null) return;
+    _uploadCancelled = true;
+    _uploadCancel.cancel();
+  }
+
+  void _dropCancelledMedia(ChatMediaSelection media) {
+    setState(() {
+      _selections.remove(media);
+      if (identical(_pendingMedia, media)) _pendingMedia = null;
+      _uploadProgress = null;
+      _mediaError = null;
+    });
+    if (media.kind == ChatMessageKind.audio) _audio.discardDraft();
+    _uploader?.close();
+    _uploader = null;
   }
 
   void _discardMedia() {
@@ -1536,9 +1565,12 @@ class _ConversationScreenState extends State<ConversationScreen>
       );
       return;
     }
+    _uploadCancel = CancelToken();
+    _uploadCancelled = false;
     setState(() {
       _uploading = true;
       _mediaError = null;
+      _uploadProgress = null;
     });
     if (media.caption == null) {
       media.caption = _composer.state.draft;
@@ -1580,6 +1612,12 @@ class _ConversationScreenState extends State<ConversationScreen>
         },
       );
       if (!mounted || !_valid) return;
+      if (_uploadCancelled) {
+        _dropCancelledMedia(media);
+        return;
+      }
+      // Uploaded: the ring spins while the message is sent; no more cancel.
+      setState(() => _uploadProgress = null);
       if (media.sendUncertain) {
         // The media may already be attached to a message. Reconcile before a
         // deliberate retry and reuse the same media ID (never upload another).
@@ -1617,6 +1655,10 @@ class _ConversationScreenState extends State<ConversationScreen>
       _confirmMedia(media);
       await _receivedSentMessage(message);
     } catch (error) {
+      if (_uploadCancelled) {
+        if (mounted) _dropCancelledMedia(media);
+        return;
+      }
       if (!previouslyUncertain &&
           (error is ChatPreSendFailure ||
               error is ApiError &&
