@@ -1,11 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
-import 'package:dio/dio.dart';
-import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/media/upload_diagnostics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:travibe/features/profile/data/profile_update.dart';
 
@@ -14,41 +15,38 @@ class EditProfileState {
     this.saving = false,
     this.saved = false,
     this.error,
-    this.avatar,
     this.selectingAvatar = false,
     this.avatarError,
     this.sessionChanged = false,
-    this.uploadStage,
   });
   final bool saving;
   final bool saved;
   final ApiError? error;
-  final ProfileAvatarDraft? avatar;
   final bool selectingAvatar;
+
+  /// Photo picker problems only; upload progress/failure is a toast.
   final String? avatarError;
   final bool sessionChanged;
-  final MediaUploadStage? uploadStage;
 }
 
 class EditProfileCubit extends Cubit<EditProfileState> {
   EditProfileCubit(
     this.owner, {
+    ProfilePictureUploadCubit? pictures,
     ProfileAvatarRepo? avatarRepo,
-    MediaUploadService? mediaUpload,
-  }) : _avatarRepo = avatarRepo ?? ProfileAvatarRepo(),
-       _mediaUpload = mediaUpload ?? MediaUploadService(),
-       _ownsMediaUpload = mediaUpload == null,
+  }) : pictures = pictures ?? ProfilePictureUploadCubit(),
+       _ownsPictures = pictures == null,
+       _avatarRepo = avatarRepo ?? ProfileAvatarRepo(),
        _sessionRevision = PreferencesManager().sessionRevision,
        super(const EditProfileState()) {
     PreferencesManager().addListener(_sessionChanged);
   }
   final ProfileCubit owner;
+
+  /// Background picture upload that Save Changes waits for.
+  final ProfilePictureUploadCubit pictures;
+  final bool _ownsPictures;
   final ProfileAvatarRepo _avatarRepo;
-  final MediaUploadService _mediaUpload;
-  final bool _ownsMediaUpload;
-  CancelToken? _uploadCancel;
-  ProfileAvatarDraft? _readyAvatar;
-  int? _readyMediaId;
   final int _sessionRevision;
   int _selectionGeneration = 0;
 
@@ -57,14 +55,13 @@ class EditProfileCubit extends Cubit<EditProfileState> {
       return;
     }
     ++_selectionGeneration;
-    _uploadCancel?.cancel();
-    _readyAvatar = null;
-    _readyMediaId = null;
     emit(const EditProfileState(sessionChanged: true));
   }
 
   bool get _inactive => isClosed || state.sessionChanged || owner.isClosed;
 
+  /// Picks a photo and starts uploading it right away; the picture is saved
+  /// to the profile on its own, independently of Save Changes.
   Future<void> pickAvatar() async {
     if (_inactive ||
         state.selectingAvatar ||
@@ -76,8 +73,7 @@ class EditProfileCubit extends Cubit<EditProfileState> {
     }
     final profileId = (owner.state as ProfileLoaded).profile.id;
     final generation = ++_selectionGeneration;
-    final previous = state.avatar;
-    emit(EditProfileState(avatar: previous, selectingAvatar: true));
+    emit(const EditProfileState(selectingAvatar: true));
     try {
       final selected = await _avatarRepo.pick();
       if (_inactive || generation != _selectionGeneration) return;
@@ -86,11 +82,18 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         emit(const EditProfileState(sessionChanged: true));
         return;
       }
-      if (selected != null) {
-        _readyAvatar = null;
-        _readyMediaId = null;
-      }
-      emit(EditProfileState(avatar: selected ?? previous));
+      emit(const EditProfileState());
+      if (selected == null) return;
+      final profile = owner;
+      unawaited(
+        pictures.start(
+          selected,
+          attach: (mediaId) => profile.updateMyProfile(
+            ProfileUpdate({'avatar_media_id': mediaId}),
+            expectedId: profileId,
+          ),
+        ),
+      );
     } catch (error) {
       if (_inactive || generation != _selectionGeneration) return;
       if (owner.state is! ProfileLoaded ||
@@ -108,16 +111,8 @@ class EditProfileCubit extends Cubit<EditProfileState> {
           'Allow photo access in device settings, then try again.',
         _ => 'Unable to select a photo. Please try again.',
       };
-      emit(EditProfileState(avatar: previous, avatarError: message));
+      emit(EditProfileState(avatarError: message));
     }
-  }
-
-  /// Discards only the unsaved preview; never removes the server avatar.
-  void discardAvatarPreview() {
-    if (_inactive || state.selectingAvatar || state.saving) return;
-    _readyAvatar = null;
-    _readyMediaId = null;
-    emit(const EditProfileState());
   }
 
   Future<bool> save(ProfileDraft draft) async {
@@ -125,72 +120,42 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         state.saving ||
         state.saved ||
         state.selectingAvatar ||
-        (!draft.isDirty && state.avatar == null)) {
+        !draft.isDirty) {
       return false;
     }
-    // Only this verified upload flow can supply a media ID. Ignore draft IDs.
+    // Only the picture upload flow can supply a media ID. Ignore draft IDs.
     final changes = Map<String, dynamic>.of(draft.changes)
       ..remove('avatar_media_id');
-    final avatar = state.avatar;
-    if (changes.isEmpty && avatar == null && !draft.hasLocationChange) {
-      return false;
-    }
-    final avatarError = state.avatarError;
-    emit(
-      EditProfileState(saving: true, avatar: avatar, avatarError: avatarError),
-    );
+    if (changes.isEmpty && !draft.hasLocationChange) return false;
+    emit(const EditProfileState(saving: true));
     var updatingProfile = false;
     var updatingLocation = false;
-    var pendingAvatar = avatar;
     try {
-      ProfileUpdate(changes); // Validate fields before starting an upload.
+      ProfileUpdate(changes); // Validate fields before waiting.
+      // Never save over a picture that is still uploading or failed. Only
+      // wait when one is in flight, so ordinary saves stay synchronous.
+      if (pictures.uploading) {
+        await pictures.settled();
+        if (_inactive) return false;
+      }
+      if (pictures.state is ProfilePictureFailed) {
+        throw ApiError(
+          message: 'Your picture didn’t upload. Retry it or dismiss it first.',
+        );
+      }
       if (owner.state is! ProfileLoaded &&
           draft.hasLocationChange &&
-          changes.isEmpty &&
-          avatar == null) {
+          changes.isEmpty) {
         await owner.refresh();
         if (_inactive) return false;
       }
-      bool active() =>
+      final active =
           !_inactive &&
           owner.userId == null &&
           owner.state is ProfileLoaded &&
           (owner.state as ProfileLoaded).profile.id == draft.profileId;
-      if (!active()) {
+      if (!active) {
         throw ApiError(message: 'Open your own profile before editing.');
-      }
-      if (avatar != null) {
-        final contentType = avatar.contentType;
-        if (contentType == null) {
-          throw ApiError(message: 'Choose a JPEG, PNG, GIF or WebP photo.');
-        }
-        if (!identical(_readyAvatar, avatar) || _readyMediaId == null) {
-          final cancel = _uploadCancel = CancelToken();
-          final mediaId = await _mediaUpload.upload(
-            filename: avatar.name,
-            contentType: contentType,
-            bytes: avatar.bytes,
-            isActive: active,
-            cancelToken: cancel,
-            onStage: (stage) {
-              if (active()) {
-                emit(
-                  EditProfileState(
-                    saving: true,
-                    avatar: avatar,
-                    uploadStage: stage,
-                  ),
-                );
-              }
-            },
-          );
-          if (!active()) return false;
-          _readyAvatar = avatar;
-          _readyMediaId = mediaId;
-        }
-        if (!active()) return false;
-        changes['avatar_media_id'] = _readyMediaId!;
-        emit(EditProfileState(saving: true, avatar: avatar));
       }
       final update = ProfileUpdate(changes);
       if (!update.isEmpty) {
@@ -205,14 +170,7 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         }
         // PATCH is committed even if its follow-up GET fails. Never replay it
         // because a later, separate location operation failed.
-        draft.markSaved(
-          ProfileUpdate(
-            Map<String, dynamic>.of(changes)..remove('avatar_media_id'),
-          ),
-        );
-        _readyAvatar = null;
-        _readyMediaId = null;
-        pendingAvatar = null;
+        draft.markSaved(update);
         updatingProfile = false;
       }
       if (draft.hasLocationChange) {
@@ -243,8 +201,6 @@ class EditProfileCubit extends Cubit<EditProfileState> {
       if (!_inactive) {
         emit(
           EditProfileState(
-            avatar: pendingAvatar,
-            avatarError: avatarError,
             error: updatingLocation && error is ApiError
                 ? ApiError(
                     message: error.message,
@@ -268,11 +224,8 @@ class EditProfileCubit extends Cubit<EditProfileState> {
   @override
   Future<void> close() {
     ++_selectionGeneration;
-    _uploadCancel?.cancel();
-    _readyAvatar = null;
-    _readyMediaId = null;
     PreferencesManager().removeListener(_sessionChanged);
-    if (_ownsMediaUpload) _mediaUpload.close();
+    if (_ownsPictures) pictures.close();
     return super.close();
   }
 }

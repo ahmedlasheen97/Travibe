@@ -24,6 +24,7 @@ import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 import 'package:travibe/features/home/widgets/post_report_flow.dart';
 import 'package:travibe/features/home/widgets/own_post_actions.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'dart:async';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
@@ -607,33 +608,38 @@ class _HomeViewState extends State<_HomeView> {
                                         _storySession.sessionRevision
                                     ? accountState.account
                                     : null;
-                                return StoryEntry(
-                                  avatarUrl: owner?.avatarUrl,
-                                  storiesRepo: _stories.repo,
-                                  onPublished: _onStoryPublished,
-                                  onSubmit: context
-                                      .read<StoryUploadCubit?>()
-                                      ?.enqueue,
-                                  builder: (context, onAddStory) =>
-                                      BlocBuilder<StoriesCubit, StoriesState>(
-                                        bloc: _stories,
-                                        builder: (context, state) =>
-                                            HomeStories(
-                                              stories: state.groups,
-                                              currentUserId: int.tryParse(
-                                                owner?.id ?? '',
+                                return _ownAvatar(
+                                  context,
+                                  ownerId: owner?.id,
+                                  fallback: owner?.avatarUrl,
+                                  builder: (avatarUrl) => StoryEntry(
+                                    avatarUrl: avatarUrl,
+                                    storiesRepo: _stories.repo,
+                                    onPublished: _onStoryPublished,
+                                    onSubmit: context
+                                        .read<StoryUploadCubit?>()
+                                        ?.enqueue,
+                                    builder: (context, onAddStory) =>
+                                        BlocBuilder<StoriesCubit, StoriesState>(
+                                          bloc: _stories,
+                                          builder: (context, state) =>
+                                              HomeStories(
+                                                stories: state.groups,
+                                                currentUserId: int.tryParse(
+                                                  owner?.id ?? '',
+                                                ),
+                                                avatarUrl: avatarUrl,
+                                                onAddStory: onAddStory,
+                                                onViewStory: _openStoryViewer,
+                                                loading: state.loading,
+                                                loadingMore: state.loadingMore,
+                                                hasMore: state.hasMore,
+                                                error: state.error?.message,
+                                                onRetry: _stories.refresh,
+                                                onLoadMore: _stories.loadMore,
                                               ),
-                                              avatarUrl: owner?.avatarUrl,
-                                              onAddStory: onAddStory,
-                                              onViewStory: _openStoryViewer,
-                                              loading: state.loading,
-                                              loadingMore: state.loadingMore,
-                                              hasMore: state.hasMore,
-                                              error: state.error?.message,
-                                              onRetry: _stories.refresh,
-                                              onLoadMore: _stories.loadMore,
-                                            ),
-                                      ),
+                                        ),
+                                  ),
                                 );
                               },
                             ),
@@ -996,6 +1002,30 @@ class _HomeViewState extends State<_HomeView> {
     } finally {
       _openingShare = false;
     }
+  }
+
+  /// Home's "You" bubble follows my current picture (CurrentUserCubit), so a
+  /// new upload shows without reloading the Home account.
+  Widget _ownAvatar(
+    BuildContext context, {
+    required String? ownerId,
+    required String? fallback,
+    required Widget Function(String? avatarUrl) builder,
+  }) {
+    final current = context.read<CurrentUserCubit?>();
+    if (current == null || ownerId == null) return builder(fallback);
+    return BlocBuilder<CurrentUserCubit, CurrentUserState>(
+      bloc: current,
+      buildWhen: (a, b) => a.profile?.avatarUrl != b.profile?.avatarUrl,
+      builder: (context, state) {
+        final mine = state.profile?.avatarUrl;
+        final own =
+            mine != null &&
+            mine.isNotEmpty &&
+            normalizeUserId(state.profile?.id) == normalizeUserId(ownerId);
+        return builder(own ? mine : fallback);
+      },
+    );
   }
 
   Widget _buildPostCard(PostModel post) {

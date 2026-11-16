@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:dotted_border/dotted_border.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:flutter/services.dart';
@@ -344,6 +345,7 @@ void main() {
     final cubit = make(api, upload: upload);
     await cubit.pickAvatar();
     expect(cubit.state.avatar, isNotNull);
+    expect(cubit.state.avatarUploadFailed, true);
     expect(cubit.state.avatarError, contains('Offline'));
     expect(api.patches, isEmpty);
     upload.error = null;
@@ -351,7 +353,27 @@ void main() {
     expect(upload.calls, 2);
     expect(api.patches, hasLength(1));
     expect(cubit.state.avatarError, isNull);
+    expect(cubit.state.avatarUploadFailed, false);
   });
+  test(
+    'success keeps the local preview; X on a later failure keeps it',
+    () async {
+      final upload = Upload();
+      final photos = Photos();
+      final cubit = make(SetupApi(), upload: upload, photos: photos);
+      await cubit.pickAvatar();
+      expect(cubit.state.avatar, isNull);
+      expect(cubit.state.avatarPreview, photos.photo.bytes);
+      expect(cubit.state.avatarUrl, isNotNull);
+      upload.error = ApiError(message: 'Offline');
+      await cubit.pickAvatar();
+      expect(cubit.state.avatarUploadFailed, true);
+      cubit.discardAvatar();
+      expect(cubit.state.avatarUploadFailed, false);
+      expect(cubit.state.avatar, isNull);
+      expect(cubit.state.avatarPreview, photos.photo.bytes);
+    },
+  );
   test(
     'attachment failure retries without uploading the same ready media again',
     () async {
@@ -735,35 +757,92 @@ void main() {
     expect(find.text('Skip For Now'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets('photo preview shows while pending without a loading overlay', (
+    tester,
+  ) async {
+    final upload = Upload()..gate = Completer<int>();
+    final cubit = make(SetupApi(), upload: upload);
+    await show(tester, cubit);
+    expect(placeholder(), findsOneWidget);
+    final pending = cubit.pickAvatar();
+    await tester.pump();
+    await tester.pump();
+    expect(
+      tester.widget<CircleAvatar>(find.byType(CircleAvatar)).backgroundImage,
+      isA<MemoryImage>(),
+    );
+    expect(placeholder(), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(cubit.state.uploadingAvatar, true, reason: cubit.state.avatarError);
+    cubit.discardAvatar();
+    upload.gate!.complete(19);
+    await pending;
+    await tester.pump();
+    await tester.pump();
+    expect(placeholder(), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
-    'photo preview and one compact indicator stay visible while pending',
+    'upload shows the floating toast, then green success keeping the preview',
     (tester) async {
       final upload = Upload()..gate = Completer<int>();
       final cubit = make(SetupApi(), upload: upload);
-      await show(tester, cubit);
-      expect(placeholder(), findsOneWidget);
+      await show(tester, cubit, whole: true);
       final pending = cubit.pickAvatar();
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Uploading your picture'), findsOneWidget);
+      // The form stays usable while uploading.
+      await tester.enterText(find.byType(TextField).first, 'Typing');
       await tester.pump();
+      expect(find.text('Typing'), findsOneWidget);
+      upload.gate!.complete(19);
+      await tester.runAsync(() => pending);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Uploading your picture'), findsNothing);
+      expect(find.text('Picture updated successfully'), findsOneWidget);
+      final avatar = find.descendant(
+        of: find.byType(DottedBorder),
+        matching: find.byType(CircleAvatar),
+      );
       expect(
-        tester.widget<CircleAvatar>(find.byType(CircleAvatar)).backgroundImage,
+        tester.widget<CircleAvatar>(avatar).backgroundImage,
         isA<MemoryImage>(),
       );
-      expect(placeholder(), findsNothing);
-      expect(
-        cubit.state.uploadingAvatar,
-        true,
-        reason: cubit.state.avatarError,
-      );
-      cubit.discardAvatar();
-      upload.gate!.complete(19);
-      await pending;
-      await tester.pump();
-      await tester.pump();
-      expect(placeholder(), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('Picture updated successfully'), findsNothing);
       await tester.pumpWidget(const SizedBox());
     },
   );
+  testWidgets('upload failure shows red toast with Retry and X, not inline', (
+    tester,
+  ) async {
+    final api = SetupApi();
+    final upload = Upload()..error = ApiError(message: 'Offline');
+    final cubit = make(api, upload: upload);
+    await show(tester, cubit, whole: true);
+    await cubit.pickAvatar();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('Couldn’t upload your picture'), findsOneWidget);
+    expect(find.text('Retry photo'), findsNothing);
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
+    upload.error = null;
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(upload.calls, 2);
+    expect(api.patches, hasLength(1));
+    expect(find.text('Picture updated successfully'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('Next and Back preserve saved identity and never expose Skip', (
     tester,
   ) async {

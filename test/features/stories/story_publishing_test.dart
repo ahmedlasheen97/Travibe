@@ -14,6 +14,7 @@ import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/home/widgets/home_stories.dart';
+import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/features/stories/cubit/story_editor_cubit.dart';
 import 'package:travibe/features/stories/cubit/story_publish_cubit.dart';
@@ -842,6 +843,39 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(HomeStories), findsOneWidget);
       expect(tester.takeException(), isNull);
+    },
+  );
+  testWidgets(
+    'Home "You" prefers my current picture over the stale story feed avatar',
+    (tester) async {
+      const current = 'https://example.invalid/new-avatar.png';
+      final own = {
+        ...groupJson(7),
+        'user': {
+          'id': 7,
+          'name': 'Traveler 7',
+          'avatar_url': 'https://example.invalid/old-avatar.png',
+        },
+      };
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeStories(
+              stories: [StoryGroup.fromJson(own)],
+              currentUserId: 7,
+              avatarUrl: current,
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester
+            .widget<HomeUserAvatar>(
+              find.byKey(const ValueKey('story-avatar-7')),
+            )
+            .url,
+        current,
+      );
     },
   );
   for (final hosted in [true, false]) {

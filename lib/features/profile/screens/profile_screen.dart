@@ -39,6 +39,7 @@ import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
@@ -664,6 +665,8 @@ class _ProfileViewState extends State<_ProfileView> {
                             builder: (_) => EditProfileScreen(
                               profile: profile,
                               owner: context.read<ProfileCubit>(),
+                              pictureUploads: context
+                                  .read<ProfilePictureUploadCubit?>(),
                             ),
                           ),
                         ),

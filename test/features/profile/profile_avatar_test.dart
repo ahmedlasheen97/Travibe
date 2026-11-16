@@ -16,6 +16,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/profile/cubit/edit_profile_cubit.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -76,6 +77,23 @@ class _Photos extends ProfileAvatarRepo {
   }
 }
 
+/// Sets avatar_url when a picture is attached, like the backend.
+class _AvatarRepo extends EditingRepo {
+  static const url = 'https://example.invalid/new-avatar.png';
+  bool attached = false;
+  @override
+  Future<void> updateProfile(ProfileUpdate update) async {
+    await super.updateProfile(update);
+    attached |= update.toJson().containsKey('avatar_media_id');
+    if (attached) {
+      result = ProfileModel.fromJson({
+        ...profileJson(name: result!.name ?? 'Mona Hassan'),
+        'avatar_url': url,
+      });
+    }
+  }
+}
+
 class _Upload extends MediaUploadService {
   int calls = 0;
   Object? error;
@@ -110,16 +128,25 @@ void main() {
   }) async {
     final owner = ProfileCubit(profileRepo: repo ?? EditingRepo());
     await owner.loadProfile();
+    final media = upload ?? _Upload();
+    final pictures = ProfilePictureUploadCubit(uploads: () => media);
     final result = EditProfileCubit(
       owner,
       avatarRepo: photos,
-      mediaUpload: upload ?? _Upload(),
+      pictures: pictures,
     );
     addTearDown(() async {
       await result.close();
+      await pictures.close();
       await owner.close();
     });
     return result;
+  }
+
+  /// Lets the background upload and attach run to completion.
+  Future<void> settle(EditProfileCubit cubit) async {
+    await Future<void>.delayed(Duration.zero);
+    await cubit.pictures.settled();
   }
 
   test(
@@ -196,74 +223,148 @@ void main() {
   );
 
   test(
-    'preview selection/cancellation/failure preserves previous photo and profile',
+    'picking uploads right away and saves only avatar_media_id to the profile',
     () async {
-      final photos = _Photos()..result = _photo();
-      final cubit = await editor(photos);
-      final original = (cubit.owner.state as ProfileLoaded).profile;
-      await cubit.pickAvatar();
-      final selected = cubit.state.avatar;
-      photos.result = null;
-      await cubit.pickAvatar();
-      expect(cubit.state.avatar, same(selected));
-      photos.error = const InvalidProfileAvatar();
-      await cubit.pickAvatar();
-      expect(cubit.state.avatar, same(selected));
-      expect(cubit.state.avatarError, contains('valid image'));
-      expect((cubit.owner.state as ProfileLoaded).profile, same(original));
-      cubit.discardAvatarPreview();
-      expect(cubit.state.avatar, isNull);
-      expect((cubit.owner.state as ProfileLoaded).profile, same(original));
-    },
-  );
-
-  test(
-    'busy selection prevents duplicate picks and saves; preview allows field PATCH',
-    () async {
-      final photos = _Photos()..pending = Completer();
-      final repo = EditingRepo();
-      final cubit = await editor(photos, repo: repo);
-      final draft = ProfileDraft(profile())..set('bio', 'Keep draft');
-      final selecting = cubit.pickAvatar();
-      expect(cubit.state.selectingAvatar, true);
-      await cubit.pickAvatar();
-      cubit.discardAvatarPreview();
-      expect(await cubit.save(draft), false);
-      expect(photos.calls, 1);
-      photos.pending!.complete(_photo());
-      await selecting;
-      final selected = cubit.state.avatar;
-      expect(await cubit.save(draft), true);
-      expect(repo.writes.single, {'bio': 'Keep draft', 'avatar_media_id': 77});
-      expect(selected, isNotNull);
-      expect(cubit.state.avatar, isNull);
-      expect(cubit.state.saved, true);
-      expect(draft.isDirty, false);
-      expect(repo.reads, hasLength(2));
-      expect(await cubit.save(draft), false);
-      expect(repo.writes, hasLength(1));
-    },
-  );
-
-  test(
-    'unchanged form sends no PATCH; avatar-only save sends verified media ID',
-    () async {
-      final repo = EditingRepo();
+      final repo = _AvatarRepo();
       final upload = _Upload();
       final cubit = await editor(
         _Photos()..result = _photo(),
         repo: repo,
         upload: upload,
       );
-      final draft = ProfileDraft(profile());
-      expect(await cubit.save(draft), false);
-      expect(upload.calls, 0);
       await cubit.pickAvatar();
-      expect(await cubit.save(draft), true);
+      expect(cubit.pictures.state, isA<ProfilePictureUploading>());
+      expect(cubit.pictures.state.preview, _bytes());
+      await settle(cubit);
+      expect(upload.calls, 1);
       expect(repo.writes.single, {'avatar_media_id': 77});
-      expect(repo.reads, hasLength(2));
-      expect(cubit.state.saved, true);
-      expect(draft.isDirty, false);
+      expect(cubit.pictures.state, isA<ProfilePictureDone>());
+      expect(cubit.pictures.state.preview, _bytes());
+      expect(
+        (cubit.owner.state as ProfileLoaded).profile.avatarUrl,
+        _AvatarRepo.url,
+      );
+      // The picture is not an unsaved form change.
+      expect(await cubit.save(ProfileDraft(profile())), false);
+      expect(repo.writes, hasLength(1));
+    },
+  );
+
+  test('cancelled or failed selection never starts an upload', () async {
+    final photos = _Photos();
+    final upload = _Upload();
+    final cubit = await editor(photos, upload: upload);
+    final original = (cubit.owner.state as ProfileLoaded).profile;
+    await cubit.pickAvatar();
+    photos.error = const InvalidProfileAvatar();
+    await cubit.pickAvatar();
+    expect(cubit.state.avatarError, contains('valid image'));
+    expect(cubit.pictures.state, isA<ProfilePictureIdle>());
+    expect(upload.calls, 0);
+    expect((cubit.owner.state as ProfileLoaded).profile, same(original));
+  });
+
+  test('busy selection prevents duplicate picks and saves', () async {
+    final photos = _Photos()..pending = Completer();
+    final repo = EditingRepo();
+    final cubit = await editor(photos, repo: repo);
+    final draft = ProfileDraft(profile())..set('bio', 'Keep draft');
+    final selecting = cubit.pickAvatar();
+    expect(cubit.state.selectingAvatar, true);
+    await cubit.pickAvatar();
+    expect(await cubit.save(draft), false);
+    expect(photos.calls, 1);
+    photos.pending!.complete(null);
+    await selecting;
+    expect(await cubit.save(draft), true);
+    expect(repo.writes.single, {'bio': 'Keep draft'});
+    expect(cubit.state.saved, true);
+    expect(draft.isDirty, false);
+  });
+
+  test(
+    'Save Changes waits for the picture, then saves fields separately',
+    () async {
+      final repo = _AvatarRepo();
+      final upload = _Upload()..pending = Completer<int>();
+      final cubit = await editor(
+        _Photos()..result = _photo(),
+        repo: repo,
+        upload: upload,
+      );
+      await cubit.pickAvatar();
+      final draft = ProfileDraft(profile())..set('bio', 'Changed');
+      final saving = cubit.save(draft);
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.saving, true);
+      expect(repo.writes, isEmpty);
+      upload.pending!.complete(77);
+      expect(await saving, true);
+      expect(repo.writes, [
+        {'avatar_media_id': 77},
+        {'bio': 'Changed'},
+      ]);
+      expect(
+        (cubit.owner.state as ProfileLoaded).profile.avatarUrl,
+        _AvatarRepo.url,
+      );
+    },
+  );
+
+  test(
+    'failed picture blocks Save; Retry re-attaches without re-uploading',
+    () async {
+      final repo = EditingRepo()..saveError = ApiError(message: 'Nope');
+      final upload = _Upload();
+      final cubit = await editor(
+        _Photos()..result = _photo(),
+        repo: repo,
+        upload: upload,
+      );
+      await cubit.pickAvatar();
+      await settle(cubit);
+      expect(cubit.pictures.state, isA<ProfilePictureFailed>());
+      expect(cubit.pictures.state.preview, _bytes());
+      repo.saveError = null;
+      final draft = ProfileDraft(profile())..set('bio', 'Unsaved');
+      expect(await cubit.save(draft), false);
+      expect(cubit.state.error?.message, contains('picture'));
+      expect(repo.writes, hasLength(1)); // Only the failed attach.
+      expect(draft.changes, {'bio': 'Unsaved'});
+      await cubit.pictures.retry();
+      expect(cubit.pictures.state, isA<ProfilePictureDone>());
+      expect(upload.calls, 1); // Reuses the uploaded media ID.
+      expect(repo.writes.last, {'avatar_media_id': 77});
+      expect(await cubit.save(draft), true);
+      expect(repo.writes.last, {'bio': 'Unsaved'});
+    },
+  );
+
+  test(
+    'upload failure retries the upload; X discards and unblocks Save',
+    () async {
+      final repo = EditingRepo();
+      final upload = _Upload()..error = ApiError(message: 'Upload failed');
+      final cubit = await editor(
+        _Photos()..result = _photo(),
+        repo: repo,
+        upload: upload,
+      );
+      await cubit.pickAvatar();
+      await settle(cubit);
+      expect(cubit.pictures.state, isA<ProfilePictureFailed>());
+      expect(repo.writes, isEmpty);
+      await cubit.pictures.retry();
+      expect(upload.calls, 2);
+      expect(cubit.pictures.state, isA<ProfilePictureFailed>());
+      cubit.pictures.discard();
+      expect(cubit.pictures.state, isA<ProfilePictureIdle>());
+      expect(cubit.pictures.state.preview, isNull);
+      expect(
+        await cubit.save(ProfileDraft(profile())..set('bio', 'Changed')),
+        true,
+      );
+      expect(repo.writes.single, {'bio': 'Changed'});
     },
   );
 
@@ -284,50 +385,39 @@ void main() {
     },
   );
 
-  test(
-    'failed 401/422 saves preserve preview, draft, errors and retry',
-    () async {
-      for (final code in [401, 422]) {
-        final photos = _Photos()..result = _photo();
-        final failure = ApiError(
-          message: 'Cannot save',
-          statusCode: code,
-          fieldErrors: {
-            'username': ['Already taken'],
-          },
-        );
-        final repo = EditingRepo()..saveError = failure;
-        final cubit = await editor(photos, repo: repo);
-        await cubit.pickAvatar();
-        final selected = cubit.state.avatar;
-        final draft = ProfileDraft(profile())
-          ..set('username', 'different_name');
-        expect(await cubit.save(draft), false);
-        expect(cubit.state.error, same(failure));
-        expect(cubit.state.avatar, same(selected));
-        expect(draft.changes, {'username': 'different_name'});
-        repo.saveError = null;
-        expect(await cubit.save(draft), true);
-        expect(cubit.state.avatar, isNull);
-        expect(draft.isDirty, false);
-      }
-    },
-  );
+  test('failed 401/422 saves preserve draft, errors and retry', () async {
+    for (final code in [401, 422]) {
+      final failure = ApiError(
+        message: 'Cannot save',
+        statusCode: code,
+        fieldErrors: {
+          'username': ['Already taken'],
+        },
+      );
+      final repo = EditingRepo()..saveError = failure;
+      final cubit = await editor(_Photos(), repo: repo);
+      final draft = ProfileDraft(profile())..set('username', 'different_name');
+      expect(await cubit.save(draft), false);
+      expect(cubit.state.error, same(failure));
+      expect(draft.changes, {'username': 'different_name'});
+      repo.saveError = null;
+      expect(await cubit.save(draft), true);
+      expect(draft.isDirty, false);
+    }
+  });
 
   test(
-    'preview saves prevent duplicates and do not restore stale session state',
+    'saves prevent duplicates and do not restore stale session state',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = PreferencesManager();
       await prefs.init();
       await prefs.saveToken('test-save-owner-a');
       final repo = EditingRepo()..pending = Completer<void>();
-      final cubit = await editor(_Photos()..result = _photo(), repo: repo);
-      await cubit.pickAvatar();
+      final cubit = await editor(_Photos(), repo: repo);
       final draft = ProfileDraft(profile())..set('bio', 'Changed');
       final saving = cubit.save(draft);
       expect(cubit.state.saving, true);
-      expect(cubit.state.avatar, isNotNull);
       expect(await cubit.save(draft), false);
       await Future<void>.delayed(Duration.zero);
       expect(repo.writes, hasLength(1));
@@ -335,70 +425,28 @@ void main() {
       repo.pending!.complete();
       expect(await saving, false);
       expect(cubit.state.sessionChanged, true);
-      expect(cubit.state.avatar, isNull);
       expect(cubit.state.saved, false);
       expect(draft.isDirty, true);
       await prefs.clear();
     },
   );
 
-  test(
-    'confirmed field save refreshes canonical profile without changing its avatar',
-    () async {
-      const originalUrl = 'https://example.invalid/existing-avatar.png';
-      final original = ProfileModel.fromJson({
-        ...profileJson(),
-        'avatar_url': originalUrl,
-      });
-      final repo = EditingRepo()..result = original;
-      final cubit = await editor(_Photos()..result = _photo(), repo: repo);
-      repo.hold = true;
-      final draft = ProfileDraft(original)..set('full_name', 'Updated');
-      final saving = cubit.save(draft);
-      await Future<void>.delayed(Duration.zero);
-      expect(repo.reads, hasLength(2));
-      repo.reads.last.result.complete(
-        ProfileModel.fromJson({
-          ...profileJson(),
-          'name': 'Updated',
-          'avatar_url': originalUrl,
-        }),
-      );
-      expect(await saving, true);
-      expect(repo.writes.single, {'full_name': 'Updated'});
-      expect(
-        (cubit.owner.state as ProfileLoaded).profile.avatarUrl,
-        originalUrl,
-      );
-      expect((cubit.owner.state as ProfileLoaded).profile.name, 'Updated');
-      expect(cubit.state.avatar, isNull);
-    },
-  );
-
-  test(
-    'disposed editor does not acknowledge a late field save or restore preview state',
-    () async {
-      final repo = EditingRepo()..pending = Completer<void>();
-      final owner = ProfileCubit(profileRepo: repo);
-      await owner.loadProfile();
-      final cubit = EditProfileCubit(
-        owner,
-        avatarRepo: _Photos()..result = _photo(),
-        mediaUpload: _Upload(),
-      );
-      await cubit.pickAvatar();
-      final draft = ProfileDraft(profile())..set('bio', 'Pending');
-      final saving = cubit.save(draft);
-      await Future<void>.delayed(Duration.zero);
-      final pendingState = cubit.state;
-      await cubit.close();
-      repo.pending!.complete();
-      expect(await saving, false);
-      expect(cubit.state, same(pendingState));
-      expect(draft.isDirty, true);
-      await owner.close();
-    },
-  );
+  test('disposed editor does not acknowledge a late field save', () async {
+    final repo = EditingRepo()..pending = Completer<void>();
+    final owner = ProfileCubit(profileRepo: repo);
+    await owner.loadProfile();
+    final cubit = EditProfileCubit(owner, avatarRepo: _Photos());
+    final draft = ProfileDraft(profile())..set('bio', 'Pending');
+    final saving = cubit.save(draft);
+    await Future<void>.delayed(Duration.zero);
+    final pendingState = cubit.state;
+    await cubit.close();
+    repo.pending!.complete();
+    expect(await saving, false);
+    expect(cubit.state, same(pendingState));
+    expect(draft.isDirty, true);
+    await owner.close();
+  });
 
   test('acknowledging a PATCH preserves later edits and omitted fields', () {
     final draft = ProfileDraft(profile())..set('bio', null);
@@ -420,41 +468,7 @@ void main() {
   });
 
   test(
-    'upload failure preserves server profile and edits; retry and cached ready ID after PATCH failure',
-    () async {
-      final repo = EditingRepo();
-      final upload = _Upload()..error = ApiError(message: 'Upload failed');
-      final cubit = await editor(
-        _Photos()..result = _photo(),
-        repo: repo,
-        upload: upload,
-      );
-      await cubit.pickAvatar();
-      final photo = cubit.state.avatar;
-      final original = (cubit.owner.state as ProfileLoaded).profile;
-      final draft = ProfileDraft(profile())..set('bio', 'Unsaved');
-      expect(await cubit.save(draft), false);
-      expect(repo.writes, isEmpty);
-      expect((cubit.owner.state as ProfileLoaded).profile, same(original));
-      expect(cubit.state.avatar, same(photo));
-      expect(draft.changes, {'bio': 'Unsaved'});
-      upload.error = null;
-      repo.saveError = ApiError(message: 'Invalid profile', statusCode: 422);
-      expect(await cubit.save(draft), false);
-      expect(cubit.state.avatar, same(photo));
-      expect(upload.calls, 2);
-      repo.saveError = null;
-      expect(await cubit.save(draft), true);
-      expect(
-        upload.calls,
-        2,
-      ); // Reuse the ready media ID instead of uploading again.
-      expect(repo.writes.last, {'bio': 'Unsaved', 'avatar_media_id': 77});
-    },
-  );
-
-  test(
-    'session change during upload prevents profile PATCH and ignores the late ID',
+    'session change during upload resets the picture and never PATCHes',
     () async {
       SharedPreferences.setMockInitialValues({});
       final prefs = PreferencesManager();
@@ -468,13 +482,14 @@ void main() {
         upload: upload,
       );
       await cubit.pickAvatar();
-      final saving = cubit.save(ProfileDraft(profile()));
+      expect(cubit.pictures.uploading, true);
       await prefs.saveToken('test-upload-b');
+      expect(cubit.pictures.state, isA<ProfilePictureIdle>());
       upload.pending!.complete(77);
-      expect(await saving, false);
+      await Future<void>.delayed(Duration.zero);
       expect(repo.writes, isEmpty);
       expect(cubit.state.sessionChanged, true);
-      expect(cubit.state.avatar, isNull);
+      expect(cubit.pictures.state, isA<ProfilePictureIdle>());
       await prefs.clear();
     },
   );
@@ -490,91 +505,69 @@ void main() {
     expect(await saving, true);
   });
 
-  test(
-    'permission/plugin/platform errors are safe, recoverable and keep avatar',
-    () async {
-      final photos = _Photos()..result = _photo();
-      final cubit = await editor(photos);
+  test('permission/plugin/platform errors are safe and recoverable', () async {
+    final photos = _Photos();
+    final cubit = await editor(photos);
+    for (final error in [
+      PlatformException(
+        code: 'photo_access_denied',
+        message: 'sensitive native details',
+      ),
+      PlatformException(code: 'photo_access_restricted'),
+      MissingPluginException('private path'),
+      PlatformException(code: 'other'),
+    ]) {
+      photos.error = error;
       await cubit.pickAvatar();
-      final selected = cubit.state.avatar;
-      for (final error in [
-        PlatformException(
-          code: 'photo_access_denied',
-          message: 'sensitive native details',
-        ),
-        PlatformException(code: 'photo_access_restricted'),
-        MissingPluginException('private path'),
-        PlatformException(code: 'other'),
-      ]) {
-        photos.error = error;
-        await cubit.pickAvatar();
-        expect(cubit.state.avatar, same(selected));
-        expect(cubit.state.selectingAvatar, false);
-        expect(cubit.state.avatarError, isNotNull);
-        expect(cubit.state.avatarError, isNot(contains('sensitive')));
-        expect(cubit.state.avatarError, isNot(contains('private path')));
-      }
-      photos.error = null;
-      await cubit.pickAvatar();
-      expect(cubit.state.avatarError, isNull);
-    },
-  );
+      expect(cubit.state.selectingAvatar, false);
+      expect(cubit.state.avatarError, isNotNull);
+      expect(cubit.state.avatarError, isNot(contains('sensitive')));
+      expect(cubit.state.avatarError, isNot(contains('private path')));
+    }
+    photos.error = null;
+    await cubit.pickAvatar();
+    expect(cubit.state.avatarError, isNull);
+  });
 
-  test(
-    'account changes clear preview and reject pending responses and later saves',
-    () async {
-      SharedPreferences.setMockInitialValues({});
-      final prefs = PreferencesManager();
-      await prefs.init();
-      await prefs.saveToken('test-account-a');
-      final photos = _Photos()..result = _photo();
-      final repo = EditingRepo();
-      final cubit = await editor(photos, repo: repo);
-      await cubit.pickAvatar();
-      photos.pending = Completer();
-      final selecting = cubit.pickAvatar();
-      await prefs.saveToken('test-account-b');
-      expect(cubit.state.sessionChanged, true);
-      expect(cubit.state.avatar, isNull);
-      photos.pending!.complete(_photo());
-      await selecting;
-      await cubit.pickAvatar();
-      expect(photos.calls, 2);
-      expect(cubit.state.avatar, isNull);
-      expect(
-        await cubit.save(ProfileDraft(profile())..set('bio', 'Changed')),
-        false,
-      );
-      expect(repo.writes, isEmpty);
-      await prefs.clear();
-    },
-  );
+  test('account changes reject pending selections and later saves', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = PreferencesManager();
+    await prefs.init();
+    await prefs.saveToken('test-account-a');
+    final photos = _Photos()..pending = Completer();
+    final repo = EditingRepo();
+    final upload = _Upload();
+    final cubit = await editor(photos, repo: repo, upload: upload);
+    final selecting = cubit.pickAvatar();
+    await prefs.saveToken('test-account-b');
+    expect(cubit.state.sessionChanged, true);
+    photos.pending!.complete(_photo());
+    await selecting;
+    await cubit.pickAvatar();
+    expect(photos.calls, 1);
+    expect(upload.calls, 0);
+    expect(
+      await cubit.save(ProfileDraft(profile())..set('bio', 'Changed')),
+      false,
+    );
+    expect(repo.writes, isEmpty);
+    await prefs.clear();
+  });
 
   test('a changed owner identity cannot receive a stale local photo', () async {
     final photos = _Photos()..pending = Completer();
     final repo = EditingRepo();
-    final cubit = await editor(photos, repo: repo);
+    final upload = _Upload();
+    final cubit = await editor(photos, repo: repo, upload: upload);
     final selecting = cubit.pickAvatar();
     repo.result = profile(id: 8);
     await cubit.owner.refresh();
     photos.pending!.complete(_photo());
     await selecting;
-    expect(cubit.state.avatar, isNull);
+    expect(upload.calls, 0);
+    expect(cubit.pictures.state, isA<ProfilePictureIdle>());
     expect(cubit.state.sessionChanged, true);
     expect((cubit.owner.state as ProfileLoaded).profile.id, '8');
-  });
-
-  test('logout clears existing preview', () async {
-    SharedPreferences.setMockInitialValues({});
-    final prefs = PreferencesManager();
-    await prefs.init();
-    await prefs.saveToken('test-owner');
-    final photos = _Photos()..result = _photo();
-    final cubit = await editor(photos);
-    await cubit.pickAvatar();
-    await prefs.clear();
-    expect(cubit.state.sessionChanged, true);
-    expect(cubit.state.avatar, isNull);
   });
 
   test(
@@ -583,12 +576,18 @@ void main() {
       final photos = _Photos()..pending = Completer();
       final owner = ProfileCubit(profileRepo: EditingRepo());
       await owner.loadProfile();
-      final cubit = EditProfileCubit(owner, avatarRepo: photos);
+      final pictures = ProfilePictureUploadCubit(uploads: _Upload.new);
+      addTearDown(pictures.close);
+      final cubit = EditProfileCubit(
+        owner,
+        avatarRepo: photos,
+        pictures: pictures,
+      );
       final selecting = cubit.pickAvatar();
       await cubit.close();
       photos.pending!.complete(_photo());
       await selecting;
-      expect(cubit.state.avatar, isNull);
+      expect(pictures.state, isA<ProfilePictureIdle>());
       await owner.close();
       final publicOwner = ProfileCubit(profileRepo: EditingRepo(), userId: 7);
       await publicOwner.loadProfile();
@@ -605,6 +604,7 @@ void main() {
     _Photos photos,
     EditingRepo repo, {
     _Upload? upload,
+    ProfilePictureUploadCubit? pictures,
   }) async {
     final owner = ProfileCubit(profileRepo: repo);
     await owner.loadProfile();
@@ -626,6 +626,7 @@ void main() {
                       profile: profile(),
                       owner: owner,
                       avatarRepo: photos,
+                      pictureUploads: pictures,
                       mediaUpload: upload ?? _Upload(),
                     ),
                   ),
@@ -645,135 +646,171 @@ void main() {
   Finder avatar() => find.byKey(const ValueKey('edit-profile-avatar'));
   Finder pick() => find.byKey(const ValueKey('pick-profile-avatar'));
   Finder save() => find.byType(ElevatedButton);
+  const uploadingText = 'Uploading your picture';
+  const successText = 'Picture updated successfully';
+  const failureText = 'Couldn’t upload your picture';
+
+  // The uploading toast's spinner never settles.
+  Future<void> pumpUploading(WidgetTester tester) async {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
 
   testWidgets(
-    'avatar plus text Save uploads, PATCHes and returns after refresh',
+    'upload shows the floating toast, no loading line, and the form stays usable',
     (tester) async {
       final photos = _Photos()..result = _photo();
       final upload = _Upload()..pending = Completer<int>();
-      final repo = EditingRepo();
+      final repo = _AvatarRepo();
       await show(tester, photos, repo, upload: upload);
+      expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
+      await tester.tap(pick());
+      await pumpUploading(tester);
+      expect(find.text(uploadingText), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      expect(
+        tester.widget<CircleAvatar>(avatar()).backgroundImage,
+        isA<MemoryImage>(),
+      );
+      // Usable while uploading; the picture alone is not a form change.
+      expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
+      await tester.enterText(
+        find.byKey(const ValueKey('full_name')),
+        'Typing during upload',
+      );
+      await pumpUploading(tester);
+      expect(find.text('Typing during upload'), findsOneWidget);
+      expect(tester.widget<ElevatedButton>(save()).onPressed, isNotNull);
+      upload.pending!.complete(77);
+      await tester.pumpAndSettle();
+      expect(repo.writes.single, {'avatar_media_id': 77});
+      expect(find.text(uploadingText), findsNothing);
+      expect(find.text(successText), findsOneWidget);
+      // Keeps the local picture after success (no flicker to network).
+      expect(
+        tester.widget<CircleAvatar>(avatar()).backgroundImage,
+        isA<MemoryImage>(),
+      );
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text(successText), findsNothing);
+    },
+  );
+
+  testWidgets('failure shows red toast with Retry and X', (tester) async {
+    final photos = _Photos()..result = _photo();
+    final upload = _Upload()..error = ApiError(message: 'Upload failed');
+    final repo = EditingRepo();
+    await show(tester, photos, repo, upload: upload);
+    await tester.tap(pick());
+    await tester.pumpAndSettle();
+    expect(find.text(failureText), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+    expect(find.byTooltip('Dismiss'), findsOneWidget);
+    upload.error = null;
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+    expect(upload.calls, 2);
+    expect(repo.writes.single, {'avatar_media_id': 77});
+    expect(find.text(failureText), findsNothing);
+    expect(find.text(successText), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('X dismisses a failed picture and restores the old avatar', (
+    tester,
+  ) async {
+    final photos = _Photos()..result = _photo();
+    final upload = _Upload()..error = ApiError(message: 'Upload failed');
+    await show(tester, photos, EditingRepo(), upload: upload);
+    await tester.tap(pick());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pumpAndSettle();
+    expect(find.text(failureText), findsNothing);
+    expect(tester.widget<CircleAvatar>(avatar()).backgroundImage, isNull);
+  });
+
+  testWidgets(
+    'Save Changes waits for the picture upload, then saves and closes',
+    (tester) async {
+      final photos = _Photos()..result = _photo();
+      final upload = _Upload()..pending = Completer<int>();
+      final repo = _AvatarRepo();
+      await show(tester, photos, repo, upload: upload);
+      await tester.tap(pick());
+      await pumpUploading(tester);
       await tester.enterText(
         find.byKey(const ValueKey('full_name')),
         'Updated name',
       );
-      await tester.tap(pick());
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Photo selected. Save Changes to upload.'),
-        findsOneWidget,
-      );
-      expect(upload.calls, 0);
-      expect(tester.widget<ElevatedButton>(save()).onPressed, isNotNull);
-      await tester.tap(save());
       await tester.pump();
-      expect(find.text('Uploading photo…'), findsOneWidget);
+      await tester.tap(save());
+      await pumpUploading(tester);
       expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
       expect(repo.writes, isEmpty);
-      // Exercise another physical tap while disabled, without asking the test
-      // finder to hit-test a control that intentionally cannot receive taps.
-      await tester.tapAt(tester.getCenter(save()));
-      expect(upload.calls, 1);
       upload.pending!.complete(77);
       await tester.pumpAndSettle();
-      expect(repo.writes.single, {
-        'full_name': 'Updated name',
-        'avatar_media_id': 77,
-      });
-      expect(repo.reads, hasLength(2));
+      expect(repo.writes, [
+        {'avatar_media_id': 77},
+        {'full_name': 'Updated name'},
+      ]);
       expect(find.text('Open editor'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
     },
   );
 
-  testWidgets('avatar-only Save enabled, unchanged form disabled', (
-    tester,
-  ) async {
-    final photos = _Photos()..result = _photo();
-    final repo = EditingRepo();
-    await show(tester, photos, repo);
-    expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
-    await tester.tap(pick());
-    await tester.pumpAndSettle();
-    expect(tester.widget<ElevatedButton>(save()).onPressed, isNotNull);
-    await tester.tap(save());
-    await tester.pumpAndSettle();
-    expect(repo.writes.single, {'avatar_media_id': 77});
-    expect(find.text('Open editor'), findsOneWidget);
-  });
-
   testWidgets(
-    'client and backend validation failures retain preview and field input',
+    'leaving mid-upload needs no discard prompt and the upload continues',
     (tester) async {
       final photos = _Photos()..result = _photo();
-      final repo = EditingRepo()
-        ..saveError = ApiError(
-          message: 'Already taken',
-          statusCode: 422,
-          fieldErrors: {
-            'username': ['Already taken'],
-          },
-        );
-      await show(tester, photos, repo);
+      final upload = _Upload()..pending = Completer<int>();
+      final repo = _AvatarRepo();
+      final pictures = ProfilePictureUploadCubit(uploads: () => upload);
+      addTearDown(pictures.close);
+      final owner = await show(tester, photos, repo, pictures: pictures);
       await tester.tap(pick());
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('username')), 'x');
-      await tester.tap(save());
-      await tester.pumpAndSettle();
-      expect(repo.writes, isEmpty);
-      expect(
-        tester.widget<CircleAvatar>(avatar()).backgroundImage,
-        isA<MemoryImage>(),
-      );
-      await tester.enterText(
-        find.byKey(const ValueKey('username')),
-        'taken_name',
-      );
-      await tester.pump(); // Rebuild the now-valid Save button.
-      await tester.tap(save());
-      await tester.pumpAndSettle();
-      expect(repo.writes.single, {
-        'username': 'taken_name',
-        'avatar_media_id': 77,
-      });
-      expect(find.text('Already taken'), findsWidgets);
-      expect(find.text('taken_name'), findsOneWidget);
-      expect(
-        tester.widget<CircleAvatar>(avatar()).backgroundImage,
-        isA<MemoryImage>(),
-      );
-      repo.saveError = null;
-      await tester.pump(const Duration(seconds: 5));
-      await tester.pumpAndSettle();
-      await tester.tap(save());
-      await tester.pumpAndSettle();
-      expect(repo.writes, hasLength(2));
+      await pumpUploading(tester);
+      await tester.pageBack();
+      for (var i = 0; i < 4; i++) {
+        await pumpUploading(tester);
+      }
+      expect(find.byType(EditProfileScreen), findsNothing);
+      expect(find.byType(AlertDialog), findsNothing);
       expect(find.text('Open editor'), findsOneWidget);
+      expect(find.text(uploadingText), findsNothing); // Root shows its own.
+      upload.pending!.complete(77);
+      await tester.pumpAndSettle();
+      expect(pictures.state, isA<ProfilePictureDone>());
+      expect(repo.writes.single, {'avatar_media_id': 77});
+      expect((owner.state as ProfileLoaded).profile.avatarUrl, _AvatarRepo.url);
     },
   );
 
   testWidgets(
-    'pending picker shows progress, blocks duplicates and cancellation keeps current avatar',
+    'pending picker shows no loading line and cancellation keeps avatar',
     (tester) async {
       final photos = _Photos()..pending = Completer();
       await show(tester, photos, EditingRepo());
       await tester.tap(pick());
       await tester.pump();
-      expect(find.text('Opening photo library…'), findsOneWidget);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
       await tester.tap(pick(), warnIfMissed: false);
       expect(photos.calls, 1);
       photos.pending!.complete(null);
       await tester.pumpAndSettle();
-      expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(tester.widget<CircleAvatar>(avatar()).backgroundImage, isNull);
+      expect(find.text(uploadingText), findsNothing);
       expect(find.text('Mona Hassan'), findsOneWidget);
     },
   );
 
   testWidgets(
-    'picker failure displays error and retains typed fields and preview without HTTP',
+    'picker failure displays error and retains typed fields without HTTP',
     (tester) async {
-      final photos = _Photos()..result = _photo();
+      final photos = _Photos();
       final repo = EditingRepo();
       var requests = 0;
       await HttpOverrides.runZoned(
@@ -783,14 +820,11 @@ void main() {
             find.byKey(const ValueKey('username')),
             'keep_name',
           );
-          await tester.tap(pick());
-          await tester.pumpAndSettle();
-          final image = tester.widget<CircleAvatar>(avatar()).backgroundImage;
           photos.error = PlatformException(code: 'photo_access_denied');
           await tester.tap(pick());
           await tester.pumpAndSettle();
           expect(find.byKey(const ValueKey('avatar-error')), findsOneWidget);
-          expect(tester.widget<CircleAvatar>(avatar()).backgroundImage, image);
+          expect(find.text(failureText), findsNothing);
           expect(find.text('keep_name'), findsOneWidget);
         },
         createHttpClient: (_) {
@@ -803,29 +837,29 @@ void main() {
     },
   );
 
-  testWidgets(
-    'session changes hide old fields and preview while late picker is ignored',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      await PreferencesManager().init();
-      await PreferencesManager().saveToken('test-widget-a');
-      final photos = _Photos()..pending = Completer();
-      await show(tester, photos, EditingRepo());
-      await tester.tap(pick());
-      await tester.pump();
-      await tester.runAsync(
-        () => PreferencesManager().saveToken('test-widget-b'),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.text('Your session changed. Reopen Edit Profile.'),
-        findsOneWidget,
-      );
-      expect(find.text('Mona Hassan'), findsNothing);
-      photos.pending!.complete(_photo());
-      await tester.pumpAndSettle();
-      expect(avatar(), findsNothing);
-      await tester.runAsync(() => PreferencesManager().clear());
-    },
-  );
+  testWidgets('session changes hide old fields while late picker is ignored', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    await PreferencesManager().init();
+    await PreferencesManager().saveToken('test-widget-a');
+    final photos = _Photos()..pending = Completer();
+    await show(tester, photos, EditingRepo());
+    await tester.tap(pick());
+    await tester.pump();
+    await tester.runAsync(
+      () => PreferencesManager().saveToken('test-widget-b'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Your session changed. Reopen Edit Profile.'),
+      findsOneWidget,
+    );
+    expect(find.text('Mona Hassan'), findsNothing);
+    photos.pending!.complete(_photo());
+    await tester.pumpAndSettle();
+    expect(avatar(), findsNothing);
+    expect(find.text(uploadingText), findsNothing);
+    await tester.runAsync(() => PreferencesManager().clear());
+  });
 }

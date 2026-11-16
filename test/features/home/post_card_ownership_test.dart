@@ -12,6 +12,7 @@ import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
+import 'package:travibe/features/profile/data/profile_model.dart';
 import '../profile/fixtures.dart' as fixture;
 
 class _Follows extends FollowRepo {
@@ -327,5 +328,51 @@ void main() {
     expect(followInk(tester).onTap, isNull);
     expect(repo.requests, isEmpty);
     await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('own post avatar follows a new current-user picture', (
+    tester,
+  ) async {
+    const url = 'https://example.invalid/new-avatar.png';
+    // Fake URLs never load; only which URL is requested matters here.
+    final onError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (details.library != 'image resource service') onError?.call(details);
+    };
+    Widget withAvatar(Object author) => PostCard(
+      authorId: author,
+      postId: '1',
+      name: 'Same Name',
+      avatar: 'https://example.invalid/old-avatar.png',
+      time: 'now',
+      text: 'Caption',
+      likes: '0',
+      comments: '0',
+    );
+    String? shown(WidgetTester tester, int index) {
+      final image = tester
+          .widgetList<CircleAvatar>(
+            find.byKey(const ValueKey('post-author-avatar')),
+          )
+          .elementAt(index)
+          .backgroundImage;
+      return image is NetworkImage ? image.url : null;
+    }
+
+    await show(tester, Column(children: [withAvatar(7), withAvatar(8)]));
+    expect(shown(tester, 0), 'https://example.invalid/old-avatar.png');
+    current.cacheProfile(
+      ProfileModel.fromJson({
+        ...fixture.profileJson(name: 'Same Name'),
+        'avatar_url': url,
+      }),
+      expectedSession: PreferencesManager().sessionRevision,
+    );
+    await tester.pumpAndSettle();
+    expect(shown(tester, 0), url);
+    // Other authors keep their own picture.
+    expect(shown(tester, 1), 'https://example.invalid/old-avatar.png');
+    await tester.pumpWidget(const SizedBox());
+    FlutterError.onError = onError;
   });
 }

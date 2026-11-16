@@ -130,7 +130,8 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
             onPressed: cubit.restore,
             child: Text(state.restoreError!),
           ),
-        if (state.avatarError != null) ...[
+        // Upload failures are a toast (Retry / X); picker problems stay here.
+        if (state.avatarError != null && !state.avatarUploadFailed) ...[
           Text(
             state.avatarError!,
             style: const TextStyle(color: DarkColors.dangerColor),
@@ -287,8 +288,10 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
       _lastAvatarUrl = state.avatarUrl;
       _avatarImageFailed = false;
     }
-    final ImageProvider? image = state.avatar != null
-        ? MemoryImage(state.avatar!.bytes)
+    // The picked photo shows at once and stays after a successful upload.
+    final local = state.avatar?.bytes ?? state.avatarPreview;
+    final ImageProvider? image = local != null
+        ? MemoryImage(local)
         : state.avatarUrl != null && !_avatarImageFailed
         ? NetworkImage(state.avatarUrl!)
         : null;
@@ -318,7 +321,7 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
                       if (mounted) setState(() => _avatarImageFailed = true);
                     },
               child:
-                  state.avatar == null &&
+                  local == null &&
                       (state.avatarUrl == null || _avatarImageFailed)
                   ? const Icon(
                       Icons.person_rounded,
@@ -328,12 +331,6 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
                   : null,
             ),
           ),
-          if (state.selectingAvatar || state.uploadingAvatar)
-            const Positioned.fill(
-              child: Center(
-                child: CupertinoActivityIndicator(color: Colors.white),
-              ),
-            ),
           Positioned(
             bottom: 4,
             right: 4,

@@ -41,6 +41,8 @@ import 'package:travibe/features/home/data/home_account_repo.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_upload_toast.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
+import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/stories/widgets/discard_story_dialog.dart';
 import 'package:travibe/core/navigation/my_profile_tab.dart';
 import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
@@ -193,6 +195,9 @@ class _RootState extends State<Root> {
     repo: widget.storiesRepo,
     uploads: widget.mediaUploads,
   );
+  late final _pictureUploads = ProfilePictureUploadCubit(
+    uploads: widget.mediaUploads,
+  );
   final _publications = ValueNotifier<int>(0);
   final _homeRefreshes = ValueNotifier<int>(0);
   final _buddiesRefreshes = ValueNotifier<int>(0);
@@ -222,6 +227,7 @@ class _RootState extends State<Root> {
     unawaited(_reverbBlocks?.cancel() ?? Future.value());
     _postUploads.close();
     _storyUploads.close();
+    _pictureUploads.close();
     _storyLikes.close();
     _stories.close();
     _publications.dispose();
@@ -298,6 +304,7 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _blockCubit),
         BlocProvider.value(value: _postUploads),
         BlocProvider.value(value: _storyUploads),
+        BlocProvider.value(value: _pictureUploads),
         BlocProvider.value(value: _stories),
         BlocProvider.value(value: _storyLikes),
       ],
@@ -309,6 +316,9 @@ class _RootState extends State<Root> {
           ),
           BlocListener<StoryUploadCubit, StoryUploadState>(
             listener: _onStoryUpload,
+          ),
+          BlocListener<ProfilePictureUploadCubit, ProfilePictureUploadState>(
+            listener: _onPictureUpload,
           ),
         ],
         child: BottomNavScope(
@@ -520,6 +530,23 @@ class _RootState extends State<Root> {
     if (state is StoryUploadDone) {
       unawaited(_stories.refresh());
       _toasts.show(storyPublishedToast);
+    }
+  }
+
+  static const _pictureUploadToast = 'picture-upload';
+
+  void _onPictureUpload(BuildContext context, ProfilePictureUploadState state) {
+    _toasts.setSticky(
+      _pictureUploadToast,
+      profilePictureToast(
+        uploading: state is ProfilePictureUploading,
+        failed: state is ProfilePictureFailed,
+        onRetry: _pictureUploads.retry,
+        onDiscard: _pictureUploads.discard,
+      ),
+    );
+    if (state is ProfilePictureDone) {
+      _toasts.show(profilePictureUpdatedToast);
     }
   }
 

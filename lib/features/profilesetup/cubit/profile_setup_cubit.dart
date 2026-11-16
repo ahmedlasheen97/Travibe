@@ -286,7 +286,13 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         generation == _avatarGeneration &&
         session == PreferencesManager().sessionRevision;
     final cancel = _uploadCancel = CancelToken();
-    emit(state.copyWith(uploadingAvatar: true, clearAvatarError: true));
+    emit(
+      state.copyWith(
+        uploadingAvatar: true,
+        avatarUploadFailed: false,
+        clearAvatarError: true,
+      ),
+    );
     try {
       final type = draft.contentType;
       if (type == null) {
@@ -338,6 +344,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         state.copyWith(
           uploadingAvatar: false,
           clearAvatar: true,
+          avatarPreview: draft.bytes,
           avatarUrl: profile!.avatarUrl,
           clearAvatarError: true,
         ),
@@ -350,6 +357,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         emit(
           state.copyWith(
             uploadingAvatar: false,
+            avatarUploadFailed: true,
             avatarError: _messageFrom(error),
           ),
         );
@@ -368,6 +376,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         state.copyWith(
           clearAvatar: true,
           clearAvatarError: true,
+          avatarUploadFailed: false,
           selectingAvatar: false,
           uploadingAvatar: false,
         ),
