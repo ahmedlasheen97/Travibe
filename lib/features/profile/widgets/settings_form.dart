@@ -3,6 +3,7 @@ import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/features/profile/widgets/discard_changes_dialog_widget.dart';
 
 /// Field fill and hairline border shared by the settings forms (Figma).
 const settingsFieldFill = Color(0xFF171717);
@@ -18,6 +19,7 @@ class SettingsFormScaffold extends StatelessWidget {
     required this.children,
     required this.button,
     this.busy = false,
+    this.dirty = false,
   });
 
   final String title;
@@ -27,9 +29,18 @@ class SettingsFormScaffold extends StatelessWidget {
   /// Blocks back navigation while a request is in flight.
   final bool busy;
 
+  /// Unsaved input: leaving asks "Discard Changes?" first (iOS swipe is off).
+  final bool dirty;
+
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: !busy,
+    canPop: !busy && !dirty,
+    onPopInvokedWithResult: (didPop, _) async {
+      if (didPop || busy) return;
+      if (await showDiscardChangesDialogWidget(context) && context.mounted) {
+        Navigator.of(context).pop();
+      }
+    },
     child: Scaffold(
       backgroundColor: DarkColors.backgroundColor,
       resizeToAvoidBottomInset: true,

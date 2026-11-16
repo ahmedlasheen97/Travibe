@@ -118,6 +118,7 @@ class _EmailAddressScreenState extends State<EmailAddressScreen> {
       builder: (context, state) => SettingsFormScaffold(
         title: 'Email Address',
         busy: _busy && state.sending,
+        dirty: _newEmail.isNotEmpty && !_sameAsCurrent,
         button: SettingsActionButton(
           key: const ValueKey('verify-new-email'),
           label: 'Verify New Email',

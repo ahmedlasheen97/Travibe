@@ -208,6 +208,32 @@ void main() {
     expect(verifyButton(tester).onPressed, isNotNull);
   });
 
+  testWidgets('back with a typed email asks before discarding', (tester) async {
+    await show(tester);
+    // Clean: back leaves at once.
+    await tester.tap(find.byTooltip('Back'));
+    await _settle(tester);
+    expect(find.byType(EmailAddressScreen), findsNothing);
+
+    await tester.tap(find.text('Open'));
+    await _settle(tester);
+    await tester.enterText(emailField, 'new@mail.com');
+    await tester.pump();
+    // Android back.
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(find.text('Discard Changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await _settle(tester);
+    expect(find.byType(EmailAddressScreen), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await _settle(tester);
+    await tester.tap(find.text('Discard'));
+    await _settle(tester);
+    expect(find.byType(EmailAddressScreen), findsNothing);
+  });
+
   testWidgets(
     'password dialog → wrong password error → OTP → email updated + toast',
     (tester) async {

@@ -8,6 +8,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/profile/cubit/change_password_cubit.dart';
+import 'package:travibe/features/profile/widgets/discard_changes_dialog_widget.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key, this.repo});
@@ -37,7 +38,25 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       (_newPasswordController, PasswordField.password),
       (_confirmPasswordController, PasswordField.confirmation),
     ]) {
-      controller.addListener(() => _cubit.clearFieldError(field));
+      controller.addListener(() {
+        _cubit.clearFieldError(field);
+        if (_dirty != _hasInput) setState(() => _dirty = _hasInput);
+      });
+    }
+  }
+
+  /// Typed input: leaving asks "Discard Changes?" first (iOS swipe is off).
+  bool _dirty = false;
+  bool get _hasInput => [
+    _currentPasswordController,
+    _newPasswordController,
+    _confirmPasswordController,
+  ].any((c) => c.text.isNotEmpty);
+
+  Future<void> _onPopBlocked(bool busy) async {
+    if (busy) return;
+    if (await showDiscardChangesDialogWidget(context) && mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -79,87 +98,94 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       );
 
   Widget _buildBody(ChangePasswordState state) {
-    return Scaffold(
-      backgroundColor: DarkColors.backgroundColor,
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
-                  children: [
-                    SizedBox(height: AppSizes.h8),
-                    _buildTopBar(),
-                    SizedBox(height: AppSizes.h24),
-                    _buildLabel('Current password.'),
-                    SizedBox(height: AppSizes.h8),
-                    _passwordField(
-                      controller: _currentPasswordController,
-                      hint: 'enter your current password',
-                      obscure: _obscureCurrent,
-                      serverError: state.fieldErrors[PasswordField.current],
-                      onToggle: () =>
-                          setState(() => _obscureCurrent = !_obscureCurrent),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter your current password';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: AppSizes.h24),
-                    _buildLabel('New Password'),
-                    SizedBox(height: AppSizes.h8),
-                    _passwordField(
-                      controller: _newPasswordController,
-                      hint: 'enter your new password',
-                      obscure: _obscureNew,
-                      serverError: state.fieldErrors[PasswordField.password],
-                      onToggle: () =>
-                          setState(() => _obscureNew = !_obscureNew),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Please enter a new password';
-                        }
-                        if (value.length < 8) {
-                          return 'Password must be at least 8 characters';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: AppSizes.h24),
-                    _buildLabel('Confirm New Password'),
-                    SizedBox(height: AppSizes.h8),
-                    _passwordField(
-                      controller: _confirmPasswordController,
-                      hint: 'renter your new password',
-                      obscure: _obscureConfirm,
-                      serverError:
-                          state.fieldErrors[PasswordField.confirmation],
-                      onToggle: () =>
-                          setState(() => _obscureConfirm = !_obscureConfirm),
-                      validator: (value) {
-                        if (value != _newPasswordController.text) {
-                          return 'Passwords do not match';
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
+    final busy = state.submitting || state.done;
+    return PopScope(
+      canPop: !busy && !_dirty,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _onPopBlocked(busy);
+      },
+      child: Scaffold(
+        backgroundColor: DarkColors.backgroundColor,
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
+                    children: [
+                      SizedBox(height: AppSizes.h8),
+                      _buildTopBar(),
+                      SizedBox(height: AppSizes.h24),
+                      _buildLabel('Current password.'),
+                      SizedBox(height: AppSizes.h8),
+                      _passwordField(
+                        controller: _currentPasswordController,
+                        hint: 'enter your current password',
+                        obscure: _obscureCurrent,
+                        serverError: state.fieldErrors[PasswordField.current],
+                        onToggle: () =>
+                            setState(() => _obscureCurrent = !_obscureCurrent),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your current password';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: AppSizes.h24),
+                      _buildLabel('New Password'),
+                      SizedBox(height: AppSizes.h8),
+                      _passwordField(
+                        controller: _newPasswordController,
+                        hint: 'enter your new password',
+                        obscure: _obscureNew,
+                        serverError: state.fieldErrors[PasswordField.password],
+                        onToggle: () =>
+                            setState(() => _obscureNew = !_obscureNew),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter a new password';
+                          }
+                          if (value.length < 8) {
+                            return 'Password must be at least 8 characters';
+                          }
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: AppSizes.h24),
+                      _buildLabel('Confirm New Password'),
+                      SizedBox(height: AppSizes.h8),
+                      _passwordField(
+                        controller: _confirmPasswordController,
+                        hint: 'renter your new password',
+                        obscure: _obscureConfirm,
+                        serverError:
+                            state.fieldErrors[PasswordField.confirmation],
+                        onToggle: () =>
+                            setState(() => _obscureConfirm = !_obscureConfirm),
+                        validator: (value) {
+                          if (value != _newPasswordController.text) {
+                            return 'Passwords do not match';
+                          }
+                          return null;
+                        },
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.pw20,
-                  AppSizes.ph12,
-                  AppSizes.pw20,
-                  AppSizes.ph20,
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSizes.pw20,
+                    AppSizes.ph12,
+                    AppSizes.pw20,
+                    AppSizes.ph20,
+                  ),
+                  child: _buildUpdateButton(state.submitting || state.done),
                 ),
-                child: _buildUpdateButton(state.submitting || state.done),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

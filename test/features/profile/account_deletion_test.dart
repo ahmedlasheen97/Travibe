@@ -442,6 +442,36 @@ void main() {
     },
   );
 
+  testWidgets('back with typed input asks before discarding', (tester) async {
+    final repo = MockAccountRepo();
+    await showDelete(tester, repo);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DeleteAccountScreen), findsNothing);
+
+    await tester.tap(find.text('Open delete'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('delete-account-reason')),
+      'Too many notifications',
+    );
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard Changes?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DeleteAccountScreen), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DeleteAccountScreen), findsNothing);
+    expect(repo.calls, 0);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('the optional reason has a counter and is not sent', (
     tester,
   ) async {
