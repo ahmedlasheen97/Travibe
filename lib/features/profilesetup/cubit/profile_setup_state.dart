@@ -16,7 +16,16 @@ class ProfileSetupState {
   final String usernameMessage;
   final String normalizedUsername;
   final String? currentLocation;
-  final File? avatarFile;
+  final ProfileAvatarDraft? avatar;
+  final String? avatarUrl;
+  final String? avatarError;
+  final bool selectingAvatar;
+  final bool uploadingAvatar;
+  final MediaUploadStage? avatarStage;
+  final String? countryCode;
+  final Map<String, List<String>> fieldErrors;
+  final bool restoring;
+  final String? restoreError;
   final List<String> languages;
   final List<String> interests;
   final List<String> travelStyles;
@@ -33,7 +42,16 @@ class ProfileSetupState {
     this.usernameMessage = '',
     this.normalizedUsername = '',
     this.currentLocation,
-    this.avatarFile,
+    this.avatar,
+    this.avatarUrl,
+    this.avatarError,
+    this.selectingAvatar = false,
+    this.uploadingAvatar = false,
+    this.avatarStage,
+    this.countryCode,
+    this.fieldErrors = const {},
+    this.restoring = false,
+    this.restoreError,
     this.languages = const [],
     this.interests = const [],
     this.travelStyles = const [],
@@ -51,7 +69,19 @@ class ProfileSetupState {
     String? usernameMessage,
     String? normalizedUsername,
     String? currentLocation,
-    File? avatarFile,
+    ProfileAvatarDraft? avatar,
+    String? avatarUrl,
+    String? avatarError,
+    bool? selectingAvatar,
+    bool? uploadingAvatar,
+    MediaUploadStage? avatarStage,
+    bool clearAvatar = false,
+    bool clearAvatarError = false,
+    String? countryCode,
+    Map<String, List<String>>? fieldErrors,
+    bool? restoring,
+    String? restoreError,
+    bool clearRestoreError = false,
     List<String>? languages,
     List<String>? interests,
     List<String>? travelStyles,
@@ -66,7 +96,18 @@ class ProfileSetupState {
       usernameMessage: usernameMessage ?? this.usernameMessage,
       normalizedUsername: normalizedUsername ?? this.normalizedUsername,
       currentLocation: currentLocation ?? this.currentLocation,
-      avatarFile: avatarFile ?? this.avatarFile,
+      avatar: clearAvatar ? null : avatar ?? this.avatar,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      avatarError: clearAvatarError ? null : avatarError ?? this.avatarError,
+      selectingAvatar: selectingAvatar ?? this.selectingAvatar,
+      uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
+      avatarStage: avatarStage ?? this.avatarStage,
+      countryCode: countryCode ?? this.countryCode,
+      fieldErrors: fieldErrors ?? this.fieldErrors,
+      restoring: restoring ?? this.restoring,
+      restoreError: clearRestoreError
+          ? null
+          : restoreError ?? this.restoreError,
       languages: languages ?? this.languages,
       interests: interests ?? this.interests,
       travelStyles: travelStyles ?? this.travelStyles,

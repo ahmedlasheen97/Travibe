@@ -9,6 +9,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/places/city_autocomplete_results.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/core/places/current_city_picker.dart';
+import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -22,6 +23,14 @@ import '../../features/buddies/buddies_backend_integration_test.dart'
     as backend;
 import '../../features/profile/edit_profile_test.dart' as editing;
 import 'fake_city_places.dart';
+
+class _SetupCountries extends ProfileSetupRepo {
+  _SetupCountries({required super.apiService});
+  @override
+  Future<List<ReferenceCountry>> loadCountries(String locale) async => const [
+    ReferenceCountry(code: 'EG', name: 'Egypt', nameEn: 'Egypt', nameAr: 'مصر'),
+  ];
+}
 
 void main() {
   final preferences = PreferencesManager();
@@ -304,7 +313,9 @@ void main() {
   }
   for (final setup in [true, false]) {
     testWidgets(
-      '${setup ? 'Profile Setup' : 'Edit Profile'} uses the same picker and unchanged location PUT',
+      setup
+          ? 'Profile Setup selects a country without a city PUT'
+          : 'Edit Profile preserves city picker and location PUT',
       (tester) async {
         final api = backend.LocationApi();
         final repo = ProfileRepo(apiService: api);
@@ -313,28 +324,14 @@ void main() {
         final owner = ProfileCubit(profileRepo: repo, currentUser: user);
         await owner.loadProfile();
         final wizard = ProfileSetupCubit(
-          repo: ProfileSetupRepo(apiService: api),
+          repo: _SetupCountries(apiService: api),
           currentUser: user,
         );
         final screen = setup
             ? BlocBuilder<ProfileSetupCubit, ProfileSetupState>(
                 bloc: wizard,
-                builder: (context, state) => Scaffold(
-                  body: Step1BasicInfo(
-                    fullNameController: wizard.fullNameController,
-                    usernameController: wizard.usernameController,
-                    usernameStatus: state.usernameStatus,
-                    usernameMessage: state.usernameMessage,
-                    onUsernameChanged: wizard.onUsernameChanged,
-                    avatarFile: null,
-                    onAvatarPicked: wizard.setAvatar,
-                    currentLocation: state.currentLocation,
-                    onCityChanged: wizard.setCity,
-                    isSaving: state.isSaving,
-                    onNext: wizard.saveBasicInfo,
-                    onSkip: () {},
-                  ),
-                ),
+                builder: (context, state) =>
+                    Scaffold(body: Step1BasicInfo(cubit: wizard)),
               )
             : EditProfileScreen(
                 profile: user.state.profile!,
@@ -343,9 +340,24 @@ void main() {
               );
         await show(tester, home: screen);
         await tester.pumpAndSettle();
-        final field = setup
-            ? find.text('Select your current city')
-            : find.text('Select your current city');
+        if (setup) {
+          final field = find.text('Select your current country');
+          await tester.ensureVisible(field);
+          await tester.tap(field);
+          await tester.pumpAndSettle();
+          await tester.enterText(find.byType(TextField).last, 'Egy');
+          await tester.pumpAndSettle();
+          await tester.tap(find.byType(ListTile));
+          await tester.pumpAndSettle();
+          expect(wizard.state.countryCode, 'EG');
+          expect(api.calls.where((call) => call.startsWith('PUT')), isEmpty);
+          await tester.pumpWidget(const SizedBox());
+          await wizard.close();
+          await owner.close();
+          await user.close();
+          return;
+        }
+        final field = find.text('Select your current city');
         await tester.ensureVisible(field);
         await tester.tap(field);
         await tester.pumpAndSettle();

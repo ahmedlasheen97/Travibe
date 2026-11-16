@@ -222,3 +222,17 @@ See [ONBOARDING_API_FAILURE_DIAGNOSIS.md](ONBOARDING_API_FAILURE_DIAGNOSIS.md) f
 the captured failure, minimal change, recovery tests and live-backend UI proof.
 The UI, auth/startup routing, 1500ms splash, locale/cache and completion behavior
 remain unchanged. Notifications and Firebase implementation were not modified.
+
+## Profile Setup identity/photo persistence — 2026-11-16
+
+Profile Setup now requires trimmed Full Name and a documented valid/available
+username before Next. It restores saved setup fields, uses country_code for the
+optional Current Country picker, and persists optional photos through the
+existing verified media uploader plus PATCH profile/setup avatar_media_id.
+Normal wizard Skip actions are removed; startup and backend completion remain
+authoritative. Pending photo errors retain the draft for explicit retry/removal.
+
+See [Profile Setup identity and photo audit](PROFILE_SETUP_IDENTITY_PHOTO.md) for
+contracts, session protection, tests, platform limitations and pending screenshot
+requirements. The two supplied visual references were not found locally; exact
+avatar/progress/field sizing comparison is not claimed.

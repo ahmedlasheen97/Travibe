@@ -9,7 +9,7 @@ class Step2LanguagesInterests extends StatefulWidget {
   final List<String> selectedInterests;
   final ValueChanged<List<String>> onInterestsChanged;
   final VoidCallback onNext;
-  final VoidCallback onSkip;
+  final VoidCallback? onSkip;
   final bool isSaving;
 
   const Step2LanguagesInterests({
@@ -19,7 +19,7 @@ class Step2LanguagesInterests extends StatefulWidget {
     required this.selectedInterests,
     required this.onInterestsChanged,
     required this.onNext,
-    required this.onSkip,
+    this.onSkip,
     required this.isSaving,
   });
 
@@ -139,20 +139,22 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
           title: widget.isSaving ? 'Saving...' : 'Next',
           onPressed: widget.isSaving ? null : widget.onNext,
         ),
-        const SizedBox(height: 16),
-        Center(
-          child: TextButton(
-            onPressed: widget.onSkip,
-            child: Text(
-              'Skip For Now',
-              style: TextStyle(
-                color: DarkColors.primaryColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+        if (widget.onSkip != null) ...[
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(
+              onPressed: widget.onSkip,
+              child: Text(
+                'Skip For Now',
+                style: TextStyle(
+                  color: DarkColors.primaryColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
-        ),
+        ],
         const SizedBox(height: 24),
       ],
     );

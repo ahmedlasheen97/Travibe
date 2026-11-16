@@ -1,4 +1,5 @@
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -12,8 +13,55 @@ import 'package:travibe/features/profilesetup/widgets/step2_languages_interests.
 import 'package:travibe/features/profilesetup/widgets/step3_travel_style.dart';
 import 'package:travibe/root.dart';
 
-class ProfileSetupScreen extends StatelessWidget {
-  const ProfileSetupScreen({super.key});
+class ProfileSetupScreen extends StatefulWidget {
+  const ProfileSetupScreen({super.key, this.createCubit});
+  final ProfileSetupCubit Function(BuildContext)? createCubit;
+  @override
+  State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
+}
+
+class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
+  bool _backDialogOpen = false;
+  Future<void> _back(BuildContext context, ProfileSetupCubit cubit) async {
+    if (_backDialogOpen) return;
+    if (cubit.goBack()) return;
+    if (cubit.state.avatar != null ||
+        cubit.state.selectingAvatar ||
+        cubit.state.uploadingAvatar) {
+      _backDialogOpen = true;
+      final session = PreferencesManager().sessionRevision;
+      final leave = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Leave without saving photo?'),
+          content: const Text(
+            'Your selected photo has not been confirmed as saved. Leaving cancels the pending upload.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Stay'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Leave'),
+            ),
+          ],
+        ),
+      );
+      _backDialogOpen = false;
+      if (!context.mounted ||
+          leave != true ||
+          cubit.isClosed ||
+          session != PreferencesManager().sessionRevision) {
+        return;
+      }
+      cubit.discardAvatar();
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).maybePop();
+    }
+  }
 
   static const int _totalSteps = 3;
 
@@ -29,7 +77,11 @@ class ProfileSetupScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocProvider<ProfileSetupCubit>(
       create: (context) =>
-          ProfileSetupCubit(currentUser: context.read<CurrentUserCubit?>())
+          (widget.createCubit?.call(context) ??
+                ProfileSetupCubit(
+                  currentUser: context.read<CurrentUserCubit?>(),
+                ))
+            ..restore()
             ..loadCatalogs(),
       child: BlocConsumer<ProfileSetupCubit, ProfileSetupState>(
         listenWhen: (previous, current) => previous.status != current.status,
@@ -46,19 +98,25 @@ class ProfileSetupScreen extends StatelessWidget {
           final cubit = context.read<ProfileSetupCubit>();
 
           return PopScope(
-            canPop: state.step == 0,
+            canPop:
+                state.step == 0 &&
+                state.avatar == null &&
+                !state.selectingAvatar &&
+                !state.uploadingAvatar,
             onPopInvokedWithResult: (didPop, result) {
-              if (!didPop) cubit.goBack();
+              if (!didPop) _back(context, cubit);
             },
             child: SafeArea(
               child: Scaffold(
+                backgroundColor: DarkColors.backgroundColor,
                 appBar: AppBar(
+                  backgroundColor: DarkColors.backgroundColor,
+                  surfaceTintColor: Colors.transparent,
+                  scrolledUnderElevation: 0,
                   elevation: 0,
                   centerTitle: true,
                   leading: BackButtonWidget(
-                    onTap: () {
-                      if (!cubit.goBack()) Navigator.of(context).maybePop();
-                    },
+                    onTap: () => _back(context, cubit),
                     size: 44,
                     iconSize: 18,
                   ),
@@ -91,26 +149,7 @@ class ProfileSetupScreen extends StatelessWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         onPageChanged: cubit.onPageChanged,
                         children: [
-                          Step1BasicInfo(
-                            fullNameController: cubit.fullNameController,
-                            usernameController: cubit.usernameController,
-                            usernameStatus: state.usernameStatus,
-                            usernameMessage: state.usernameMessage,
-                            onUsernameChanged: cubit.onUsernameChanged,
-                            avatarFile: state.avatarFile,
-                            onAvatarPicked: cubit.setAvatar,
-                            currentLocation:
-                                state.currentLocation ??
-                                context
-                                    .read<CurrentUserCubit?>()
-                                    ?.state
-                                    .profile
-                                    ?.currentLocation,
-                            onCityChanged: cubit.setCity,
-                            isSaving: state.isSaving,
-                            onNext: cubit.saveBasicInfo,
-                            onSkip: () => _goHome(context),
-                          ),
+                          Step1BasicInfo(cubit: cubit),
                           Step2LanguagesInterests(
                             selectedLanguages: state.languages,
                             onLanguagesChanged: cubit.setLanguages,
@@ -118,7 +157,6 @@ class ProfileSetupScreen extends StatelessWidget {
                             onInterestsChanged: cubit.setInterests,
                             isSaving: state.isSaving,
                             onNext: cubit.saveLanguagesAndInterests,
-                            onSkip: () => _goHome(context),
                           ),
                           Step3TravelStyle(
                             catalog: state.catalog(ReferenceKind.travelStyles),

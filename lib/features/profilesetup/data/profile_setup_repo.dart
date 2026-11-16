@@ -7,6 +7,8 @@ import 'package:travibe/features/profilesetup/data/username_availability_model.d
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'package:travibe/features/profilesetup/data/profile_selection_options.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_result.dart';
+import 'package:travibe/features/profilesetup/data/profile_identity_validation.dart';
+import 'package:travibe/features/profile/data/profile_model.dart';
 
 class ProfileSetupRepo {
   ProfileSetupRepo({ApiService? apiService})
@@ -16,6 +18,18 @@ class ProfileSetupRepo {
   final Set<String> _savedTravelStyles = {};
   final Set<String> _savedLanguages = {};
   final Set<String> _savedInterests = {};
+
+  void clearSessionSelections() {
+    _savedLanguages.clear();
+    _savedInterests.clear();
+    _savedTravelStyles.clear();
+  }
+
+  void restoreSelections(ProfileModel profile) {
+    _savedLanguages.addAll(profile.languageSelections.map((e) => e.slug));
+    _savedInterests.addAll(profile.interestSelections.map((e) => e.slug));
+    _savedTravelStyles.addAll(profile.travelStyleSelections.map((e) => e.slug));
+  }
 
   Future<List<ReferenceCountry>> loadCountries(String locale) =>
       CountriesRepo.shared.load(locale);
@@ -78,14 +92,32 @@ class ProfileSetupRepo {
     String? fullName,
     String? username,
     String? gender,
+    String? countryCode,
+    int? avatarMediaId,
     List<String>? languages,
     List<String>? interests,
     List<String>? travelStyles,
   }) async {
     try {
+      final errors = <String, List<String>>{};
+      if (fullName != null &&
+          ProfileIdentityValidation.fullName(fullName) != null) {
+        final error = ProfileIdentityValidation.fullName(fullName)!;
+        errors['full_name'] = [error];
+      }
       if (username != null &&
-          (username.runes.length < 3 || username.runes.length > 30)) {
-        throw ApiError(message: 'Use a username of 3–30 characters.');
+          ProfileIdentityValidation.username(username) != null) {
+        final error = ProfileIdentityValidation.username(username)!;
+        errors['username'] = [error];
+      }
+      if (countryCode != null && !RegExp(r'^[A-Z]{2}$').hasMatch(countryCode)) {
+        errors['country_code'] = ['Select a valid country.'];
+      }
+      if (avatarMediaId != null && avatarMediaId < 1) {
+        errors['avatar_media_id'] = ['Invalid photo.'];
+      }
+      if (errors.isNotEmpty) {
+        throw ApiError(message: errors.values.first.first, fieldErrors: errors);
       }
       if (gender != null && !{'male', 'female', 'other'}.contains(gender)) {
         throw ApiError(message: 'Select male, female or other.');
@@ -110,6 +142,8 @@ class ProfileSetupRepo {
           'full_name': ?fullName,
           'username': ?username,
           'gender': ?gender,
+          'country_code': ?countryCode,
+          'avatar_media_id': ?avatarMediaId,
           'languages_spoken': ?languageSlugs,
           'interests': ?interestSlugs,
           'travel_styles': ?travelStyles,

@@ -3,7 +3,12 @@ import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
-import 'dart:io';
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
+import 'package:travibe/core/media/media_upload_service.dart';
+import 'package:travibe/core/reference/countries_repo.dart';
+import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
+import 'package:travibe/features/profilesetup/data/profile_identity_validation.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
@@ -20,19 +25,39 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     ProfileSetupRepo? repo,
     ProfileRepo? profileRepo,
     this.currentUser,
+    ProfileAvatarRepo? avatarRepo,
+    MediaUploadService? mediaUpload,
   }) : _repo = repo ?? ProfileSetupRepo(),
        _profiles = profileRepo ?? ProfileRepo(),
+       _avatarRepo = avatarRepo ?? ProfileAvatarRepo(),
+       _mediaUpload = mediaUpload ?? MediaUploadService(),
+       _ownsUpload = mediaUpload == null,
        super(const ProfileSetupState()) {
+    fullNameController.addListener(_identityChanged);
     PreferencesManager().addListener(_sessionChanged);
   }
 
   void _sessionChanged() {
     if (isClosed) return;
     _city = null;
+    ++_avatarGeneration;
+    _uploadCancel?.cancel();
+    _repo.clearSessionSelections();
+    if (_ownsUpload) {
+      _mediaUpload.close();
+      _mediaUpload = MediaUploadService();
+    }
+    _readyMediaId = null;
+    _avatarAttached = false;
+    _readyAvatar = null;
+    _restoring = false;
+    _identityEdited = false;
+    _countryEdited = false;
     _usernameDebounce?.cancel();
     ++_usernameRequestId;
     fullNameController.clear();
     usernameController.clear();
+    _identityEdited = false;
     emit(const ProfileSetupState());
     if (pageController.hasClients) pageController.jumpToPage(0);
   }
@@ -40,6 +65,113 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   final ProfileSetupRepo _repo;
   final ProfileRepo _profiles;
   final CurrentUserCubit? currentUser;
+  final ProfileAvatarRepo _avatarRepo;
+  MediaUploadService _mediaUpload;
+  final bool _ownsUpload;
+  CancelToken? _uploadCancel;
+  int _avatarGeneration = 0;
+  int? _readyMediaId;
+  bool _avatarAttached = false;
+  ProfileAvatarDraft? _readyAvatar;
+  bool _restoring = false;
+  bool _identityEdited = false;
+  bool _countryEdited = false;
+  void _identityChanged() {
+    _identityEdited = true;
+    if (!isClosed && state.fieldErrors.containsKey('full_name')) {
+      emit(
+        state.copyWith(
+          fieldErrors: Map.of(state.fieldErrors)..remove('full_name'),
+        ),
+      );
+    }
+  }
+
+  Future<void> restore() async {
+    if (isClosed || _restoring) return;
+    _restoring = true;
+    final session = PreferencesManager().sessionRevision;
+    emit(state.copyWith(restoring: true, clearRestoreError: true));
+    try {
+      final profile =
+          currentUser?.state.profile ??
+          await _profiles.getMyProfile().timeout(const Duration(seconds: 12));
+      if (isClosed || session != PreferencesManager().sessionRevision) return;
+      if (!_identityEdited) {
+        fullNameController.text = profile.name ?? '';
+        usernameController.text = profile.username ?? '';
+        _identityEdited = false;
+      }
+      _repo.restoreSelections(profile);
+      emit(
+        state.copyWith(
+          restoring: false,
+          avatarUrl: profile.avatarUrl,
+          countryCode: !_countryEdited ? profile.countryCode : null,
+          usernameStatus:
+              !_identityEdited && (profile.username?.isNotEmpty ?? false)
+              ? UsernameStatus.available
+              : null,
+          normalizedUsername: !_identityEdited ? profile.username : null,
+          languages: state.languages.isEmpty
+              ? profile.languageSelections
+                    .map(
+                      (e) =>
+                          profileLanguageSlugs.entries
+                              .where((m) => m.value == e.slug)
+                              .map((m) => m.key)
+                              .firstOrNull ??
+                          e.slug,
+                    )
+                    .toList()
+              : null,
+          interests: state.interests.isEmpty
+              ? profile.interestSelections
+                    .map(
+                      (e) =>
+                          profileInterestSlugs.entries
+                              .where((m) => m.value == e.slug)
+                              .map((m) => m.key)
+                              .firstOrNull ??
+                          e.slug,
+                    )
+                    .toList()
+              : null,
+          travelStyles: state.travelStyles.isEmpty
+              ? profile.travelStyleSelections.map((e) => e.slug).toList()
+              : null,
+        ),
+      );
+    } catch (_) {
+      if (!isClosed && session == PreferencesManager().sessionRevision) {
+        emit(
+          state.copyWith(
+            restoring: false,
+            restoreError:
+                'Unable to restore saved profile details. Retry, or keep editing your details.',
+          ),
+        );
+      }
+    } finally {
+      if (session == PreferencesManager().sessionRevision) _restoring = false;
+    }
+  }
+
+  Future<List<ReferenceCountry>> loadCountries(String locale) =>
+      _repo.loadCountries(locale);
+  void setCountry(String code) {
+    if (isClosed || state.isSaving || !RegExp(r'^[A-Z]{2}$').hasMatch(code)) {
+      return;
+    }
+    _countryEdited = true;
+    emit(
+      state.copyWith(
+        countryCode: code,
+        fieldErrors: Map.of(state.fieldErrors)..remove('country_code'),
+      ),
+    );
+  }
+
   CitySelection? _city;
   Future<void> setCity(CitySelection city) async {
     if (isClosed || state.isSaving) return;
@@ -116,7 +248,152 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
 
   // ---------------- selections ----------------
 
-  void setAvatar(File file) => emit(state.copyWith(avatarFile: file));
+  Future<void> pickAvatar() async {
+    if (isClosed ||
+        state.isSaving ||
+        state.selectingAvatar ||
+        state.uploadingAvatar) {
+      return;
+    }
+    final generation = ++_avatarGeneration;
+    final session = PreferencesManager().sessionRevision;
+    bool active() =>
+        !isClosed &&
+        generation == _avatarGeneration &&
+        session == PreferencesManager().sessionRevision;
+    emit(state.copyWith(selectingAvatar: true, clearAvatarError: true));
+    try {
+      final draft = await _avatarRepo.pick();
+      if (!active()) return;
+      emit(state.copyWith(selectingAvatar: false));
+      if (draft == null) return;
+      _readyMediaId = null;
+      _avatarAttached = false;
+      _readyAvatar = null;
+      emit(state.copyWith(avatar: draft));
+      await uploadAvatar();
+    } catch (error) {
+      if (!active()) return;
+      final message = switch (error) {
+        InvalidProfileAvatar() =>
+          'Choose a JPEG, PNG, GIF or WebP photo from your gallery.',
+        PlatformException(
+          code: 'photo_access_denied' || 'photo_access_restricted',
+        ) =>
+          'Allow photo access in device settings, then try again.',
+        MissingPluginException() =>
+          'Photo selection is unavailable on this device.',
+        _ => 'Unable to select a photo. Please try again.',
+      };
+      emit(state.copyWith(selectingAvatar: false, avatarError: message));
+    }
+  }
+
+  Future<void> uploadAvatar() async {
+    final draft = state.avatar;
+    if (isClosed ||
+        draft == null ||
+        state.uploadingAvatar ||
+        state.selectingAvatar ||
+        state.isSaving) {
+      return;
+    }
+    final generation = _avatarGeneration;
+    final session = PreferencesManager().sessionRevision;
+    bool active() =>
+        !isClosed &&
+        generation == _avatarGeneration &&
+        session == PreferencesManager().sessionRevision;
+    final cancel = _uploadCancel = CancelToken();
+    emit(state.copyWith(uploadingAvatar: true, clearAvatarError: true));
+    try {
+      final type = draft.contentType;
+      if (type == null) {
+        throw ApiError(message: 'Choose a JPEG, PNG, GIF or WebP photo.');
+      }
+      if (!identical(_readyAvatar, draft) || _readyMediaId == null) {
+        final id = await _mediaUpload.upload(
+          filename: draft.name,
+          contentType: type,
+          bytes: draft.bytes,
+          isActive: active,
+          cancelToken: cancel,
+          onStage: (stage) {
+            if (active()) emit(state.copyWith(avatarStage: stage));
+          },
+        );
+        if (!active()) return;
+        _readyAvatar = draft;
+        _readyMediaId = id;
+      }
+      if (!active()) return;
+      ProfileSetupResult? result;
+      if (!_avatarAttached) {
+        result = await _repo.saveSetup(avatarMediaId: _readyMediaId);
+        if (!active()) return;
+        _avatarAttached = true;
+        _accept(result);
+      }
+      var profile = result?.profile;
+      // PATCH commits the attachment. If its resource is sparse, verify via GET
+      // without repeating either the upload or the attachment on retry.
+      if (currentUser != null ||
+          result == null ||
+          !result.resourceFields.contains('avatar_url') ||
+          profile?.avatarUrl == null) {
+        profile = await _profiles.getMyProfile().timeout(
+          const Duration(seconds: 12),
+        );
+      }
+      if (!active()) return;
+      if (profile?.avatarUrl == null) {
+        throw ApiError(
+          message:
+              'The photo was saved but its preview is not available yet. Retry to refresh it.',
+        );
+      }
+      currentUser?.cacheProfile(profile!, expectedSession: session);
+      emit(
+        state.copyWith(
+          uploadingAvatar: false,
+          clearAvatar: true,
+          avatarUrl: profile!.avatarUrl,
+          clearAvatarError: true,
+        ),
+      );
+      _readyAvatar = null;
+      _readyMediaId = null;
+      _avatarAttached = false;
+    } catch (error) {
+      if (active()) {
+        emit(
+          state.copyWith(
+            uploadingAvatar: false,
+            avatarError: _messageFrom(error),
+          ),
+        );
+      }
+    }
+  }
+
+  void discardAvatar() {
+    ++_avatarGeneration;
+    _uploadCancel?.cancel();
+    _readyAvatar = null;
+    _readyMediaId = null;
+    _avatarAttached = false;
+    if (!isClosed) {
+      emit(
+        state.copyWith(
+          clearAvatar: true,
+          clearAvatarError: true,
+          selectingAvatar: false,
+          uploadingAvatar: false,
+        ),
+      );
+    }
+  }
+
   Future<void> loadCatalogs() => loadCatalog(ReferenceKind.travelStyles);
 
   final Set<ReferenceKind> _loadingCatalogs = {};
@@ -220,26 +497,29 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     _usernameDebounce?.cancel();
     _usernameRequestId++; // invalidates any check still in flight
 
+    _identityEdited = true;
     final username = value.trim();
+    final fields = Map<String, List<String>>.of(state.fieldErrors)
+      ..remove('username');
+    emit(state.copyWith(fieldErrors: fields));
 
     if (username.isEmpty) {
       emit(
         state.copyWith(
           usernameStatus: UsernameStatus.idle,
-          usernameMessage: '',
+          usernameMessage: 'Username is required.',
           normalizedUsername: '',
         ),
       );
       return;
     }
 
-    if (username.length < 3 || username.runes.length > 30) {
+    final shapeError = ProfileIdentityValidation.username(username);
+    if (shapeError != null) {
       emit(
         state.copyWith(
           usernameStatus: UsernameStatus.invalid,
-          usernameMessage: username.length < 3
-              ? 'At least 3 characters'
-              : 'At most 30 characters',
+          usernameMessage: shapeError,
           normalizedUsername: '',
         ),
       );
@@ -291,10 +571,41 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   // ---------------- saving ----------------
 
   Future<void> saveBasicInfo() async {
+    if (isClosed ||
+        state.selectingAvatar ||
+        state.uploadingAvatar ||
+        state.usernameStatus == UsernameStatus.checking ||
+        state.avatar != null) {
+      return;
+    }
+    final errors = <String, List<String>>{};
+    final nameError = ProfileIdentityValidation.fullName(
+      fullNameController.text,
+    );
+    final usernameError = ProfileIdentityValidation.username(
+      usernameController.text,
+    );
+    if (nameError != null) errors['full_name'] = [nameError];
+    if (usernameError != null) errors['username'] = [usernameError];
+    if (state.usernameStatus == UsernameStatus.invalid) {
+      errors['username'] = [
+        state.usernameMessage.isNotEmpty
+            ? state.usernameMessage
+            : 'Check your username.',
+      ];
+    }
+    if (state.usernameStatus == UsernameStatus.taken) {
+      errors['username'] = ['Username is already taken.'];
+    }
+    if (errors.isNotEmpty) {
+      emit(state.copyWith(fieldErrors: errors));
+      return;
+    }
     final ok = await _save(() async {
       await _commitCity();
       return _repo.saveSetup(
         fullName: fullNameController.text.trim(),
+        countryCode: state.countryCode,
         username: state.normalizedUsername.isNotEmpty
             ? state.normalizedUsername
             : usernameController.text.trim(),
@@ -336,7 +647,28 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   }
 
   void _accept(ProfileSetupResult result) {
-    final profile = result.profile;
+    var profile = result.profile;
+    final previous = currentUser?.state.profile;
+    if (profile != null && previous != null && previous.id != profile.id) {
+      throw ApiError(message: 'Your account changed. Reopen profile setup.');
+    }
+    if (profile != null &&
+        result.resourceFields.containsAll(const {
+          'name',
+          'username',
+          'email',
+          'email_verified_at',
+          'profile_completed',
+          'avatar_url',
+        })) {
+      if (!profile.locationIncluded && previous?.locationIncluded == true) {
+        profile = profile.withLocation(previous?.currentLocation);
+      }
+      currentUser?.cacheProfile(
+        profile,
+        expectedSession: PreferencesManager().sessionRevision,
+      );
+    }
     List<String> labels(Iterable<String> slugs, Map<String, String> mapping) =>
         List.unmodifiable(
           slugs.map(
@@ -395,16 +727,38 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   Future<ProfileSetupResult?> _save(
     Future<ProfileSetupResult> Function() action,
   ) async {
-    if (isClosed || state.isSaving) return null;
+    if (isClosed ||
+        state.isSaving ||
+        state.selectingAvatar ||
+        state.uploadingAvatar) {
+      return null;
+    }
 
     final session = PreferencesManager().sessionRevision;
-    emit(state.copyWith(status: ProfileSetupStatus.saving, errorMessage: ''));
+    emit(
+      state.copyWith(
+        status: ProfileSetupStatus.saving,
+        errorMessage: '',
+        fieldErrors: const {},
+      ),
+    );
     try {
       final result = await action();
       if (isClosed || session != PreferencesManager().sessionRevision) {
         return null;
       }
       _accept(result);
+      if (currentUser != null &&
+          !result.resourceFields.containsAll(const {
+            'name',
+            'username',
+            'email',
+            'email_verified_at',
+            'profile_completed',
+            'avatar_url',
+          })) {
+        unawaited(currentUser!.load());
+      }
       emit(state.copyWith(status: ProfileSetupStatus.editing));
       return result;
     } catch (e) {
@@ -415,6 +769,13 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
         state.copyWith(
           status: ProfileSetupStatus.failure,
           errorMessage: _messageFrom(e),
+          fieldErrors: e is ApiError ? e.fieldErrors : const {},
+          usernameStatus: e is ApiError && e.fieldErrors.containsKey('username')
+              ? UsernameStatus.invalid
+              : null,
+          usernameMessage: e is ApiError
+              ? e.fieldErrors['username']?.firstOrNull
+              : null,
         ),
       );
       return null;
@@ -428,6 +789,10 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   Future<void> close() {
     PreferencesManager().removeListener(_sessionChanged);
     _usernameDebounce?.cancel();
+    ++_avatarGeneration;
+    _uploadCancel?.cancel();
+    if (_ownsUpload) _mediaUpload.close();
+    fullNameController.removeListener(_identityChanged);
     pageController.dispose();
     fullNameController.dispose();
     usernameController.dispose();
