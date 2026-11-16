@@ -350,11 +350,7 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
             leadingWidth: 64,
             leading: Padding(
               padding: const EdgeInsets.all(8),
-              child: BackButtonWidget(
-                onTap: () => Navigator.maybePop(context),
-                size: 44,
-                iconSize: 24,
-              ),
+              child: BackButtonWidget(onTap: () => Navigator.maybePop(context)),
             ),
           ),
           body: BuddiesLoadingOverlay(

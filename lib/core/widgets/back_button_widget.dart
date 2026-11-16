@@ -1,18 +1,14 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/widgets/glass_surface.dart';
 
 class BackButtonWidget extends StatelessWidget {
-  const BackButtonWidget({
-    super.key,
-    this.onTap,
-    this.size = 44,
-    this.iconSize = 24,
-    this.enabled = true,
-  });
+  const BackButtonWidget({super.key, this.onTap, this.enabled = true});
+
+  /// The one app-wide back button: always a 44×44 glass circle, 24 icon.
+  static const double size = 44, iconSize = 24;
+
   final VoidCallback? onTap;
-  final double size, iconSize;
   final bool enabled;
 
   @override
@@ -22,7 +18,7 @@ class BackButtonWidget extends StatelessWidget {
     onPressed: enabled ? onTap ?? () => Navigator.of(context).maybePop() : null,
     style: IconButton.styleFrom(
       padding: EdgeInsets.zero,
-      minimumSize: Size.square(math.max(44, size)),
+      minimumSize: const Size.square(size),
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       shape: const CircleBorder(),
     ),

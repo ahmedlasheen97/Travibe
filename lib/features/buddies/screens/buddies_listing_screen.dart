@@ -61,8 +61,6 @@ class _ListingView extends StatelessWidget {
               child: Center(
                 child: BackButtonWidget(
                   onTap: () => Navigator.maybePop(context),
-                  size: 44,
-                  iconSize: 24,
                 ),
               ),
             ),

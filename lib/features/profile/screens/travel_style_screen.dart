@@ -135,7 +135,7 @@ class _TravelStyleScreenState extends State<TravelStyleScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: SizedBox(
-        height: 40,
+        height: 44,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -148,11 +148,9 @@ class _TravelStyleScreenState extends State<TravelStyleScreen> {
               ),
             ),
             Align(
-              alignment: Alignment.centerLeft,
+              alignment: AlignmentDirectional.centerStart,
               child: BackButtonWidget(
                 onTap: () => Navigator.of(context).maybePop(),
-                size: 36,
-                iconSize: 16,
               ),
             ),
           ],

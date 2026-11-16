@@ -106,7 +106,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
                 alignment: Alignment.center,
                 children: [
                   const Align(
-                    alignment: Alignment.centerLeft,
+                    alignment: AlignmentDirectional.centerStart,
                     child: BackButtonWidget(),
                   ),
                   Padding(
