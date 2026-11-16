@@ -236,10 +236,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           borderRadius: BorderRadius.circular(AppSizes.r28),
           borderSide: BorderSide.none,
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSizes.r28),
-          borderSide: const BorderSide(color: Color(0xFFDB4A3D)),
-        ),
       ),
     );
   }

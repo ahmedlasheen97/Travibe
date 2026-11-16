@@ -22,7 +22,6 @@ class ProfileSetupState {
   final bool selectingAvatar;
   final bool uploadingAvatar;
   final MediaUploadStage? avatarStage;
-  final String? countryCode;
   final Map<String, List<String>> fieldErrors;
   final bool restoring;
   final String? restoreError;
@@ -48,7 +47,6 @@ class ProfileSetupState {
     this.selectingAvatar = false,
     this.uploadingAvatar = false,
     this.avatarStage,
-    this.countryCode,
     this.fieldErrors = const {},
     this.restoring = false,
     this.restoreError,
@@ -77,7 +75,6 @@ class ProfileSetupState {
     MediaUploadStage? avatarStage,
     bool clearAvatar = false,
     bool clearAvatarError = false,
-    String? countryCode,
     Map<String, List<String>>? fieldErrors,
     bool? restoring,
     String? restoreError,
@@ -102,7 +99,6 @@ class ProfileSetupState {
       selectingAvatar: selectingAvatar ?? this.selectingAvatar,
       uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
       avatarStage: avatarStage ?? this.avatarStage,
-      countryCode: countryCode ?? this.countryCode,
       fieldErrors: fieldErrors ?? this.fieldErrors,
       restoring: restoring ?? this.restoring,
       restoreError: clearRestoreError

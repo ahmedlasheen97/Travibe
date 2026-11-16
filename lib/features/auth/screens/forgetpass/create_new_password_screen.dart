@@ -261,10 +261,6 @@ class _CreateNewPasswordScreenState extends State<CreateNewPasswordScreen> {
           borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(28)),
           borderSide: BorderSide.none,
         ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(28)),
-          borderSide: const BorderSide(color: Color(0xFFDB4A3D)),
-        ),
       ),
     );
   }

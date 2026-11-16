@@ -33,7 +33,6 @@ class ProfileSetupRepo {
 
   Future<List<ReferenceCountry>> loadCountries(String locale) =>
       CountriesRepo.shared.load(locale);
-
   Future<List<ReferenceItem>> loadCatalog(ReferenceKind kind) async {
     final items = ReferenceItem.parseCatalog(
       await _apiService.get('reference/${kind.path}'),
@@ -92,7 +91,6 @@ class ProfileSetupRepo {
     String? fullName,
     String? username,
     String? gender,
-    String? countryCode,
     int? avatarMediaId,
     List<String>? languages,
     List<String>? interests,
@@ -109,9 +107,6 @@ class ProfileSetupRepo {
           ProfileIdentityValidation.username(username) != null) {
         final error = ProfileIdentityValidation.username(username)!;
         errors['username'] = [error];
-      }
-      if (countryCode != null && !RegExp(r'^[A-Z]{2}$').hasMatch(countryCode)) {
-        errors['country_code'] = ['Select a valid country.'];
       }
       if (avatarMediaId != null && avatarMediaId < 1) {
         errors['avatar_media_id'] = ['Invalid photo.'];
@@ -142,7 +137,6 @@ class ProfileSetupRepo {
           'full_name': ?fullName,
           'username': ?username,
           'gender': ?gender,
-          'country_code': ?countryCode,
           'avatar_media_id': ?avatarMediaId,
           'languages_spoken': ?languageSlugs,
           'interests': ?interestSlugs,
