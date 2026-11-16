@@ -370,63 +370,126 @@ class _CommentsViewState extends State<_CommentsView> {
     ),
   ];
 
-  @override
-  Widget build(BuildContext context) =>
-      BlocBuilder<CommentsCubit, CommentsState>(
-        builder: (context, state) {
-          if (widget.embedded) return _embedded(state);
-          final cubit = context.read<CommentsCubit>();
-          return Material(
-            color: const Color(0xFF0A0A0A),
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              side: BorderSide(color: Color(0x66595959)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: DefaultTextStyle(
-              style: commentTextStyle,
-              child: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16, bottom: 32),
-                      child: Container(
-                        width: 112,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: DarkColors.whiteColor,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _title(state),
-                    ),
-                    const SizedBox(height: 24),
-                    if (state.syncError != null)
-                      _message(
-                        'Count refresh failed: ${state.syncError!.message}',
-                        onRetry: state.busy || state.syncing
-                            ? null
-                            : cubit.synchronize,
-                      ),
-                    if (_syncSpinner(state)) _topSpinner(),
-                    Expanded(child: _thread(state)),
-                    if (_mutationError != null)
-                      _message(
-                        _mutationError!,
-                        onDismiss: () => setState(() => _mutationError = null),
-                      ),
-                    _composer(state),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+  /// Typed text that hasn't been posted (or an edit that changed the text).
+  bool get _hasDraft {
+    final text = _text.text.trim();
+    if (text.isEmpty) return false;
+    final editing = _editing;
+    return editing == null || text != (editing.content ?? '').trim();
+  }
+
+  bool _confirmingDiscard = false;
+  double _draftDrag = 0;
+
+  /// Back, swipe-down or the barrier with a draft asks before leaving the
+  /// sheet (or the Post screen when embedded).
+  Future<void> _confirmDiscard() async {
+    if (_confirmingDiscard) return;
+    _confirmingDiscard = true;
+    try {
+      final discard = await showGlassConfirmDialog(
+        context,
+        title: 'Discard comment?',
+        message: 'Your comment won’t be posted.',
+        confirmLabel: 'Discard',
       );
+      if (discard && mounted) {
+        _text.clear();
+        Navigator.of(context).pop();
+      }
+    } finally {
+      _confirmingDiscard = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: _text,
+    builder: (context, child) {
+      final draft = _hasDraft;
+      return PopScope(
+        canPop: !draft,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _confirmDiscard();
+        },
+        // The sheet's own drag-to-close pops without asking PopScope, so a
+        // downward drag outside the list is caught here while drafting.
+        child: GestureDetector(
+          onVerticalDragStart: draft && !widget.embedded
+              ? (_) => _draftDrag = 0
+              : null,
+          onVerticalDragUpdate: draft && !widget.embedded
+              ? (details) => _draftDrag += details.delta.dy
+              : null,
+          onVerticalDragEnd: draft && !widget.embedded
+              ? (details) {
+                  if (_draftDrag > 40 || (details.primaryVelocity ?? 0) > 300) {
+                    _confirmDiscard();
+                  }
+                }
+              : null,
+          child: child,
+        ),
+      );
+    },
+    child: _content(),
+  );
+
+  Widget _content() => BlocBuilder<CommentsCubit, CommentsState>(
+    builder: (context, state) {
+      if (widget.embedded) return _embedded(state);
+      final cubit = context.read<CommentsCubit>();
+      return Material(
+        color: const Color(0xFF0A0A0A),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          side: BorderSide(color: Color(0x66595959)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: DefaultTextStyle(
+          style: commentTextStyle,
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 16, bottom: 32),
+                  child: Container(
+                    width: 112,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: DarkColors.whiteColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _title(state),
+                ),
+                const SizedBox(height: 24),
+                if (state.syncError != null)
+                  _message(
+                    'Count refresh failed: ${state.syncError!.message}',
+                    onRetry: state.busy || state.syncing
+                        ? null
+                        : cubit.synchronize,
+                  ),
+                if (_syncSpinner(state)) _topSpinner(),
+                Expanded(child: _thread(state)),
+                if (_mutationError != null)
+                  _message(
+                    _mutationError!,
+                    onDismiss: () => setState(() => _mutationError = null),
+                  ),
+                _composer(state),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+  );
 
   /// Count sync stays silent once anything (comments or the first-load
   /// spinner) is on screen.

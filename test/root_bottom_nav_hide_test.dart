@@ -214,4 +214,26 @@ void main() {
     await tester.pump(const Duration(seconds: 5));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Android back on another tab returns to Home; on Home it exits', (
+    tester,
+  ) async {
+    await pumpRoot(tester);
+    tester.widget<BottomNavigationBar>(bar()).onTap!(3);
+    await tester.pumpAndSettle();
+    expect(tester.widget<BottomNavigationBar>(bar()).currentIndex, 3);
+
+    final handledOnBuddies = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(handledOnBuddies, isTrue);
+    expect(tester.widget<BottomNavigationBar>(bar()).currentIndex, 0);
+    expect(find.byType(Root), findsOneWidget);
+
+    // On Home nothing blocks the pop, so the system closes the app.
+    final shell = tester.widget<PopScope<Object?>>(
+      find.byWidgetPredicate((w) => w is PopScope && w.child is Scaffold),
+    );
+    expect(shell.canPop, isTrue);
+    expect(tester.takeException(), isNull);
+  });
 }

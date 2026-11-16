@@ -14,6 +14,7 @@ import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/cubit/story_editor_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_canvas.dart';
+import 'package:travibe/features/stories/widgets/discard_story_dialog.dart';
 import 'package:travibe/features/stories/widgets/story_image_exporter.dart';
 import 'package:travibe/features/stories/widgets/story_text_entry.dart';
 import 'package:travibe/features/stories/widgets/story_audience_sheet.dart';
@@ -101,6 +102,25 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       StoryUploadJob(draft: _editor.state, viewport: _export.viewportSize),
     );
     Navigator.of(context).pop();
+  }
+
+  bool _confirmingLeave = false;
+
+  /// Back (button, Android back, iOS swipe) leaves drawing mode first, then
+  /// asks before discarding the story. Ignored while publishing.
+  Future<void> _leave() async {
+    if (_publisher.state.busy || _confirmingLeave) return;
+    if (_drawing) {
+      _setDrawing(false);
+      return;
+    }
+    _confirmingLeave = true;
+    try {
+      final discard = await showDiscardStoryDialog(context);
+      if (discard && mounted) Navigator.of(context).pop();
+    } finally {
+      _confirmingLeave = false;
+    }
   }
 
   bool _enteringText = false;
@@ -224,7 +244,11 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       }
     },
     builder: (context, publishing) => PopScope(
-      canPop: !publishing.busy,
+      // Publishing and confirmed discards pop directly via Navigator.pop.
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _leave();
+      },
       child: AbsorbPointer(
         absorbing: publishing.busy,
         child: Scaffold(
@@ -266,7 +290,7 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                             children: [
                               BackButtonWidget(
                                 key: const ValueKey('story-back'),
-                                onTap: () => Navigator.pop(context),
+                                onTap: _leave,
                               ),
                               const SizedBox(width: 12),
                               Expanded(

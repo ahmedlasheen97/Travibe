@@ -317,6 +317,8 @@ void main() {
           expect(selected.layers, isEmpty);
           await tester.tap(find.byKey(const ValueKey('story-back')));
           await tester.pumpAndSettle();
+          await tester.tap(find.text('Discard'));
+          await tester.pumpAndSettle();
           expect(find.byType(StoryEditorScreen), findsNothing);
           expect(find.byType(HomeStories), findsOneWidget);
           expect(tester.takeException(), isNull);
@@ -339,6 +341,8 @@ void main() {
       expect(repo.picks, 0);
       expect(find.byType(StoryEditorScreen), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('story-back')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
       expect(repo.recoveries, 1);
       expect(find.byType(StoryEditorScreen), findsNothing);
