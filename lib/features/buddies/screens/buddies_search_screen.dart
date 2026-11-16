@@ -131,8 +131,6 @@ class _SearchViewState extends State<_SearchView> {
                 child: Center(
                   child: BackButtonWidget(
                     onTap: () => Navigator.maybePop(context),
-                    size: 44,
-                    iconSize: 24,
                   ),
                 ),
               ),

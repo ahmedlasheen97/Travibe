@@ -693,7 +693,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       child: SizedBox(
-        height: AppSizes.h40,
+        height: AppSizes.h44,
         child: Stack(
           alignment: Alignment.center,
           children: [
@@ -706,12 +706,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             ),
             Align(
-              alignment: Alignment.centerLeft,
-              child: BackButtonWidget(
-                onTap: _leave,
-                size: AppSizes.w36,
-                iconSize: AppSizes.w16,
-              ),
+              alignment: AlignmentDirectional.centerStart,
+              child: BackButtonWidget(onTap: _leave),
             ),
           ],
         ),

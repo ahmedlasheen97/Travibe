@@ -285,10 +285,10 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
                 ),
               ),
             ),
-          Positioned(top: 12, left: 16, child: BackButtonWidget()),
-          Positioned(
+          PositionedDirectional(top: 12, start: 16, child: BackButtonWidget()),
+          PositionedDirectional(
             top: 12,
-            right: 16,
+            end: 16,
             child: IconButton.filled(
               tooltip: _video
                   ? 'Save video to gallery'

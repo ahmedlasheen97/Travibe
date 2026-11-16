@@ -62,7 +62,7 @@ void main() {
     );
   });
   testWidgets(
-    'compact circle keeps header layout and supports high contrast without blur',
+    'always 44 glass circle with 24 icon and supports high contrast without blur',
     (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -71,20 +71,39 @@ void main() {
             child: Scaffold(
               body: Align(
                 alignment: Alignment.topLeft,
-                child: SizedBox(
-                  height: 40,
-                  child: BackButtonWidget(size: 36, iconSize: 16, onTap: () {}),
-                ),
+                child: BackButtonWidget(onTap: () {}),
               ),
             ),
           ),
         ),
       );
       expect(find.byType(BackdropFilter), findsNothing);
-      expect(tester.getSize(find.byType(GlassSurface)), const Size(36, 36));
+      expect(tester.getSize(find.byType(GlassSurface)), const Size(44, 44));
+      expect(tester.getSize(find.byType(SvgPicture)), const Size(24, 24));
       expect(tester.takeException(), isNull);
     },
   );
+  testWidgets('RTL places directional Back at the right edge', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Scaffold(
+            body: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: BackButtonWidget(),
+            ),
+          ),
+        ),
+      ),
+    );
+    final rect = tester.getRect(find.byType(BackButtonWidget));
+    expect(rect.right, 800);
+    expect(
+      tester.widget<SvgPicture>(find.byType(SvgPicture)).matchTextDirection,
+      true,
+    );
+  });
   testWidgets(
     'default Back pops an existing route and safely leaves a root route in place',
     (tester) async {

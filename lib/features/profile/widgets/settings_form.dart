@@ -62,7 +62,7 @@ class SettingsFormScaffold extends StatelessWidget {
                       ),
                     ),
                     Align(
-                      alignment: Alignment.centerLeft,
+                      alignment: AlignmentDirectional.centerStart,
                       child: BackButtonWidget(enabled: !busy),
                     ),
                   ],

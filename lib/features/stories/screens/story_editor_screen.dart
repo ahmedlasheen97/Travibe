@@ -267,8 +267,6 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                               BackButtonWidget(
                                 key: const ValueKey('story-back'),
                                 onTap: () => Navigator.pop(context),
-                                size: 44,
-                                iconSize: 20,
                               ),
                               const SizedBox(width: 12),
                               Expanded(

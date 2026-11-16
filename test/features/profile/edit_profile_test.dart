@@ -7,6 +7,8 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
+import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/glass_surface.dart';
 import 'package:travibe/features/profile/cubit/edit_profile_cubit.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
@@ -467,6 +469,16 @@ void main() {
             )
             .onPressed,
         isNull,
+      );
+      // Edit Profile uses the one shared 44×44 back button.
+      expect(
+        tester.getSize(
+          find.descendant(
+            of: find.byType(BackButtonWidget),
+            matching: find.byType(GlassSurface),
+          ),
+        ),
+        const Size(44, 44),
       );
       await tester.enterText(find.byKey(const ValueKey('full_name')), 'Draft');
       await tester.tap(find.byTooltip('Back'));

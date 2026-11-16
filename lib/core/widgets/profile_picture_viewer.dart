@@ -129,9 +129,9 @@ class _ProfilePictureViewerState extends State<ProfilePictureViewer>
               ),
             ),
           ),
-          Positioned(
+          PositionedDirectional(
             top: 0,
-            left: 0,
+            start: 0,
             child: SafeArea(
               child: Padding(
                 padding: EdgeInsets.all(AppSizes.adaptiveWidth(16)),

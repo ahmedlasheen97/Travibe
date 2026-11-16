@@ -8,6 +8,7 @@ class CustomBottomNav extends StatelessWidget {
   final ValueChanged<int> onItemSelected;
 
   const CustomBottomNav({
+    super.key,
     required this.currentIndex,
     required this.onItemSelected,
   });
@@ -17,10 +18,7 @@ class CustomBottomNav extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(40),
       child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: 10,
-          sigmaY: 10,
-        ),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
           height: 78,
 
@@ -28,10 +26,7 @@ class CustomBottomNav extends StatelessWidget {
             color: const Color(0x801F1F1F), // #1F1F1F 50%
             borderRadius: BorderRadius.circular(40),
 
-            border: Border.all(
-              color: const Color(0x555F5F5F),
-              width: 1,
-            ),
+            border: Border.all(color: const Color(0x555F5F5F), width: 1),
           ),
 
           child: Row(
@@ -53,9 +48,7 @@ class CustomBottomNav extends StatelessWidget {
                 onTap: onItemSelected,
               ),
 
-              _PlusButton(
-                onTap: () => onItemSelected(2),
-              ),
+              _PlusButton(onTap: () => onItemSelected(2)),
 
               _NavItem(
                 index: 3,
@@ -79,6 +72,7 @@ class CustomBottomNav extends StatelessWidget {
     );
   }
 }
+
 class _NavItem extends StatelessWidget {
   final int index;
   final int currentIndex;
@@ -113,9 +107,7 @@ class _NavItem extends StatelessWidget {
               height: 22,
 
               colorFilter: ColorFilter.mode(
-                selected
-                    ? Colors.white
-                    : const Color(0xFF9E9E9E),
+                selected ? Colors.white : const Color(0xFF9E9E9E),
                 BlendMode.srcIn,
               ),
             ),
@@ -128,9 +120,7 @@ class _NavItem extends StatelessWidget {
                 fontFamily: 'Plus Jakarta Sans',
                 fontSize: 12,
                 fontWeight: FontWeight.w400,
-                color: selected
-                    ? Colors.white
-                    : const Color(0xFF9E9E9E),
+                color: selected ? Colors.white : const Color(0xFF9E9E9E),
               ),
             ),
           ],
@@ -139,12 +129,11 @@ class _NavItem extends StatelessWidget {
     );
   }
 }
+
 class _PlusButton extends StatelessWidget {
   final VoidCallback onTap;
 
-  const _PlusButton({
-    required this.onTap,
-  });
+  const _PlusButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
