@@ -66,6 +66,10 @@ void main() {
       expect(editor.onSubmit, isNotNull);
       await tester.pageBack();
       await tester.pumpAndSettle();
+      // Leaving the editor asks before discarding the story.
+      expect(find.text('Discard story?'), findsOneWidget);
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
       expect(find.text('Add story'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },

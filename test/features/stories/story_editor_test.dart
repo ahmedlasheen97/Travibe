@@ -315,6 +315,8 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('story-back')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
       expect(find.byType(StoryEditorScreen), findsNothing);
     },
   );
@@ -480,4 +482,35 @@ void main() {
       expect(requests, 0);
     },
   );
+
+  testWidgets('Android back asks before discarding; Cancel stays in editor', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard story?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StoryEditorScreen), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StoryEditorScreen), findsNothing);
+  });
+
+  testWidgets('Android back in drawing mode leaves drawing, not the editor', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.tap(find.byKey(const ValueKey('story-draw-tool')));
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard story?'), findsNothing);
+    expect(find.byType(StoryEditorScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('story-draw-tool')), findsOneWidget);
+  });
 }

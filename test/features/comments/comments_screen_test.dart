@@ -328,4 +328,65 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  Future<void> pushed(WidgetTester tester) async {
+    await cubit.load();
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (context, child) => MaterialApp(
+          theme: darkTheme,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (_) => BlocProvider.value(
+                      value: cubit,
+                      child: const CommentsScreen(),
+                    ),
+                  ),
+                ),
+                child: const Text('Open comments'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open comments'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('back with an empty composer closes without asking', (
+    tester,
+  ) async {
+    await pushed(tester);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard comment?'), findsNothing);
+    expect(find.byType(CommentsScreen), findsNothing);
+  });
+
+  testWidgets('back with a typed comment asks; Cancel keeps the draft', (
+    tester,
+  ) async {
+    await pushed(tester);
+    await tester.enterText(find.byType(TextField), 'Half written');
+    await tester.pump();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.text('Discard comment?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentsScreen), findsOneWidget);
+    expect(find.text('Half written'), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Discard'));
+    await tester.pumpAndSettle();
+    expect(find.byType(CommentsScreen), findsNothing);
+    expect(repo.items, isEmpty);
+  });
 }

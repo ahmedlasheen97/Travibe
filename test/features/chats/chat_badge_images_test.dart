@@ -775,7 +775,48 @@ void main() {
       await tester.tap(find.byType(InkWell));
       await tester.pumpAndSettle();
       expect(find.byType(ChatImageViewer), findsOneWidget);
-      await tester.pageBack();
+      await tester.tap(find.byTooltip('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatMessageBubble), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+      debugNetworkImageHttpClientProvider = null;
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    },
+  );
+  testWidgets(
+    'swipe down closes the fullscreen viewer; X sits where Back was',
+    (tester) async {
+      final client = ImageClient(portrait)..gate.complete();
+      debugNetworkImageHttpClientProvider = () => client;
+      await tester.pumpWidget(
+        harness(
+          Scaffold(
+            body: ChatMessageBubble(
+              message: ChatMessage(
+                id: 'image',
+                senderId: '7',
+                kind: ChatMessageKind.image,
+                mediaUrl: Uri.parse('https://fixtures.invalid/image.png'),
+              ),
+              outgoing: true,
+            ),
+          ),
+        ),
+      );
+      await tester.runAsync(
+        () => precacheImage(
+          const NetworkImage('https://fixtures.invalid/image.png'),
+          tester.element(find.byType(ChatMessageBubble)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(InkWell));
+      await tester.pumpAndSettle();
+      expect(find.byType(ChatImageViewer), findsOneWidget);
+      expect(find.byTooltip('Close'), findsOneWidget);
+      expect(find.byTooltip('Back'), findsNothing);
+      await tester.drag(find.byType(PageView), const Offset(0, 300));
       await tester.pumpAndSettle();
       expect(find.byType(ChatMessageBubble), findsOneWidget);
       await tester.pumpWidget(const SizedBox());

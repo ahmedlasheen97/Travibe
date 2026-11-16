@@ -326,125 +326,133 @@ class _RootState extends State<Root> {
           barHeight: navHeight,
           child: TravibeToastScope(
             controller: _toasts,
-            child: Scaffold(
-              extendBody: true,
-              body: Stack(
-                children: [
-                  NotificationListener<ScrollNotification>(
-                    onNotification: _navVisibility.handleScroll,
-                    // Fixed clearance: extendBody's animated inset would relayout
-                    // the tabs on every frame of the slide.
-                    child: Builder(
-                      builder: (context) => MediaQuery(
-                        data: MediaQuery.of(context).copyWith(
-                          padding: MediaQuery.paddingOf(
-                            context,
-                          ).copyWith(bottom: navHeight),
-                          viewPadding: MediaQuery.viewPaddingOf(
-                            context,
-                          ).copyWith(bottom: safeBottom),
-                        ),
-                        child: IndexedStack(
-                          index: _currentIndex,
-                          children: [
-                            for (var i = 0; i < screens.length; i++)
-                              _visitedTabs.contains(i)
-                                  ? TickerMode(
-                                      enabled: i == _currentIndex,
-                                      child: screens[i],
-                                    )
-                                  : const SizedBox.shrink(),
-                          ],
+            // Android back on another tab goes to Home first; on Home it
+            // leaves the app.
+            child: PopScope(
+              canPop: _currentIndex == 0,
+              onPopInvokedWithResult: (didPop, _) {
+                if (!didPop) _showTab(0);
+              },
+              child: Scaffold(
+                extendBody: true,
+                body: Stack(
+                  children: [
+                    NotificationListener<ScrollNotification>(
+                      onNotification: _navVisibility.handleScroll,
+                      // Fixed clearance: extendBody's animated inset would relayout
+                      // the tabs on every frame of the slide.
+                      child: Builder(
+                        builder: (context) => MediaQuery(
+                          data: MediaQuery.of(context).copyWith(
+                            padding: MediaQuery.paddingOf(
+                              context,
+                            ).copyWith(bottom: navHeight),
+                            viewPadding: MediaQuery.viewPaddingOf(
+                              context,
+                            ).copyWith(bottom: safeBottom),
+                          ),
+                          child: IndexedStack(
+                            index: _currentIndex,
+                            children: [
+                              for (var i = 0; i < screens.length; i++)
+                                _visitedTabs.contains(i)
+                                    ? TickerMode(
+                                        enabled: i == _currentIndex,
+                                        child: screens[i],
+                                      )
+                                    : const SizedBox.shrink(),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  TravibeToastHost(
-                    controller: _toasts,
-                    visibility: _navVisibility,
-                    navHeight: navHeight,
-                    safeBottom: safeBottom,
-                  ),
-                ],
-              ),
-              bottomNavigationBar: HideableBottomBar(
-                visibility: _navVisibility,
-                child: LiquidGlassBottomNav(
-                  navigation: BottomNavigationBar(
-                    currentIndex: _currentIndex,
-                    onTap: (value) {
-                      _navVisibility.show();
-                      if (value == 0) {
-                        _push?.refreshCount();
-                        unawaited(_chatUnread?.refresh() ?? Future.value());
-                      }
-                      if (value == 2) {
-                        _showCreateOptions();
-                        return;
-                      }
-                      if (value == 0 && _currentIndex == 0) {
-                        _homeRefreshes.value++;
-                        return;
-                      }
-                      if (value == 3 && _currentIndex == 3) {
-                        _buddiesRefreshes.value++;
-                        return;
-                      }
-                      if (value == 4 && _currentIndex == 4) {
-                        _profileRefreshes.value++;
-                        return;
-                      }
-                      setState(() {
-                        _currentIndex = value;
-                        _visitedTabs.add(value);
-                      });
-                    },
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    items: [
-                      for (int i = 0; i < 5; i++)
-                        if (i == 2)
-                          BottomNavigationBarItem(
-                            icon: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(24),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFFE45C10,
-                                    ).withValues(alpha: 0.6),
-                                    blurRadius: 10,
-                                    spreadRadius: 0,
-                                    offset: Offset.zero,
-                                  ),
-                                ],
+                    TravibeToastHost(
+                      controller: _toasts,
+                      visibility: _navVisibility,
+                      navHeight: navHeight,
+                      safeBottom: safeBottom,
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: HideableBottomBar(
+                  visibility: _navVisibility,
+                  child: LiquidGlassBottomNav(
+                    navigation: BottomNavigationBar(
+                      currentIndex: _currentIndex,
+                      onTap: (value) {
+                        _navVisibility.show();
+                        if (value == 0) {
+                          _push?.refreshCount();
+                          unawaited(_chatUnread?.refresh() ?? Future.value());
+                        }
+                        if (value == 2) {
+                          _showCreateOptions();
+                          return;
+                        }
+                        if (value == 0 && _currentIndex == 0) {
+                          _homeRefreshes.value++;
+                          return;
+                        }
+                        if (value == 3 && _currentIndex == 3) {
+                          _buddiesRefreshes.value++;
+                          return;
+                        }
+                        if (value == 4 && _currentIndex == 4) {
+                          _profileRefreshes.value++;
+                          return;
+                        }
+                        setState(() {
+                          _currentIndex = value;
+                          _visitedTabs.add(value);
+                        });
+                      },
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      items: [
+                        for (int i = 0; i < 5; i++)
+                          if (i == 2)
+                            BottomNavigationBarItem(
+                              icon: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(24),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(
+                                        0xFFE45C10,
+                                      ).withValues(alpha: 0.6),
+                                      blurRadius: 10,
+                                      spreadRadius: 0,
+                                      offset: Offset.zero,
+                                    ),
+                                  ],
+                                ),
+                                child: SvgPicture.asset(
+                                  'assets/images/home/Component 53 (1).svg',
+                                  width: AppSizes.w42,
+                                  height: AppSizes.h42,
+                                ),
                               ),
-                              child: SvgPicture.asset(
-                                'assets/images/home/Component 53 (1).svg',
-                                width: AppSizes.w42,
-                                height: AppSizes.h42,
+                              label: ' ',
+                            )
+                          else
+                            BottomNavigationBarItem(
+                              icon: SvgPicture.asset(
+                                i == _currentIndex
+                                    ? _filledIcons[i]
+                                    : _outlineIcons[i],
+                                width: 22,
+                                height: 22,
                               ),
+                              label: [
+                                'Home',
+                                'Explore',
+                                '',
+                                'Buddies',
+                                'Profile',
+                              ][i],
                             ),
-                            label: ' ',
-                          )
-                        else
-                          BottomNavigationBarItem(
-                            icon: SvgPicture.asset(
-                              i == _currentIndex
-                                  ? _filledIcons[i]
-                                  : _outlineIcons[i],
-                              width: 22,
-                              height: 22,
-                            ),
-                            label: [
-                              'Home',
-                              'Explore',
-                              '',
-                              'Buddies',
-                              'Profile',
-                            ][i],
-                          ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),

@@ -7,6 +7,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:dio/dio.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/swipe_down_dismiss.dart';
 import '../data/chat_image_saver.dart';
 import '../data/chat_device_media.dart';
 
@@ -36,8 +37,24 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
   late final PageController _pages;
   int _index = 0;
   final _thumbnails = ScrollController();
+  final _zooms = <int, TransformationController>{};
+  bool _zoomed = false;
+
+  TransformationController _zoomFor(int index) => _zooms.putIfAbsent(
+    index,
+    () => TransformationController()..addListener(_zoomChanged),
+  );
+
+  // Swipe-down closes only while the current image is not zoomed, so
+  // panning a zoomed image wins the gesture.
+  void _zoomChanged() {
+    final zoomed = (_zooms[_index]?.value.getMaxScaleOnAxis() ?? 1) > 1.01;
+    if (zoomed != _zoomed && mounted) setState(() => _zoomed = zoomed);
+  }
+
   void _select(int index) {
     setState(() => _index = index);
+    _zoomChanged();
     if (_thumbnails.hasClients) {
       final target =
           (index * 64 - _thumbnails.position.viewportDimension / 2 + 28).clamp(
@@ -152,6 +169,9 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
     _cancel?.cancel();
     _pages.dispose();
     _thumbnails.dispose();
+    for (final zoom in _zooms.values) {
+      zoom.dispose();
+    }
     if (widget.saver == null) _saver.dispose();
     super.dispose();
   }
@@ -166,49 +186,56 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
           Positioned.fill(
             top: 68,
             bottom: _media.length > 1 ? 96 : 0,
-            child: !_active
-                ? const Center(child: Text('Sign in again to view this image.'))
-                : PageView.builder(
-                    controller: _pages,
-                    itemCount: _media.length,
-                    onPageChanged: _select,
-                    itemBuilder: (context, index) {
-                      final item = _media[index];
-                      if (item.kind == ChatMessageKind.video) {
-                        return Center(
-                          child: index == _index
-                              ? ChatVideoMessage(
-                                  url: item.mediaUrl,
-                                  width: MediaQuery.sizeOf(context).width,
-                                  maxHeight:
-                                      (MediaQuery.sizeOf(context).height -
-                                              MediaQuery.paddingOf(
-                                                context,
-                                              ).vertical -
-                                              180)
-                                          .clamp(60.0, double.infinity),
-                                )
-                              : const SizedBox(),
-                        );
-                      }
-                      return InteractiveViewer(
-                        minScale: .5,
-                        maxScale: 5,
-                        child: Center(
-                          child: Image.network(
-                            item.mediaUrl!.toString(),
-                            fit: BoxFit.contain,
-                            loadingBuilder: (_, child, progress) =>
-                                progress == null
-                                ? child
-                                : const AppActivityIndicator(),
-                            errorBuilder: (_, _, _) =>
-                                const Text('Image unavailable'),
+            child: SwipeDownDismiss(
+              enabled: !_zoomed,
+              onDismiss: () => Navigator.of(context).maybePop(),
+              child: !_active
+                  ? const Center(
+                      child: Text('Sign in again to view this image.'),
+                    )
+                  : PageView.builder(
+                      controller: _pages,
+                      itemCount: _media.length,
+                      onPageChanged: _select,
+                      itemBuilder: (context, index) {
+                        final item = _media[index];
+                        if (item.kind == ChatMessageKind.video) {
+                          return Center(
+                            child: index == _index
+                                ? ChatVideoMessage(
+                                    url: item.mediaUrl,
+                                    width: MediaQuery.sizeOf(context).width,
+                                    maxHeight:
+                                        (MediaQuery.sizeOf(context).height -
+                                                MediaQuery.paddingOf(
+                                                  context,
+                                                ).vertical -
+                                                180)
+                                            .clamp(60.0, double.infinity),
+                                  )
+                                : const SizedBox(),
+                          );
+                        }
+                        return InteractiveViewer(
+                          transformationController: _zoomFor(index),
+                          minScale: .5,
+                          maxScale: 5,
+                          child: Center(
+                            child: Image.network(
+                              item.mediaUrl!.toString(),
+                              fit: BoxFit.contain,
+                              loadingBuilder: (_, child, progress) =>
+                                  progress == null
+                                  ? child
+                                  : const AppActivityIndicator(),
+                              errorBuilder: (_, _, _) =>
+                                  const Text('Image unavailable'),
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                        );
+                      },
+                    ),
+            ),
           ),
           const Positioned(
             top: 22,
@@ -285,7 +312,11 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
                 ),
               ),
             ),
-          PositionedDirectional(top: 12, start: 16, child: BackButtonWidget()),
+          const PositionedDirectional(
+            top: 12,
+            start: 16,
+            child: BackButtonWidget.close(),
+          ),
           PositionedDirectional(
             top: 12,
             end: 16,

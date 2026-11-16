@@ -691,4 +691,19 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+
+  testWidgets('swipe down closes the viewer; a short drag springs back', (
+    tester,
+  ) async {
+    await open(tester, ViewerRepo());
+    final taps = find.byKey(const ValueKey('story-viewer-taps'));
+    await tester.drag(taps, const Offset(0, 60));
+    await tester.pumpAndSettle(const Duration(milliseconds: 20));
+    expect(find.byType(StoryViewerScreen), findsOneWidget);
+
+    await tester.drag(taps, const Offset(0, 300));
+    await tester.pumpAndSettle(const Duration(milliseconds: 20));
+    expect(find.byType(StoryViewerScreen), findsNothing);
+    expect(find.text('Open viewer'), findsOneWidget);
+  });
 }

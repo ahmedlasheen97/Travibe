@@ -186,6 +186,8 @@ void main() {
       expect(current(tester), same(before));
       await tester.tap(find.byKey(const ValueKey('story-back')));
       await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
       expect(find.byType(StoryEditorScreen), findsNothing);
       expect(find.text('Open story editor'), findsOneWidget);
       expect(tester.takeException(), isNull);

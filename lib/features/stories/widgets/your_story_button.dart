@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
@@ -46,6 +47,19 @@ class YourStoryButton extends StatefulWidget {
 
 class _YourStoryButtonState extends State<YourStoryButton> {
   final _menu = MenuController();
+  bool _menuOpen = false;
+
+  void _menuChanged(bool open) {
+    if (!mounted || open == _menuOpen) return;
+    // MenuAnchor can close mid-frame (e.g. on unmount); defer the rebuild.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _menuChanged(open));
+      return;
+    }
+    setState(() => _menuOpen = open);
+  }
+
   final _session = PreferencesManager();
   late int _acceptedSession;
   Timer? _expiry;
@@ -153,109 +167,121 @@ class _YourStoryButtonState extends State<YourStoryButton> {
         ),
       ),
     );
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(
-        padding: window.padding,
-        viewPadding: window.viewPadding,
-        viewInsets: window.viewInsets,
-      ),
-      child: MenuAnchor(
-        controller: _menu,
-        onClose: () => _expiry?.cancel(),
-        useRootOverlay: true,
-        crossAxisUnconstrained: false,
-        consumeOutsideTap: true,
-        alignmentOffset: const Offset(0, 8),
-        reservedPadding: EdgeInsets.fromLTRB(
-          padding.left + 8,
-          padding.top + 8,
-          padding.right + 8,
-          padding.bottom + 8,
+    // The menu lives in an overlay, not a route: Android back closes it
+    // first instead of leaving the app.
+    return PopScope(
+      canPop: !_menuOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _menu.close();
+      },
+      child: MediaQuery(
+        data: MediaQuery.of(context).copyWith(
+          padding: window.padding,
+          viewPadding: window.viewPadding,
+          viewInsets: window.viewInsets,
         ),
-        style: MenuStyle(
-          backgroundColor: const WidgetStatePropertyAll(Color(0xFF171717)),
-          surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
-          shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        child: MenuAnchor(
+          controller: _menu,
+          onOpen: () => _menuChanged(true),
+          onClose: () {
+            _expiry?.cancel();
+            _menuChanged(false);
+          },
+          useRootOverlay: true,
+          crossAxisUnconstrained: false,
+          consumeOutsideTap: true,
+          alignmentOffset: const Offset(0, 8),
+          reservedPadding: EdgeInsets.fromLTRB(
+            padding.left + 8,
+            padding.top + 8,
+            padding.right + 8,
+            padding.bottom + 8,
           ),
-          padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
-          elevation: const WidgetStatePropertyAll(8),
-          alignment: AlignmentDirectional.bottomStart,
-        ),
-        menuChildren: [
-          MenuItemButton(
-            key: const ValueKey('view-my-story'),
-            onPressed: widget.onViewStory == null
-                ? null
-                : () {
-                    _menu.close();
-                    if (_hasActiveStory) widget.onViewStory?.call();
-                  },
-            style: rowStyle,
-            semanticsLabel: widget.onViewStory == null
-                ? '${widget.viewStoryLabel}. Viewer unavailable.'
-                : widget.viewStoryLabel,
-            leadingIcon: SvgPicture.asset(
-              'assets/images/interactions/story.svg',
-              width: 24,
-              height: 24,
+          style: MenuStyle(
+            backgroundColor: const WidgetStatePropertyAll(Color(0xFF171717)),
+            surfaceTintColor: const WidgetStatePropertyAll(Colors.transparent),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(widget.viewStoryLabel),
-                if (widget.onViewStory == null)
-                  const Text(
-                    'Viewer unavailable',
-                    style: TextStyle(fontSize: 11, color: Colors.white60),
-                  ),
-              ],
-            ),
+            padding: const WidgetStatePropertyAll(EdgeInsets.all(8)),
+            elevation: const WidgetStatePropertyAll(8),
+            alignment: AlignmentDirectional.bottomStart,
           ),
-          MenuItemButton(
-            key: const ValueKey('add-new-story'),
-            style: rowStyle,
-            leadingIcon: SvgPicture.asset(
-              'assets/images/interactions/add.svg',
-              width: 24,
-              height: 24,
-            ),
-            onPressed: () {
-              _menu.close();
-              widget.onAddStory?.call();
-            },
-            child: Text(widget.addStoryLabel),
-          ),
-          if (widget.onViewPicture case final viewPicture?)
+          menuChildren: [
             MenuItemButton(
-              key: const ValueKey('view-profile-picture'),
+              key: const ValueKey('view-my-story'),
+              onPressed: widget.onViewStory == null
+                  ? null
+                  : () {
+                      _menu.close();
+                      if (_hasActiveStory) widget.onViewStory?.call();
+                    },
+              style: rowStyle,
+              semanticsLabel: widget.onViewStory == null
+                  ? '${widget.viewStoryLabel}. Viewer unavailable.'
+                  : widget.viewStoryLabel,
+              leadingIcon: SvgPicture.asset(
+                'assets/images/interactions/story.svg',
+                width: 24,
+                height: 24,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.viewStoryLabel),
+                  if (widget.onViewStory == null)
+                    const Text(
+                      'Viewer unavailable',
+                      style: TextStyle(fontSize: 11, color: Colors.white60),
+                    ),
+                ],
+              ),
+            ),
+            MenuItemButton(
+              key: const ValueKey('add-new-story'),
               style: rowStyle,
               leadingIcon: SvgPicture.asset(
-                'assets/images/icons/profile-circle.svg',
+                'assets/images/interactions/add.svg',
                 width: 24,
                 height: 24,
               ),
               onPressed: () {
                 _menu.close();
-                viewPicture();
+                widget.onAddStory?.call();
               },
-              child: const Text('View profile picture'),
+              child: Text(widget.addStoryLabel),
             ),
-        ],
-        child: Semantics(
-          button: true,
-          label: _hasActiveStory
-              ? '${widget.semanticsLabel}. ${widget.viewStoryLabel} or '
-                    '${widget.addStoryLabel}'
-              : widget.onTapWithoutStory != null
-              ? widget.semanticsLabel
-              : '${widget.semanticsLabel}. ${widget.addStoryLabel}',
-          child: GestureDetector(
-            key: const ValueKey('your-story-bubble'),
-            behavior: HitTestBehavior.opaque,
-            onTap: _tap,
-            child: widget.child,
+            if (widget.onViewPicture case final viewPicture?)
+              MenuItemButton(
+                key: const ValueKey('view-profile-picture'),
+                style: rowStyle,
+                leadingIcon: SvgPicture.asset(
+                  'assets/images/icons/profile-circle.svg',
+                  width: 24,
+                  height: 24,
+                ),
+                onPressed: () {
+                  _menu.close();
+                  viewPicture();
+                },
+                child: const Text('View profile picture'),
+              ),
+          ],
+          child: Semantics(
+            button: true,
+            label: _hasActiveStory
+                ? '${widget.semanticsLabel}. ${widget.viewStoryLabel} or '
+                      '${widget.addStoryLabel}'
+                : widget.onTapWithoutStory != null
+                ? widget.semanticsLabel
+                : '${widget.semanticsLabel}. ${widget.addStoryLabel}',
+            child: GestureDetector(
+              key: const ValueKey('your-story-bubble'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _tap,
+              child: widget.child,
+            ),
           ),
         ),
       ),
