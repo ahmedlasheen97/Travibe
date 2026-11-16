@@ -14,12 +14,7 @@ class FollowingEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // SvgPicture.asset(
-            //   'assets/images/home/following.svg',
-            //   width: 119,
-            //   height: 121,
-            // ),
-           Image.asset(
+            Image.asset(
               'assets/images/home/image 50.png',
               width: 119,
               height: 121,

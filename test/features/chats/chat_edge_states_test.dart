@@ -136,7 +136,6 @@ class ViewerSaver extends ChatImageSaver {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(ChatEmptyIllustration.warmUp);
   final prefs = PreferencesManager();
   setUp(() async {
     SharedPreferences.setMockInitialValues({'_token': 'fixture-session'});
@@ -921,9 +920,7 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('supplied illustration paints its original embedded artwork', (
-    tester,
-  ) async {
+  testWidgets('empty illustration paints its PNG artwork', (tester) async {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPadding);

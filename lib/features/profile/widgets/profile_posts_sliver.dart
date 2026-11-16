@@ -70,10 +70,10 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
           state.paginationError == null &&
           !state.hasMore) {
         return ProfileEmptyStateSliver(
-          asset: 'assets/images/profile/emptypost.svg',
+          asset: 'assets/images/profile/emptypost.png',
           title: 'No posts yet',
           description: widget.owner
-              ? 'Share your first trip'
+              ? null
               : 'This traveler hasn’t shared any posts yet.',
           bottomInset: widget.bottomInset,
         );
