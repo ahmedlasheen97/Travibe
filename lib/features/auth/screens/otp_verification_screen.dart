@@ -12,6 +12,45 @@ import 'package:travibe/core/routing/app_routes.dart';
 import 'package:travibe/features/auth/screens/auth_navigation.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 
+/// Toast text for a failed signup/reset code. Any 422 (wrong, invalid or
+/// expired code; the server sends one generic "Invalid or expired code.") is
+/// a wrong code. Other failures show their user-facing message.
+String otpFailureMessage(Object error) {
+  if (error is! ApiError || error.statusCode != 422) {
+    return ApiError.messageOf(error);
+  }
+  return otpWrongMessage;
+}
+
+const otpWrongMessage = 'Wrong OTP Try Again';
+const otpTooManyMessage = 'Too many attempts. Tap Resend OTP';
+
+/// The server invalidates a code after five wrong attempts.
+const otpMaxAttempts = 5;
+
+/// Wrong attempts on the current code, counted on the device because the
+/// server does not report them.
+class OtpAttempts {
+  int _wrong = 0;
+
+  int get wrong => _wrong;
+
+  /// The code is spent: Verify stays disabled until a new code is sent.
+  bool get locked => _wrong >= otpMaxAttempts;
+
+  /// A new code was sent (resend): attempts back to zero.
+  void reset() => _wrong = 0;
+
+  /// Records a failed verify and returns the toast text. Only a wrong code
+  /// (a 422) counts; the fifth one locks.
+  String fail(Object error) {
+    final message = otpFailureMessage(error);
+    if (message != otpWrongMessage) return message;
+    _wrong++;
+    return locked ? otpTooManyMessage : otpWrongMessage;
+  }
+}
+
 /// 4-digit code entry. Defaults to signup verification (then Profile setup);
 /// other flows (e.g. changing email) pass [onVerify], [onResend] and
 /// [onVerified].
@@ -53,6 +92,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   bool get _canResend => _secondsRemaining == 0;
   String _enteredOtp = '';
   bool _isVerifying = false;
+  final _attempts = OtpAttempts();
 
   @override
   void initState() {
@@ -96,6 +136,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   Future<void> _verify() async {
     if (_enteredOtp.length < 4 || _isVerifying) return;
+    if (!_custom && _attempts.locked) {
+      TravibeToast.show(
+        context,
+        const TravibeToastData.error(otpTooManyMessage),
+      );
+      // Not synchronously: this runs inside the field's onCompleted, and a
+      // clear there leaves the field thinking it is still full, so the next
+      // code would never complete.
+      scheduleMicrotask(() {
+        if (mounted) _retype();
+      });
+      return;
+    }
 
     setState(() => _isVerifying = true);
     try {
@@ -115,23 +168,27 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
         name: AppRoutes.profileSetup,
       );
     } catch (e) {
-      _pinController.triggerError();
       if (!mounted) return;
-      if (_custom) {
-        TravibeToast.show(
-          context,
-          TravibeToastData.error(
-            e is ApiError ? e.message : 'Verification failed. Please retry.',
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Verification failed: $e')));
-      }
+      // Email change keeps the server text: its 422 may also mean the
+      // address was taken.
+      TravibeToast.show(
+        context,
+        TravibeToastData.error(
+          _custom ? ApiError.messageOf(e) : _attempts.fail(e),
+        ),
+      );
+      _retype();
     } finally {
       if (mounted) setState(() => _isVerifying = false);
     }
+  }
+
+  /// Empties the boxes and focuses the first so the user can type again.
+  void _retype() {
+    _enteredOtp = '';
+    _pinController
+      ..clear()
+      ..requestFocus();
   }
 
   Future<void> _resendOtp() async {
@@ -143,35 +200,19 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       } else {
         await _authRepo.resendVerificationCode(email: widget.email);
       }
-      _pinController.clear();
+      _attempts.reset();
       _startTimer();
       if (!mounted) return;
-      if (_custom) {
-        TravibeToast.show(
-          context,
-          const TravibeToastData.success('A new code has been sent'),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('A new code has been sent to your email'),
-          ),
-        );
-      }
+      _retype();
+      TravibeToast.show(
+        context,
+        const TravibeToastData.success(
+          'A new code has been sent to your email',
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      if (_custom) {
-        TravibeToast.show(
-          context,
-          TravibeToastData.error(
-            e is ApiError ? e.message : 'Unable to resend the code.',
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to resend code: $e')));
-      }
+      TravibeToast.show(context, TravibeToastData.error(ApiError.messageOf(e)));
     }
   }
 
@@ -268,8 +309,11 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                         fontSize: AppSizes.adaptiveFont(22),
                         fontWeight: FontWeight.w600,
                       ),
-                      errorColor: Colors.redAccent,
-                      enableErrorShake: true,
+                      // Error state is a thin danger border, never a fill.
+                      cursorColor: Colors.white,
+                      errorColor: DarkColors.dangerColor,
+                      errorFillColor: const Color(0xFF1C1C1C),
+                      enableErrorShake: false,
                     ),
                   ),
                 ),
@@ -290,7 +334,9 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
       width: double.infinity,
       height: AppSizes.adaptiveHeight(56).clamp(56, 64),
       child: ElevatedButton(
-        onPressed: _isVerifying ? null : _verify,
+        onPressed: _isVerifying || (!_custom && _attempts.locked)
+            ? null
+            : _verify,
         style: ElevatedButton.styleFrom(
           backgroundColor: DarkColors.primaryColor,
           foregroundColor: Colors.white,

@@ -1,3 +1,5 @@
+import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -44,9 +46,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to send code: $e')));
+      TravibeToast.show(context, TravibeToastData.error(ApiError.messageOf(e)));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }

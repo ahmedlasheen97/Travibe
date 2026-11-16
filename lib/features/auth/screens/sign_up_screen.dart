@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/routing/app_routes.dart';
@@ -64,9 +65,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
     if (_formKey.currentState!.validate()) {
       if (!_agreedToTerms) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please accept the Terms & Privacy Policy'),
+        TravibeToast.show(
+          context,
+          const TravibeToastData.error(
+            'Please accept the Terms & Privacy Policy',
           ),
         );
         return;
@@ -97,12 +99,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
         if (e is ApiError && isDuplicateEmailError(e)) {
           await _emailExists();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                e is ApiError ? e.message : 'Registration failed: $e',
-              ),
-            ),
+          TravibeToast.show(
+            context,
+            TravibeToastData.error(ApiError.messageOf(e)),
           );
         }
       } finally {
@@ -170,9 +169,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
             email: response.user.email,
           );
         } else if (state is AuthFailure) {
-          ScaffoldMessenger.of(
+          TravibeToast.show(
             context,
-          ).showSnackBar(SnackBar(content: Text(state.errorMessage)));
+            TravibeToastData.error(state.errorMessage),
+          );
         }
       },
       child: ColoredBox(

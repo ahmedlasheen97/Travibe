@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -46,9 +47,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           if (state.status == ProfileSetupStatus.completed) {
             _goHome(context);
           } else if (state.status == ProfileSetupStatus.failure) {
-            ScaffoldMessenger.of(
+            TravibeToast.show(
               context,
-            ).showSnackBar(SnackBar(content: Text(state.errorMessage)));
+              TravibeToastData.error(state.errorMessage),
+            );
           }
         },
         builder: (context, state) {

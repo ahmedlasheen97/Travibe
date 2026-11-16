@@ -99,10 +99,12 @@ class AuthRepo {
       } else {
         throw ApiError(message: 'Invalid response format');
       }
+    } on ApiError {
+      rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -136,8 +138,8 @@ class AuthRepo {
       rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -164,10 +166,12 @@ class AuthRepo {
         'email': email,
         'code': code,
       });
+    } on ApiError {
+      rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -244,10 +248,12 @@ class AuthRepo {
   Future<void> forgotPassword({required String email}) async {
     try {
       await _apiService.post('forgot-password', {'email': email});
+    } on ApiError {
+      rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -274,10 +280,12 @@ class AuthRepo {
       }
 
       throw ApiError(message: 'No reset token returned by the server');
+    } on ApiError {
+      rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 
@@ -294,10 +302,12 @@ class AuthRepo {
         'password': password,
         'password_confirmation': passwordConfirmation,
       });
+    } on ApiError {
+      rethrow;
     } on DioException catch (e) {
       throw ApiExceptions.handleError(e);
-    } catch (e) {
-      throw ApiError(message: 'An unexpected error occurred: $e');
+    } catch (_) {
+      throw ApiError(message: ApiError.fallbackMessage);
     }
   }
 }

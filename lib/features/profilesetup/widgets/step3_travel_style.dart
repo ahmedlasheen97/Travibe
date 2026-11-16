@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
@@ -48,9 +49,10 @@ class _Step3TravelStyleState extends State<Step3TravelStyle> {
     } else if (current.length < _maxSelection) {
       current.add(label);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('You can select up to $_maxSelection travel styles'),
+      TravibeToast.show(
+        context,
+        TravibeToastData.error(
+          'You can select up to $_maxSelection travel styles',
         ),
       );
       return;

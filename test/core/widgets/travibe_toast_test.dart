@@ -291,7 +291,53 @@ void main() {
     await tester.tap(find.text('go'));
     await tester.pumpAndSettle();
     expect(find.byType(SnackBar), findsOneWidget);
+    // The SnackBar is only a carrier: it shows the shared toast surface.
+    expect(
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.byType(TravibeToastView),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(find.text('Undo'));
     expect(undone, isTrue);
+    await tester.pumpAndSettle();
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('fallback error toast is red with the alert icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => TravibeToast.show(
+                context,
+                const TravibeToastData.error('Wrong OTP Try Again'),
+              ),
+              child: const Text('go'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('go'));
+    await tester.pumpAndSettle();
+    final snack = tester.widget<SnackBar>(find.byType(SnackBar));
+    expect(snack.backgroundColor, Colors.transparent);
+    expect(snack.behavior, SnackBarBehavior.floating);
+    final surface = tester.widget<Container>(
+      find
+          .descendant(
+            of: find.byType(TravibeToastView),
+            matching: find.byType(Container),
+          )
+          .first,
+    );
+    expect((surface.decoration! as BoxDecoration).color, DarkColors.toastError);
+    expect(find.byKey(const ValueKey('toast-icon-error')), findsOneWidget);
+    expect(find.text('Wrong OTP Try Again'), findsOneWidget);
   });
 }

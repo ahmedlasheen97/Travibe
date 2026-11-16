@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
@@ -40,10 +41,9 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
     } else if (current.length < _maxLanguages) {
       current.add(value);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('You can select up to $_maxLanguages languages'),
-        ),
+      TravibeToast.show(
+        context,
+        TravibeToastData.error('You can select up to $_maxLanguages languages'),
       );
       return;
     }
@@ -58,10 +58,9 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
     } else if (current.length < _maxInterests) {
       current.add(value);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('You can select up to $_maxInterests interests'),
-        ),
+      TravibeToast.show(
+        context,
+        TravibeToastData.error('You can select up to $_maxInterests interests'),
       );
       return;
     }

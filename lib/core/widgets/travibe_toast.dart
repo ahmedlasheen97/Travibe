@@ -153,8 +153,8 @@ class TravibeToastScope extends InheritedNotifier<TravibeToastController> {
 }
 
 /// Shows toasts from a context captured before any await. Inside Root this
-/// uses the floating toast; elsewhere (pushed routes, isolated tests) it
-/// falls back to a plain SnackBar.
+/// uses Root's toast slot; elsewhere (auth, pushed routes) the same
+/// [TravibeToastView] floats in a transparent SnackBar.
 class TravibeToast {
   TravibeToast.of(BuildContext context)
     : _controller = TravibeToastScope.maybeOf(context),
@@ -172,16 +172,30 @@ class TravibeToast {
       controller.show(data);
       return;
     }
-    final action = data.onAction;
-    _messenger
-      ?..hideCurrentSnackBar()
+    final messenger = _messenger;
+    if (messenger == null) return;
+    VoidCallback? run(VoidCallback? callback) => callback == null
+        ? null
+        : () {
+            messenger.hideCurrentSnackBar();
+            callback();
+          };
+    messenger
+      ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(data.message),
+          content: TravibeToastView(
+            data: data,
+            onAction: run(data.onAction),
+            onClose: run(data.onClose),
+          ),
           duration: data.duration,
-          action: action == null
-              ? null
-              : SnackBarAction(label: data.actionLabel!, onPressed: action),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          padding: EdgeInsets.zero,
+          // Constant: present() may run before ScreenUtil is initialised.
+          margin: const EdgeInsets.only(bottom: 16),
         ),
       );
   }

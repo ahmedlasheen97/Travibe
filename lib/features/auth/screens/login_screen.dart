@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/svg.dart';
@@ -62,8 +63,9 @@ class LoginScreen extends StatelessWidget {
                         );
                       }
                     } else if (state is AuthFailure) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(state.errorMessage)),
+                      TravibeToast.show(
+                        context,
+                        TravibeToastData.error(state.errorMessage),
                       );
                     }
                   },

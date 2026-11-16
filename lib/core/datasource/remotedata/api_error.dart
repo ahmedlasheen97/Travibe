@@ -17,6 +17,19 @@ class ApiError {
     this.isTimeout = false,
   });
 
+  /// Shown when there is no user-facing message to show.
+  static const fallbackMessage = 'Something went wrong. Please try again.';
+
+  /// The text to show a user for [error]: the server's message for an
+  /// [ApiError], otherwise [fallbackMessage]. Never exposes `toString()`.
+  static String messageOf(Object? error) {
+    if (error is! ApiError) return fallbackMessage;
+    final text = error.message.trim();
+    if (text.isEmpty || text.contains('ApiError{')) return fallbackMessage;
+    return text;
+  }
+
+  /// For logs only; UI uses [message] or [messageOf].
   @override
   String toString() => 'ApiError{message: $message}';
 }

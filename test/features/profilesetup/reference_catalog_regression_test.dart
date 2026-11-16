@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
@@ -427,20 +428,23 @@ void main() {
       ];
       var selected = <String>[];
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) => Step3TravelStyle(
-                selectedTravelStyles: selected,
-                onTravelStylesChanged: (value) =>
-                    setState(() => selected = value),
-                onFinish: () {},
-                isSubmitting: false,
-                catalog: ReferenceCatalog(
-                  status: CatalogStatus.loaded,
-                  items: items.reversed.toList(),
+        ScreenUtilInit(
+          designSize: const Size(390, 844),
+          builder: (_, _) => MaterialApp(
+            home: Scaffold(
+              body: StatefulBuilder(
+                builder: (context, setState) => Step3TravelStyle(
+                  selectedTravelStyles: selected,
+                  onTravelStylesChanged: (value) =>
+                      setState(() => selected = value),
+                  onFinish: () {},
+                  isSubmitting: false,
+                  catalog: ReferenceCatalog(
+                    status: CatalogStatus.loaded,
+                    items: items.reversed.toList(),
+                  ),
+                  onRetry: () {},
                 ),
-                onRetry: () {},
               ),
             ),
           ),

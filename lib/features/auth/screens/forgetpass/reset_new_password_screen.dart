@@ -4,9 +4,12 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/auth/data/auth_repo.dart';
 import 'package:travibe/features/auth/screens/forgetpass/create_new_password_screen.dart';
+import 'package:travibe/features/auth/screens/otp_verification_screen.dart';
 
 class ResetPasswordOtpScreen extends StatefulWidget {
   final String email;
@@ -26,6 +29,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
   bool get _canResend => _secondsRemaining == 0;
   String _enteredOtp = '';
   bool _isVerifying = false;
+  final _attempts = OtpAttempts();
 
   @override
   void initState() {
@@ -69,6 +73,19 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
 
   Future<void> _verify() async {
     if (_enteredOtp.length < 4 || _isVerifying) return;
+    if (_attempts.locked) {
+      TravibeToast.show(
+        context,
+        const TravibeToastData.error(otpTooManyMessage),
+      );
+      // Not synchronously: this runs inside the field's onCompleted, and a
+      // clear there leaves the field thinking it is still full, so the next
+      // code would never complete.
+      scheduleMicrotask(() {
+        if (mounted) _retype();
+      });
+      return;
+    }
 
     setState(() => _isVerifying = true);
     try {
@@ -85,14 +102,20 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
         ),
       );
     } catch (e) {
-      _pinController.triggerError();
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Verification failed: $e')));
+      TravibeToast.show(context, TravibeToastData.error(_attempts.fail(e)));
+      _retype();
     } finally {
       if (mounted) setState(() => _isVerifying = false);
     }
+  }
+
+  /// Empties the boxes and focuses the first so the user can type again.
+  void _retype() {
+    _enteredOtp = '';
+    _pinController
+      ..clear()
+      ..requestFocus();
   }
 
   Future<void> _resendOtp() async {
@@ -100,17 +123,19 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
 
     try {
       await _authRepo.forgotPassword(email: widget.email);
-      _pinController.clear();
+      _attempts.reset();
       _startTimer();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A new code has been sent to your email')),
+      _retype();
+      TravibeToast.show(
+        context,
+        const TravibeToastData.success(
+          'A new code has been sent to your email',
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Failed to resend code: $e')));
+      TravibeToast.show(context, TravibeToastData.error(ApiError.messageOf(e)));
     }
   }
 
@@ -192,8 +217,11 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                         fontSize: AppSizes.adaptiveFont(22),
                         fontWeight: FontWeight.w600,
                       ),
-                      errorColor: Colors.redAccent,
-                      enableErrorShake: true,
+                      // Error state is a thin danger border, never a fill.
+                      cursorColor: Colors.white,
+                      errorColor: DarkColors.dangerColor,
+                      errorFillColor: const Color(0xFF1C1C1C),
+                      enableErrorShake: false,
                     ),
                   ),
                 ),
@@ -214,7 +242,7 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
       width: double.infinity,
       height: AppSizes.adaptiveHeight(56).clamp(56, 64),
       child: ElevatedButton(
-        onPressed: _isVerifying ? null : _verify,
+        onPressed: _isVerifying || _attempts.locked ? null : _verify,
         style: ElevatedButton.styleFrom(
           backgroundColor: DarkColors.primaryColor,
           foregroundColor: Colors.white,
