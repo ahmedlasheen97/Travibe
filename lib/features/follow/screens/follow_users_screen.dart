@@ -446,7 +446,7 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
     asset: 'assets/images/profile/emptypic.svg',
     title: switch (type) {
       FollowListType.followers => 'No followers yet',
-      FollowListType.following => 'You don’t follow anyone yet.',
+      FollowListType.following => 'Not following anyone yet',
       _ => 'No people yet',
     },
     description: switch (type) {

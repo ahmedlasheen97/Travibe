@@ -12,3 +12,8 @@ const bool kShowReportProblem = false;
 /// MVP: hide social controls and disable their callbacks. Native providers,
 /// repositories and configuration remain available for a later release.
 const bool kEnableSocialAuthentication = false;
+
+/// Profile → Saved → Hotels sub-tab. Hidden until it returns with the
+/// Explore tab; `HotelCard`, `ProfileSavedSubTabs` and the Hotels branch stay
+/// intact.
+const bool kShowSavedHotels = false;

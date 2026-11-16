@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
@@ -65,7 +66,6 @@ class ProfileScreen extends StatelessWidget {
     this.postsRepo,
     this.chatRepository,
     this.refreshSignal,
-    this.onCreatePost,
     this.onExplorePeople,
     this.storiesRepo,
   });
@@ -76,7 +76,7 @@ class ProfileScreen extends StatelessWidget {
   final PostsRepo? postsRepo;
   final ChatRepository? chatRepository;
   final ValueListenable<int>? refreshSignal;
-  final VoidCallback? onCreatePost, onExplorePeople;
+  final VoidCallback? onExplorePeople;
 
   /// Used by my profile's "+" (add story) flow; defaults to the real repo.
   final StoriesRepo? storiesRepo;
@@ -165,7 +165,6 @@ class ProfileScreen extends StatelessWidget {
         postsRepo: postsRepo,
         chatRepository: chatRepository,
         refreshSignal: refreshSignal,
-        onCreatePost: onCreatePost,
         onExplorePeople: onExplorePeople,
         storiesRepo: storiesRepo,
       ),
@@ -219,11 +218,10 @@ class _ProfileView extends StatefulWidget {
     this.postsRepo,
     this.chatRepository,
     this.refreshSignal,
-    this.onCreatePost,
     this.onExplorePeople,
     this.storiesRepo,
   });
-  final VoidCallback? onCreatePost, onExplorePeople;
+  final VoidCallback? onExplorePeople;
   final StoriesRepo? storiesRepo;
   final ValueListenable<int>? refreshSignal;
   final PostsRepo? postsRepo;
@@ -235,6 +233,9 @@ class _ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<_ProfileView> {
   int _selectedTab = 0;
   int _savedSubTab = 0;
+
+  /// Hotels is hidden behind [kShowSavedHotels]; Saved then shows Posts only.
+  int get _savedSub => kShowSavedHotels ? _savedSubTab : 0;
   StreamSubscription<FollowState>? _followSubscription;
   StreamSubscription<ProfileState>? _profileSubscription;
   StreamSubscription<BlockState>? _blockSubscription;
@@ -269,7 +270,7 @@ class _ProfileViewState extends State<_ProfileView> {
       // Join an already-running profile request rather than superseding it.
       profile.loadProfile(),
       if (_selectedTab == 0 && !locked) content.read<PostsCubit>().refresh(),
-      if (_selectedTab == 2 && _savedSubTab == 0 && profile.userId == null)
+      if (_selectedTab == 2 && _savedSub == 0 && profile.userId == null)
         content.read<SavedPostsCubit>().load(),
       // The shared Stories source: this profile's ring and Home's row.
       if (content.read<StoriesCubit?>() case final stories?) stories.refresh(),
@@ -590,9 +591,17 @@ class _ProfileViewState extends State<_ProfileView> {
     // Private account I can't see: header and counts only (lists are 403).
     final locked = isOther && profile.isLocked;
     final connections = canOpenConnections && !locked;
+    final inset = BottomNavScope.bottomInsetOf(context);
+    final ownsInset =
+        !locked && (selected == 0 || (selected == 2 && _savedSub == 0));
     return CustomScrollView(
       key: const PageStorageKey('profile-content'),
-      physics: const AlwaysScrollableScrollPhysics(),
+      // Instagram-style: scrolls only when taller than the screen and never
+      // bounces. Always-scrollable keeps the top overscroll that drives
+      // RefreshIndicator (Material, so it needs no bounce on iOS either).
+      physics: const AlwaysScrollableScrollPhysics(
+        parent: ClampingScrollPhysics(),
+      ),
       slivers: [
         SliverToBoxAdapter(
           child: Column(
@@ -691,7 +700,7 @@ class _ProfileViewState extends State<_ProfileView> {
                 ),
                 SizedBox(height: AppSizes.h8),
               ],
-              if (!locked && selected == 2)
+              if (!locked && selected == 2 && kShowSavedHotels)
                 ProfileSavedSubTabs(
                   selectedIndex: _savedSubTab,
                   onTabSelected: (index) =>
@@ -704,21 +713,24 @@ class _ProfileViewState extends State<_ProfileView> {
           const SliverToBoxAdapter(child: PrivateProfileLocked())
         else if (selected == 1)
           _buildAboutTab(profile)
-        else if (selected == 2 && _savedSubTab == 0)
-          SavedPostsSliver(showLoadingIndicators: !_refreshing)
+        else if (selected == 2 && _savedSub == 0)
+          SavedPostsSliver(
+            showLoadingIndicators: !_refreshing,
+            bottomInset: inset,
+          )
         else if (selected == 0)
           ProfilePostsSliver(
-            onCreatePost: widget.onCreatePost,
             showLoadingIndicators: !_refreshing,
+            bottomInset: inset,
             owner:
                 context.read<ProfileCubit>().userId == null ||
                 profile.isMe == true,
           )
         else
           _notLoaded('Saved hotels are not loaded yet.'),
-        SliverToBoxAdapter(
-          child: SizedBox(height: BottomNavScope.bottomInsetOf(context)),
-        ),
+        // Posts and Saved own the clearance so their empty state can center
+        // above the nav bar without adding scroll height.
+        if (!ownsInset) SliverToBoxAdapter(child: SizedBox(height: inset)),
       ],
     );
   }

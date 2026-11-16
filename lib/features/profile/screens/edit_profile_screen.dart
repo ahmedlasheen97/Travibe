@@ -9,6 +9,7 @@ import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/dashed_avatar_picker.dart';
 import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
@@ -723,47 +724,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         : _initialProfile.avatarUrl?.isNotEmpty == true
         ? NetworkImage(_initialProfile.avatarUrl!)
         : null;
-    return Stack(
-      children: [
-        CircleAvatar(
-          key: const ValueKey('edit-profile-avatar'),
-          radius: AppSizes.r48,
-          backgroundColor: const Color(0xFF1C1C1C),
-          backgroundImage: image,
-          child: image != null
-              ? null
-              : Icon(Icons.person, size: AppSizes.w48, color: Colors.white54),
-        ),
-        Positioned(
-          bottom: 0,
-          right: 0,
-          child: Semantics(
-            label: 'Change profile photo',
-            button: true,
-            child: InkWell(
-              key: const ValueKey('pick-profile-avatar'),
-              onTap: _pickAvatar,
-              child: Container(
-                width: AppSizes.w32,
-                height: AppSizes.h32,
-                decoration: BoxDecoration(
-                  color: DarkColors.primaryColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: DarkColors.backgroundColor,
-                    width: AppSizes.w3,
-                  ),
-                ),
-                child: Icon(
-                  Icons.add_rounded,
-                  color: Colors.white,
-                  size: AppSizes.w18,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    return DashedAvatarPicker(
+      image: image,
+      onTap: _pickAvatar,
+      avatarKey: const ValueKey('edit-profile-avatar'),
+      badgeKey: const ValueKey('pick-profile-avatar'),
+      semanticsLabel: 'Change profile photo',
     );
   }
 

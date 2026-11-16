@@ -1,4 +1,5 @@
 import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
@@ -18,8 +19,15 @@ import 'package:travibe/features/shares/widgets/send_post_sheet.dart';
 
 /// Lives inside Profile's existing CustomScrollView, including its refresh gesture.
 class SavedPostsSliver extends StatefulWidget {
-  const SavedPostsSliver({super.key, this.showLoadingIndicators = true});
+  const SavedPostsSliver({
+    super.key,
+    this.showLoadingIndicators = true,
+    this.bottomInset = 0,
+  });
   final bool showLoadingIndicators;
+
+  /// Root's bottom nav clearance; this tab owns it (see Profile).
+  final double bottomInset;
   @override
   State<SavedPostsSliver> createState() => _SavedPostsSliverState();
 }
@@ -59,8 +67,28 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
       BlocBuilder<SavedPostsCubit, SavedPostsState>(
         builder: (context, state) {
           final cubit = context.read<SavedPostsCubit>();
+          if (state.status == SavedPostsStatus.loaded &&
+              state.posts.isEmpty &&
+              !state.refreshing &&
+              state.error == null &&
+              state.paginationError == null &&
+              !state.hasMore) {
+            return ProfileEmptyStateSliver(
+              asset: 'assets/images/profile/emptyitems.svg',
+              title: 'No saved items yet',
+              description: kShowSavedHotels
+                  ? 'Save posts and hotels to find them here.'
+                  : 'Save posts to find them here.',
+              bottomInset: widget.bottomInset,
+            );
+          }
           return SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+            padding: EdgeInsets.fromLTRB(
+              AppSizes.pw20,
+              AppSizes.ph16,
+              AppSizes.pw20,
+              AppSizes.ph16 + widget.bottomInset,
+            ),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 if (widget.showLoadingIndicators &&
@@ -73,14 +101,6 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
                 if (state.status == SavedPostsStatus.loaded) ...[
                   if (state.error != null)
                     _message(state.error!.message, retry: cubit.refresh),
-                  if (state.posts.isEmpty &&
-                      !state.refreshing &&
-                      state.error == null)
-                    const ProfileEmptyState(
-                      asset: 'assets/images/profile/emptyitems.svg',
-                      title: 'No saved items yet',
-                      description: 'Save posts and hotels to find them here.',
-                    ),
                   for (final post in state.posts)
                     Padding(
                       key: ValueKey('saved-${post.id}'),

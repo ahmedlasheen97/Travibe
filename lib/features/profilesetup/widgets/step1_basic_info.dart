@@ -1,4 +1,3 @@
-import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/cupertino.dart';
@@ -10,6 +9,7 @@ import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/core/widgets/dashed_avatar_picker.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
 import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 
@@ -295,62 +295,14 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
         : state.avatarUrl != null && !_avatarImageFailed
         ? NetworkImage(state.avatarUrl!)
         : null;
-    return GestureDetector(
+    return DashedAvatarPicker(
+      image: image,
       onTap: state.selectingAvatar || state.uploadingAvatar || state.isSaving
           ? null
           : cubit.pickAvatar,
-      child: Stack(
-        children: [
-          DottedBorder(
-            options: CircularDottedBorderOptions(
-              color: DarkColors.primaryColor,
-              strokeWidth: 1.5,
-              dashPattern: [
-                AppSizes.adaptiveRadius(18),
-                AppSizes.adaptiveRadius(12),
-              ],
-              padding: const EdgeInsets.all(6),
-            ),
-            child: CircleAvatar(
-              radius: 56,
-              backgroundColor: const Color(0xFFE0E0E0),
-              backgroundImage: image,
-              onBackgroundImageError: image == null
-                  ? null
-                  : (_, _) {
-                      if (mounted) setState(() => _avatarImageFailed = true);
-                    },
-              child:
-                  local == null &&
-                      (state.avatarUrl == null || _avatarImageFailed)
-                  ? const Icon(
-                      Icons.person_rounded,
-                      color: Colors.grey,
-                      size: 48,
-                    )
-                  : null,
-            ),
-          ),
-          Positioned(
-            bottom: 4,
-            right: 4,
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: DarkColors.primaryColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: DarkColors.backgroundColor, width: 3),
-              ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-            ),
-          ),
-        ],
-      ),
+      onImageError: (_, _) {
+        if (mounted) setState(() => _avatarImageFailed = true);
+      },
     );
   }
 

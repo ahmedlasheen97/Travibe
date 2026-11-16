@@ -2,8 +2,6 @@ import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
-import 'package:travibe/features/create_post/screens/create_post_screen.dart';
-import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -31,10 +29,12 @@ class ProfilePostsSliver extends StatefulWidget {
     super.key,
     required this.owner,
     this.showLoadingIndicators = true,
-    this.onCreatePost,
+    this.bottomInset = 0,
   });
   final bool showLoadingIndicators;
-  final VoidCallback? onCreatePost;
+
+  /// Root's bottom nav clearance; this tab owns it (see Profile).
+  final double bottomInset;
   final bool owner;
   @override
   State<ProfilePostsSliver> createState() => _ProfilePostsSliverState();
@@ -42,25 +42,6 @@ class ProfilePostsSliver extends StatefulWidget {
 
 class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   bool _openingShare = false;
-  bool _creating = false;
-  Future<void> _create() async {
-    if (_creating) return;
-    if (widget.onCreatePost != null) {
-      widget.onCreatePost!();
-      return;
-    }
-    _creating = true;
-    try {
-      final draft = await CreatePostScreen.open(context);
-      if (draft != null && mounted) {
-        // Root's uploader publishes it and notifies PostActivityCubit.
-        context.read<PostUploadCubit>().enqueue(draft);
-      }
-    } finally {
-      _creating = false;
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -82,12 +63,27 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   Widget build(BuildContext context) => BlocBuilder<PostsCubit, PostsState>(
     builder: (context, state) {
       final posts = context.read<PostsCubit>();
+      if (state is PostsLoaded &&
+          state.posts.isEmpty &&
+          !state.isRefreshing &&
+          state.refreshError == null &&
+          state.paginationError == null &&
+          !state.hasMore) {
+        return ProfileEmptyStateSliver(
+          asset: 'assets/images/profile/emptypost.svg',
+          title: 'No posts yet',
+          description: widget.owner
+              ? 'Share your first trip'
+              : 'This traveler hasn’t shared any posts yet.',
+          bottomInset: widget.bottomInset,
+        );
+      }
       return SliverPadding(
         padding: EdgeInsets.fromLTRB(
           AppSizes.pw20,
           AppSizes.ph16,
           AppSizes.pw20,
-          AppSizes.ph100,
+          AppSizes.ph16 + widget.bottomInset,
         ),
         sliver: SliverList(
           delegate: SliverChildListDelegate([
@@ -99,18 +95,6 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
             if (state is PostsLoaded) ...[
               if (state.refreshError != null)
                 _message(state.refreshError!.message, retry: posts.refresh),
-              if (state.posts.isEmpty &&
-                  !state.isRefreshing &&
-                  state.refreshError == null)
-                ProfileEmptyState(
-                  asset: 'assets/images/profile/emptypost.svg',
-                  title: 'No posts yet',
-                  description: widget.owner
-                      ? 'Share your first travel story and inspire other travelers.'
-                      : 'This traveler hasn’t shared any posts yet.',
-                  actionLabel: widget.owner ? 'Create Post' : null,
-                  onAction: widget.owner ? _create : null,
-                ),
               for (final post in state.posts)
                 Padding(
                   key: ValueKey('profile-post-${post.id}'),

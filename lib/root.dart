@@ -266,7 +266,6 @@ class _RootState extends State<Root> {
       profileRepo: widget.profileRepo,
       postsRepo: widget.postsRepo,
       refreshSignal: _profileRefreshes,
-      onCreatePost: _showCreateOptions,
       onExplorePeople: _explorePeople,
       storiesRepo: widget.storiesRepo,
     ),
