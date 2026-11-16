@@ -10,6 +10,7 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
 import 'package:travibe/features/block/widgets/refresh_users_on_unblock.dart';
 import 'package:travibe/features/follow/cubit/follow_users_cubit.dart';
+import 'package:travibe/features/follow/widgets/people_skeleton.dart';
 
 class BlockedAccountsScreen extends StatelessWidget {
   const BlockedAccountsScreen({super.key});
@@ -34,7 +35,7 @@ class BlockedAccountsScreen extends StatelessWidget {
             final list = context.read<FollowUsersCubit>();
             if (state.status == FollowUsersStatus.initial ||
                 state.status == FollowUsersStatus.loading) {
-              return const Center(child: CircularProgressIndicator());
+              return const PeopleSkeleton();
             }
             if (state.status == FollowUsersStatus.failure) {
               return ErrorRetryView(
@@ -60,8 +61,6 @@ class BlockedAccountsScreen extends StatelessWidget {
                         SliverToBoxAdapter(
                           child: Column(
                             children: [
-                              if (state.refreshing)
-                                const LinearProgressIndicator(),
                               if (state.error != null)
                                 ErrorRetryView(
                                   message: state.error!.message,

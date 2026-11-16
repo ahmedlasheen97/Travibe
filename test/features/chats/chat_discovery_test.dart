@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -161,6 +162,52 @@ void main() {
     expect(cubit.valid, isFalse);
     await cubit.close();
   });
+  testWidgets('creating shows a spinner in the tapped row only', (
+    tester,
+  ) async {
+    final search = Search();
+    final chats = Conversations();
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: ThemeData.dark(),
+          home: NewConversationScreen(search: search, repository: chats),
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'trav');
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 1));
+    search.responses.single.complete(page([person(2), person(3)]));
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.tap(find.text('Traveler 3'));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('discover-3')),
+        matching: find.byType(CupertinoActivityIndicator),
+      ),
+      findsOneWidget,
+    );
+    final other = tester.widget<ListTile>(
+      find.byKey(const ValueKey('discover-2')),
+    );
+    expect(other.enabled, isFalse);
+    await tester.tap(find.text('Traveler 2'));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(chats.created, ['3']);
+    chats.result.completeError(Exception('offline'));
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    expect(
+      tester.widget<ListTile>(find.byKey(const ValueKey('discover-2'))).enabled,
+      isTrue,
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets('selection coalesces creation and opens returned conversation', (
     tester,
   ) async {
@@ -184,6 +231,14 @@ void main() {
     await tester.tap(find.text('Traveler 2'));
     await tester.pump(const Duration(milliseconds: 1));
     expect(chats.created, ['2']);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('discover-2')),
+        matching: find.byType(CupertinoActivityIndicator),
+      ),
+      findsOneWidget,
+    );
     chats.result.complete(
       const ChatConversation(
         id: '44',

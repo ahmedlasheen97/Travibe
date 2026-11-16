@@ -2,6 +2,8 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/refresh_users_on_unblock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
@@ -9,6 +11,7 @@ import 'package:travibe/features/follow/cubit/follow_users_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/features/follow/widgets/follow_user_tile.dart';
+import 'package:travibe/features/follow/widgets/people_skeleton.dart';
 import 'package:travibe/features/home/widgets/suggested_user_card.dart';
 
 class SuggestedUsersSection extends StatelessWidget {
@@ -73,9 +76,9 @@ class SuggestedUsersSection extends StatelessWidget {
             final cubit = context.read<FollowUsersCubit>();
             if (state.status == FollowUsersStatus.initial ||
                 state.status == FollowUsersStatus.loading) {
-              return showLoadingIndicators
-                  ? const Center(child: CircularProgressIndicator())
-                  : const SizedBox.shrink();
+              return compact
+                  ? const _SuggestedCardsSkeleton()
+                  : const PeopleSkeleton(count: 3, scrollable: false);
             }
             if (state.status == FollowUsersStatus.failure ||
                 (!compact && state.error != null)) {
@@ -130,8 +133,6 @@ class SuggestedUsersSection extends StatelessWidget {
     final list = context.read<FollowUsersCubit>();
     return Column(
       children: [
-        if (state.refreshing && showLoadingIndicators)
-          const LinearProgressIndicator(minHeight: 2),
         if (state.error != null)
           ErrorRetryView(message: state.error!.message, onRetry: list.load),
         if (users.isEmpty && !state.hasMore)
@@ -208,4 +209,32 @@ class SuggestedUsersSection extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Placeholder suggestion cards shown on the first load.
+class _SuggestedCardsSkeleton extends StatelessWidget {
+  const _SuggestedCardsSkeleton();
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: SuggestedUserCard.heightFor(MediaQuery.textScalerOf(context)),
+    child: Shimmer.fromColors(
+      enabled: !MediaQuery.disableAnimationsOf(context),
+      baseColor: DarkColors.darkgreyColor,
+      highlightColor: DarkColors.greyColor.withValues(alpha: .25),
+      child: ListView.separated(
+        key: const ValueKey('suggested-users-skeleton'),
+        scrollDirection: Axis.horizontal,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: 3,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (_, _) => Container(
+          width: 144,
+          decoration: BoxDecoration(
+            color: DarkColors.darkgreyColor,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+      ),
+    ),
+  );
 }

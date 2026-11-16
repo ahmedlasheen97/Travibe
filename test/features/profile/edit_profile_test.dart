@@ -47,8 +47,18 @@ class EditingRepo extends MemoryProfileRepo {
 }
 
 class SelectionRepo extends ProfileSetupRepo {
+  SelectionRepo({this.gate});
+
+  /// Holds catalog loads open until completed.
+  final Completer<void>? gate;
+
   @override
-  Future<List<ReferenceItem>> loadCatalog(ReferenceKind kind) async => const [
+  Future<List<ReferenceItem>> loadCatalog(ReferenceKind kind) async {
+    await gate?.future;
+    return _catalog;
+  }
+
+  static const _catalog = [
     ReferenceItem(
       slug: 'arabic',
       name: 'العربية',
@@ -351,7 +361,11 @@ void main() {
     },
   );
 
-  Future<ProfileCubit> showEditor(WidgetTester tester, EditingRepo repo) async {
+  Future<ProfileCubit> showEditor(
+    WidgetTester tester,
+    EditingRepo repo, {
+    SelectionRepo? selection,
+  }) async {
     final owner = ProfileCubit(profileRepo: repo);
     await owner.loadProfile();
     tester.view.physicalSize = const Size(390, 844);
@@ -370,7 +384,7 @@ void main() {
                   builder: (_) => EditProfileScreen(
                     profile: profile(),
                     owner: owner,
-                    selectionRepo: SelectionRepo(),
+                    selectionRepo: selection ?? SelectionRepo(),
                   ),
                 ),
               ),
@@ -499,6 +513,50 @@ void main() {
       expect(repo.writes.single, {
         'languages_spoken': ['arabic', 'new_slug'],
       });
+      await tester.runAsync(owner.close);
+    },
+  );
+
+  testWidgets(
+    'catalog loading shows skeleton chips in that section, no loading line',
+    (tester) async {
+      final gate = Completer<void>();
+      final owner = await showEditor(
+        tester,
+        EditingRepo(),
+        selection: SelectionRepo(gate: gate),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Languages'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(
+        find.descendant(
+          of: find
+              .ancestor(of: find.text('Languages'), matching: find.byType(Row))
+              .first,
+          matching: find.text('Edit'),
+        ),
+      );
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('chip-skeleton-languages_spoken')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('chip-skeleton-interests')),
+        findsNothing,
+      );
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(LanguagesScreen), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('chip-skeleton-languages_spoken')),
+        findsNothing,
+      );
       await tester.runAsync(owner.close);
     },
   );

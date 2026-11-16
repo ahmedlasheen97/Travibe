@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -193,6 +194,69 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('refresh and count sync stay silent while comments are visible', (
+    tester,
+  ) async {
+    repo.items[1] = comment(1);
+    await show(tester);
+    await tester.pumpAndSettle();
+    repo.holdReads = true;
+    repo.holdCounts = true;
+    final refresh = cubit.load();
+    final sync = cubit.synchronize();
+    await tester.pump();
+    await tester.pump();
+    expect(cubit.state.thread(null).refreshing, isTrue);
+    expect(cubit.state.syncing, isTrue);
+    expect(find.byType(CommentRow), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+    repo.holdReads = false;
+    repo.holdCounts = false;
+    repo.reads.last.result.complete(page([comment(1)]));
+    repo.counts.single.complete(1);
+    await Future.wait([refresh, sync]);
+    await tester.pumpAndSettle();
+  });
+  testWidgets('refresh of an empty thread shows one small spinner at the top', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('No comments yet'), findsOneWidget);
+    repo.holdReads = true;
+    repo.holdCounts = true;
+    final refresh = cubit.load();
+    final sync = cubit.synchronize();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    repo.holdReads = false;
+    repo.holdCounts = false;
+    repo.reads.last.result.complete(page(const []));
+    repo.counts.single.complete(0);
+    await Future.wait([refresh, sync]);
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+  });
+  testWidgets('count sync of an empty thread shows one small spinner', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.pumpAndSettle();
+    repo.holdCounts = true;
+    final sync = cubit.synchronize();
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+    expect(find.byType(CupertinoActivityIndicator), findsOneWidget);
+    repo.holdCounts = false;
+    repo.counts.single.complete(0);
+    await sync;
+    await tester.pumpAndSettle();
+    expect(find.byType(CupertinoActivityIndicator), findsNothing);
+  });
   testWidgets('loading and failed reads recover through Retry', (tester) async {
     repo.holdReads = true;
     final pending = cubit.load();

@@ -332,7 +332,7 @@ class _CommentsViewState extends State<_CommentsView> {
       style: commentTextStyle,
       child: Column(
         children: [
-          if (state.syncing) const LinearProgressIndicator(minHeight: 2),
+          if (_syncSpinner(state)) _topSpinner(),
           Expanded(child: _thread(state)),
           if (state.syncError != null)
             _message(
@@ -412,8 +412,7 @@ class _CommentsViewState extends State<_CommentsView> {
                             ? null
                             : cubit.synchronize,
                       ),
-                    if (state.syncing)
-                      const LinearProgressIndicator(minHeight: 2),
+                    if (_syncSpinner(state)) _topSpinner(),
                     Expanded(child: _thread(state)),
                     if (_mutationError != null)
                       _message(
@@ -428,6 +427,22 @@ class _CommentsViewState extends State<_CommentsView> {
           );
         },
       );
+
+  /// Count sync stays silent once anything (comments or the first-load
+  /// spinner) is on screen.
+  bool _syncSpinner(CommentsState state) {
+    final thread = state.thread(widget.parentId);
+    // An empty refreshing thread already shows its own spinner.
+    return state.syncing &&
+        thread.status == CommentsStatus.loaded &&
+        !thread.refreshing &&
+        thread.comments.isEmpty;
+  }
+
+  Widget _topSpinner() => const Padding(
+    padding: EdgeInsets.symmetric(vertical: 8),
+    child: Center(child: AppActivityIndicator(radius: 8)),
+  );
 
   Widget _message(
     String message, {
@@ -656,8 +671,8 @@ class _CommentsViewState extends State<_CommentsView> {
                                 'Media comment',
                       style: commentTextStyle,
                     ),
-                  if (thread.refreshing)
-                    const LinearProgressIndicator(minHeight: 2),
+                  if (thread.refreshing && thread.comments.isEmpty)
+                    _topSpinner(),
                   if (thread.error != null)
                     ErrorRetryView(
                       message: thread.error!.message,
@@ -749,7 +764,7 @@ class _CommentsViewState extends State<_CommentsView> {
             onRetry: () => cubit.load(parentId: parentId),
           )
         else ...[
-          if (thread.refreshing) const LinearProgressIndicator(minHeight: 2),
+          if (thread.refreshing && thread.comments.isEmpty) _topSpinner(),
           if (thread.error != null)
             ErrorRetryView(
               message: thread.error!.message,
