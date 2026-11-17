@@ -247,7 +247,7 @@ void main() {
         posts.authors[7] = [];
         await show(tester, size: size);
         expect(find.text('No posts yet'), findsOneWidget);
-        expect(find.text('Create Post'), findsOneWidget);
+        expect(find.text('Create Post'), findsNothing);
         final position = profileScroll(tester);
         expect(position.physics, isA<AlwaysScrollableScrollPhysics>());
         expect(position.physics.parent, isA<ClampingScrollPhysics>());

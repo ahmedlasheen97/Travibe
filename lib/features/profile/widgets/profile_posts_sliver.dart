@@ -2,8 +2,6 @@ import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
 import 'package:travibe/features/profile/widgets/profile_empty_state.dart';
-import 'package:travibe/features/create_post/screens/create_post_screen.dart';
-import 'package:travibe/features/create_post/cubit/post_upload_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,13 +30,8 @@ class ProfilePostsSliver extends StatefulWidget {
     required this.owner,
     this.showLoadingIndicators = true,
     this.bottomInset = 0,
-    this.onCreatePost,
   });
   final bool showLoadingIndicators;
-
-  /// The empty state's "Create Post" (owner only). Root passes the nav bar's
-  /// + flow; without it the button opens Create Post here.
-  final VoidCallback? onCreatePost;
 
   /// Root's bottom nav clearance; this tab owns it (see Profile).
   final double bottomInset;
@@ -49,22 +42,6 @@ class ProfilePostsSliver extends StatefulWidget {
 
 class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   bool _openingShare = false;
-  bool _creating = false;
-
-  Future<void> _create() async {
-    if (widget.onCreatePost case final create?) return create();
-    if (_creating) return;
-    _creating = true;
-    try {
-      final draft = await CreatePostScreen.open(context);
-      if (draft != null && mounted) {
-        // Root's uploader publishes it and notifies PostActivityCubit.
-        context.read<PostUploadCubit?>()?.enqueue(draft);
-      }
-    } finally {
-      _creating = false;
-    }
-  }
 
   @override
   void initState() {
@@ -99,8 +76,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
           description: widget.owner
               ? null
               : 'This traveler hasn’t shared any posts yet.',
-          actionLabel: widget.owner ? 'Create Post' : null,
-          onAction: widget.owner ? _create : null,
+          // No button: the nav bar's + creates posts.
           bottomInset: widget.bottomInset,
         );
       }

@@ -47,7 +47,8 @@ class ProfileEmptyState extends StatelessWidget {
               fit: BoxFit.contain,
             ),
           ),
-          SizedBox(height: AppSizes.h24),
+          // Picture → title: a tight 10 (was 24).
+          SizedBox(height: AppSizes.h10),
           Text(
             title,
             textAlign: TextAlign.center,

@@ -152,7 +152,6 @@ void main() {
     double width = 390,
     double height = 844,
     double scale = 1,
-    VoidCallback? explore,
     Widget? child,
     bool highContrast = false,
   }) async {
@@ -185,7 +184,6 @@ void main() {
                   username: 'mona',
                   followersCount: 12,
                   followingCount: 4,
-                  onExplorePeople: explore,
                 ),
           ),
         ),
@@ -408,9 +406,15 @@ void main() {
       tester,
     ) async {
       people.empty = true;
-      var explored = 0;
-      await show(tester, type: type, explore: () => explored++);
+      await show(tester, type: type);
       expect(emptyAsset(tester), 'assets/images/profile/emptypic.png');
+      // Picture → title gap is a tight 10.
+      final picture = tester.getRect(
+        find.descendant(
+          of: find.byType(ProfileEmptyState),
+          matching: find.byType(Image),
+        ),
+      );
       expect(
         find.text(
           type == FollowListType.followers
@@ -419,10 +423,21 @@ void main() {
         ),
         findsOneWidget,
       );
+      expect(
+        tester
+                .getTopLeft(
+                  find.text(
+                    type == FollowListType.followers
+                        ? 'No followers yet'
+                        : 'Not following anyone yet',
+                  ),
+                )
+                .dy -
+            picture.bottom,
+        AppSizes.h10,
+      );
       if (type == FollowListType.following) {
-        await tester.tap(find.text('Explore People'));
-        await tester.pumpAndSettle();
-        expect(explored, 1);
+        expect(find.text('Explore People'), findsOneWidget);
       } else {
         expect(find.text('Explore People'), findsNothing);
       }
@@ -476,43 +491,22 @@ void main() {
       final posts = AuthorPostsRepo()
         ..authors[7] = []
         ..stored = [];
-      var creates = 0;
       await show(
         tester,
-        child: ProfileScreen(
-          profileRepo: profiles,
-          postsRepo: posts,
-          onCreatePost: () => creates++,
-        ),
+        child: ProfileScreen(profileRepo: profiles, postsRepo: posts),
       );
       expect(find.text('No posts yet'), findsOneWidget);
       expect(emptyAsset(tester), 'assets/images/profile/emptypost.png');
       expect(find.text('Share your first trip'), findsNothing);
-      // My empty Posts: picture, title, then the orange 44-high button that
-      // runs the same flow as the nav bar's +.
-      final button = find.widgetWithText(FilledButton, 'Create Post');
-      expect(button, findsOneWidget);
-      // The visible pill (Material pads the tap target to 48).
+      // My empty Posts: picture and title only; the nav bar's + creates.
+      expect(find.text('Create Post'), findsNothing);
       expect(
-        tester
-            .getSize(
-              find.descendant(of: button, matching: find.byType(Material)),
-            )
-            .height,
-        AppSizes.h44,
+        find.descendant(
+          of: find.byType(ProfileEmptyState),
+          matching: find.byType(FilledButton),
+        ),
+        findsNothing,
       );
-      expect(
-        tester.getTopLeft(button).dy,
-        greaterThan(tester.getBottomLeft(find.text('No posts yet')).dy),
-      );
-      expect(
-        tester.widget<FilledButton>(button).style!.backgroundColor!.resolve({}),
-        DarkColors.primaryColor,
-      );
-      await tester.ensureVisible(button);
-      await tester.tap(button);
-      await tester.pump();
-      expect(creates, 1);
       await tester.ensureVisible(find.text('Saved'));
       await tester.tap(find.text('Saved'));
       await tester.pumpAndSettle();
@@ -585,16 +579,25 @@ void main() {
   );
 
   testWidgets(
-    'Explore People reuses the existing Buddies destination outside Root',
+    'Explore People opens Suggested People (Home See All); Back returns',
     (tester) async {
       people.empty = true;
       await show(tester, type: FollowListType.following);
+      people.empty = false;
       await tester.tap(find.text('Explore People'));
       await tester.pumpAndSettle();
-      expect(find.byType(BuddiesScreen), findsOneWidget);
+      expect(find.byType(BuddiesScreen), findsNothing);
+      final suggested = find.byWidgetPredicate(
+        (widget) =>
+            widget is FollowUsersScreen &&
+            widget.type == FollowListType.suggested,
+      );
+      expect(suggested, findsOneWidget);
+      expect(people.reads.last.type, FollowListType.suggested);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.byType(FollowUsersScreen), findsOneWidget);
+      expect(suggested, findsNothing);
+      expect(find.text('Not following anyone yet'), findsOneWidget);
     },
   );
 

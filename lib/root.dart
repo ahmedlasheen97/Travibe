@@ -265,8 +265,6 @@ class _RootState extends State<Root> {
       profileRepo: widget.profileRepo,
       postsRepo: widget.postsRepo,
       refreshSignal: _profileRefreshes,
-      onCreatePost: _showCreateOptions,
-      onExplorePeople: _explorePeople,
       storiesRepo: widget.storiesRepo,
     ),
   ];
@@ -461,8 +459,6 @@ class _RootState extends State<Root> {
 
   /// A link to the signed-in user's own profile opens the Profile tab.
   void _showMyProfile() => _showTab(4);
-
-  void _explorePeople() => _showTab(3);
 
   void _showTab(int index) {
     final rootRoute = ModalRoute.of(context);

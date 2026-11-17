@@ -13,7 +13,6 @@ import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/refresh_users_on_unblock.dart';
-import 'package:travibe/features/buddies/screens/buddies_screen.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/cubit/follow_users_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
@@ -29,12 +28,10 @@ class FollowUsersScreen extends StatefulWidget {
     this.username,
     this.followersCount,
     this.followingCount,
-    this.onExplorePeople,
   });
   final FollowListType type;
   final String? userId, username;
   final int? followersCount, followingCount;
-  final VoidCallback? onExplorePeople;
 
   static Future<void> open(
     BuildContext context, {
@@ -43,7 +40,6 @@ class FollowUsersScreen extends StatefulWidget {
     String? username,
     int? followersCount,
     int? followingCount,
-    VoidCallback? onExplorePeople,
   }) {
     final follow = context.read<FollowCubit>();
     final block = context.read<BlockCubit>();
@@ -60,7 +56,6 @@ class FollowUsersScreen extends StatefulWidget {
             username: username,
             followersCount: followersCount,
             followingCount: followingCount,
-            onExplorePeople: onExplorePeople,
           ),
         ),
       ),
@@ -156,33 +151,10 @@ class _FollowUsersScreenState extends State<FollowUsersScreen> {
     }
   }
 
-  void _explore() {
-    if (widget.onExplorePeople != null) {
-      widget.onExplorePeople!();
-      return;
-    }
-    final follow = context.read<FollowCubit>();
-    final block = context.read<BlockCubit>();
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => MultiBlocProvider(
-          providers: [
-            BlocProvider.value(value: follow),
-            BlocProvider.value(value: block),
-          ],
-          child: Scaffold(
-            appBar: AppBar(
-              leading: Navigator.of(context).canPop()
-                  ? const BackButtonWidget()
-                  : null,
-              title: const Text('Buddies'),
-            ),
-            body: const BuddiesScreen(),
-          ),
-        ),
-      ),
-    );
-  }
+  /// "Explore People": the same Suggested People list as Home's See All;
+  /// Back returns here.
+  void _explore() =>
+      FollowUsersScreen.open(context, type: FollowListType.suggested);
 
   @override
   void dispose() {
