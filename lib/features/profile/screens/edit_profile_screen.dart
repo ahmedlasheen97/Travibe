@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/reference/nationality_labels.dart';
 import 'package:travibe/core/widgets/country_search_sheet.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -949,27 +950,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _chipSkeleton(field)
         else
           Wrap(
-            spacing: AppSizes.w8,
-            runSpacing: AppSizes.h8,
-            children: values.map((v) {
-              return Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppSizes.pw14,
-                  vertical: AppSizes.ph8,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2B1E3D),
-                  borderRadius: BorderRadius.circular(AppSizes.r20),
-                ),
-                child: Text(
-                  v.name,
-                  style: TextStyle(
-                    color: const Color(0xFFC9A9E9),
-                    fontSize: AppSizes.sp13,
-                  ),
-                ),
-              );
-            }).toList(),
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final v in values)
+                TravibeChoiceChip(label: v.name, selected: false),
+            ],
           ),
       ],
     );
@@ -988,10 +974,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         for (final width in const [72.0, 96.0, 64.0, 84.0])
           Container(
             width: width.w,
-            height: AppSizes.sp13 * 1.4 + AppSizes.ph8 * 2,
+            height: 38,
             decoration: BoxDecoration(
               color: DarkColors.darkgreyColor,
-              borderRadius: BorderRadius.circular(AppSizes.r20),
+              borderRadius: BorderRadius.circular(50),
             ),
           ),
       ],

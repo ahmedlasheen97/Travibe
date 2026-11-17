@@ -54,7 +54,3 @@ abstract interface class CityPlacesProvider {
   Future<List<CitySuggestion>> autocomplete(String input);
   Future<CitySelection> resolve(CitySuggestion suggestion);
 }
-
-abstract interface class CityReverseGeocoder {
-  Future<CitySelection> reverse(double latitude, double longitude);
-}

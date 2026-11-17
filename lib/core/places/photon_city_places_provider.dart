@@ -5,8 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'city_places_provider.dart';
 
 /// Public geocoding uses a separate Dio: never forward Travibe's Bearer token.
-class PhotonCityPlacesProvider
-    implements CityPlacesProvider, CityReverseGeocoder {
+class PhotonCityPlacesProvider implements CityPlacesProvider {
   PhotonCityPlacesProvider({
     Dio? transport,
     DateTime Function()? now,
@@ -51,41 +50,10 @@ class PhotonCityPlacesProvider
   Future<List<CitySuggestion>> _search(String query) =>
       _request({'q': query, 'limit': 6, 'lang': 'en', 'osm_tag': 'place:city'});
 
-  @override
-  Future<CitySelection> reverse(double latitude, double longitude) async {
-    if (!latitude.isFinite ||
-        latitude.abs() > 90 ||
-        !longitude.isFinite ||
-        longitude.abs() > 180) {
-      throw const CityPlacesException(
-        'Invalid device coordinates. Choose a city manually.',
-      );
-    }
-    if (_retryAt != null && _now().isBefore(_retryAt!)) {
-      throw CityPlacesException(_busyMessage());
-    }
-    final cities = await _request({
-      'lat': latitude,
-      'lon': longitude,
-      'limit': 6,
-      'lang': 'en',
-      'layer': 'city',
-    }, reverse: true);
-    if (cities.isEmpty) {
-      throw const CityPlacesException(
-        'No usable city was found at your location. Choose a city manually.',
-      );
-    }
-    return cities.first.selection!;
-  }
-
-  Future<List<CitySuggestion>> _request(
-    Map<String, dynamic> parameters, {
-    bool reverse = false,
-  }) async {
+  Future<List<CitySuggestion>> _request(Map<String, dynamic> parameters) async {
     final cancel = CancelToken();
     final elapsed = Stopwatch()..start();
-    final target = reverse ? 'https://photon.komoot.io/reverse' : endpoint;
+    const target = endpoint;
     _log('GET $target parameters=<redacted>');
     try {
       final response = await _http
@@ -109,7 +77,7 @@ class PhotonCityPlacesProvider
           );
       _log('status=${response.statusCode} body=${_bodyShape(response.data)}');
       if (response.statusCode != 200) _rejectHttp(response);
-      final cities = parse(response.data, allowTowns: reverse);
+      final cities = parse(response.data);
       _log('parsedCities=${cities.length}');
       return cities;
     } on TimeoutException {
@@ -212,7 +180,7 @@ class PhotonCityPlacesProvider
   }
 
   /// Invalid individual features are skipped; a malformed collection is an error.
-  static List<CitySuggestion> parse(dynamic body, {bool allowTowns = false}) {
+  static List<CitySuggestion> parse(dynamic body) {
     if (body is! Map ||
         body['type'] != 'FeatureCollection' ||
         body['features'] is! List) {
@@ -232,11 +200,9 @@ class PhotonCityPlacesProvider
       // too so unexpected streets, buildings or towns cannot enter city results.
       if ((properties['osm_key'] != null && properties['osm_key'] != 'place') ||
           (properties['osm_value'] != null &&
-              properties['osm_value'] != 'city' &&
-              !(allowTowns && properties['osm_value'] == 'town')) ||
+              properties['osm_value'] != 'city') ||
           (properties['type'] != null &&
-              properties['type'] != 'city' &&
-              !(allowTowns && properties['type'] == 'town'))) {
+              properties['type'] != 'city')) {
         continue;
       }
       final coordinates = geometry['coordinates'];

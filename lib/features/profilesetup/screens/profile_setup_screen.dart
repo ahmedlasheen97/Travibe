@@ -4,7 +4,7 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:travibe/features/profilesetup/widgets/setup_step_indicator.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'dart:typed_data';
@@ -151,15 +151,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                   body: Column(
                     children: [
                       const SizedBox(height: 12),
-                      SmoothPageIndicator(
-                        controller: cubit.pageController,
+                      SetupStepIndicator(
                         count: _totalSteps,
-                        effect: const ExpandingDotsEffect(
-                          dotHeight: 8,
-                          dotWidth: 8,
-                          activeDotColor: DarkColors.primaryColor,
-                          dotColor: Color(0xFF303030),
-                        ),
+                        current: state.step,
                       ),
                       SizedBox(height: AppSizes.h12),
                       Expanded(

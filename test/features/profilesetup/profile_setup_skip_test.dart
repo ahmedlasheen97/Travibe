@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -187,7 +188,7 @@ void main() {
       expect(cubit.state.step, 1);
       expect(find.text('Languages Spoken'), findsOneWidget);
       expect(find.byTooltip('Back'), findsOneWidget);
-      final skip = find.text('Skip for now');
+      final skip = find.text('Skip For Now');
       await tester.scrollUntilVisible(
         skip,
         200,
@@ -198,6 +199,8 @@ void main() {
             )
             .first,
       );
+      await tester.ensureVisible(skip);
+      await tester.pumpAndSettle();
       await tester.tap(skip);
       await tester.pumpAndSettle();
       expect(find.byType(ProfileSetupScreen), findsNothing);
@@ -206,7 +209,7 @@ void main() {
     },
   );
 
-  testWidgets('travel style step shows Skip for now under its button', (
+  testWidgets('travel style step shows Skip For Now under its button', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -224,7 +227,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     final finish = find.text('Continue to Home');
-    final skip = find.text('Skip for now');
+    final skip = find.text('Skip For Now');
     expect(skip, findsOneWidget);
     expect(
       tester.getTopLeft(skip).dy,
@@ -233,7 +236,8 @@ void main() {
     final style = tester.widget<TextButton>(
       find.ancestor(of: skip, matching: find.byType(TextButton)),
     );
-    expect(style.style!.foregroundColor!.resolve({}), const Color(0xFFBDBCBB));
+    // Figma: orange "Skip For Now".
+    expect(style.style!.foregroundColor!.resolve({}), DarkColors.primaryColor);
     await tester.pumpWidget(const SizedBox());
   });
 

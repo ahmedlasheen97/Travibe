@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:travibe/core/reference/countries_repo.dart';
 import 'dart:async';
@@ -204,7 +205,7 @@ void main() {
       for (final kind in ReferenceKind.values) {
         for (var i = 0; i < 2; i++) {
           final chip = find.widgetWithText(
-            FilterChip,
+            TravibeChoiceChip,
             '${kind.name} option $i',
           );
           if (chip.evaluate().isEmpty) {
@@ -214,8 +215,11 @@ void main() {
           await tester.pumpAndSettle();
           expect(
             tester
-                .widget<FilterChip>(
-                  find.widgetWithText(FilterChip, '${kind.name} option $i'),
+                .widget<TravibeChoiceChip>(
+                  find.widgetWithText(
+                    TravibeChoiceChip,
+                    '${kind.name} option $i',
+                  ),
                 )
                 .selected,
             true,
@@ -312,8 +316,8 @@ void main() {
     await tapVisible(tester, find.text('Show More').last);
     expect(
       tester
-          .widget<FilterChip>(
-            find.widgetWithText(FilterChip, 'interests option 7'),
+          .widget<TravibeChoiceChip>(
+            find.widgetWithText(TravibeChoiceChip, 'interests option 7'),
           )
           .selected,
       true,

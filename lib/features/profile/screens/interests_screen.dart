@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -121,27 +122,11 @@ class _InterestsScreenState extends State<InterestsScreen> {
     );
   }
 
-  Widget _chip(String slug, String label) {
-    final isSelected = _selected.contains(slug);
-    return GestureDetector(
-      onTap: () => _toggle(slug),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? DarkColors.primaryColor : const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white70,
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _chip(String slug, String label) => TravibeChoiceChip(
+    label: label,
+    selected: _selected.contains(slug),
+    onTap: () => _toggle(slug),
+  );
 
   Widget _buildSaveButton() {
     return SizedBox(

@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import '../widgets/buddies_loading_overlay.dart';
 import 'package:travibe/core/reference/countries_repo.dart';
@@ -190,8 +191,8 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
             ),
           ),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 10,
+          runSpacing: 10,
           children: [
             for (final item in shown)
               _chip(item.name, _selected[kind]!.contains(item.slug), () {
@@ -253,25 +254,8 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
     );
   }
 
-  Widget _chip(String label, bool selected, VoidCallback onTap) => FilterChip(
-    label: Text(label),
-    selected: selected,
-    onSelected: (_) => onTap(),
-    showCheckmark: false,
-    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    backgroundColor: const Color(0xFF141414),
-    selectedColor: DarkColors.primaryColor,
-    side: BorderSide(
-      color: selected ? DarkColors.primaryColor : const Color(0xFF292929),
-    ),
-    shape: const StadiumBorder(),
-    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-    labelStyle: const TextStyle(
-      color: Colors.white,
-      fontSize: 13,
-      fontWeight: FontWeight.w400,
-    ),
-  );
+  Widget _chip(String label, bool selected, VoidCallback onTap) =>
+      TravibeChoiceChip(label: label, selected: selected, onTap: onTap);
 
   void _apply() {
     if (_session != _preferences.sessionRevision) return;

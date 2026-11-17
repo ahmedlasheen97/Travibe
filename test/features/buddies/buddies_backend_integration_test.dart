@@ -15,10 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
-import 'package:travibe/core/location/device_location_service.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
-import 'package:travibe/core/places/photon_city_places_provider.dart';
-import 'package:travibe/core/places/device_city_reverse_geocoder.dart';
 import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/buddies/cubit/allow_location_cubit.dart';
@@ -98,35 +95,6 @@ class LocationApi extends ApiService {
 
   @override
   Future<dynamic> post(String endpoint, Map<String, dynamic> data) async => {};
-}
-
-class Device implements DeviceLocationService {
-  Device(this.events);
-  final List<String> events;
-  Object? failure;
-  @override
-  Future<DeviceCoordinates> locate() async {
-    events.add('device');
-    if (failure != null) throw failure!;
-    return const DeviceCoordinates(30.04, 31.23);
-  }
-
-  @override
-  Future<void> openSettings() async {}
-}
-
-class Reverse implements CityReverseGeocoder {
-  Reverse(this.events);
-  final List<String> events;
-  Object? failure;
-  @override
-  Future<CitySelection> reverse(double latitude, double longitude) async {
-    events.add('reverse');
-    if (failure != null) throw failure!;
-    expect(latitude, 30.04);
-    expect(longitude, 31.23);
-    return cairo();
-  }
 }
 
 void main() {
@@ -244,20 +212,11 @@ void main() {
     },
   );
   test(
-    'Allow Location orders device, reverse, PUT then settings PATCH',
+    'chooseCity saves the searched city, then turns on visibility',
     () async {
-      final flow = AllowLocationCubit(
-        currentUser: user,
-        device: Device(api.calls),
-        geocoder: Reverse(api.calls),
-      );
-      await flow.allow();
-      expect(api.calls, [
-        'device',
-        'reverse',
-        'PUT profile/location',
-        'PATCH settings',
-      ]);
+      final flow = AllowLocationCubit(currentUser: user);
+      await flow.chooseCity(cairo());
+      expect(api.calls, ['PUT profile/location', 'PATCH settings']);
       expect(api.payloads, [
         {'location': 'Cairo, EG'},
         {'show_in_travel_buddy': true},
@@ -267,63 +226,22 @@ void main() {
       await flow.close();
     },
   );
-  for (final message in [
-    'Permission denied',
-    'Permanently denied',
-    'Services disabled',
-    'Device timeout',
-  ]) {
-    test('$message does not save location or enable visibility', () async {
-      final device = Device(api.calls)
-        ..failure = DeviceLocationException(message);
-      final flow = AllowLocationCubit(
-        currentUser: user,
-        device: device,
-        geocoder: Reverse(api.calls),
-      );
-      await flow.allow();
-      expect(api.calls, ['device']);
-      expect(flow.state.error, message);
-      expect(flow.state.busy, false);
-      expect(user.state.profile!.showInTravelBuddy, false);
-      await flow.close();
-    });
-  }
-  test('reverse failure never enables visibility', () async {
-    final reverse = Reverse(api.calls)
-      ..failure = const CityPlacesException('No usable city');
-    final flow = AllowLocationCubit(
-      currentUser: user,
-      device: Device(api.calls),
-      geocoder: reverse,
-    );
-    await flow.allow();
-    expect(api.calls, ['device', 'reverse']);
-    expect(flow.state.error, 'No usable city');
-    await flow.close();
-  });
   test('location save failure never enables visibility', () async {
     api.putError = ApiError(message: 'Invalid location', statusCode: 422);
-    final flow = AllowLocationCubit(
-      currentUser: user,
-      device: Device(api.calls),
-      geocoder: Reverse(api.calls),
-    );
-    await flow.allow();
-    expect(api.calls, ['device', 'reverse', 'PUT profile/location']);
+    final flow = AllowLocationCubit(currentUser: user);
+    await flow.chooseCity(cairo());
+    expect(api.calls, ['PUT profile/location']);
     expect(flow.state.locationSaved, false);
+    expect(flow.state.error, 'Invalid location');
+    expect(user.state.profile!.showInTravelBuddy, false);
     await flow.close();
   });
   test(
     'partial failure retains location; retry only enables visibility',
     () async {
       api.settingsError = ApiError(message: 'Offline');
-      final flow = AllowLocationCubit(
-        currentUser: user,
-        device: Device(api.calls),
-        geocoder: Reverse(api.calls),
-      );
-      await flow.allow();
+      final flow = AllowLocationCubit(currentUser: user);
+      await flow.chooseCity(cairo());
       expect(flow.state.locationSaved, true);
       expect(flow.state.enabled, false);
       expect(user.state.profile!.currentLocation, 'Cairo, EG');
@@ -336,20 +254,11 @@ void main() {
       await flow.close();
     },
   );
-  test('Use my location defaults to the device geocoder', () async {
-    final flow = AllowLocationCubit(currentUser: user);
-    expect(flow.geocoder, isA<DeviceCityReverseGeocoder>());
-    await flow.close();
-  });
   test('turnOn with a saved city only PATCHes visibility', () async {
     await user.saveLocation(cairo());
     api.calls.clear();
     api.payloads.clear();
-    final flow = AllowLocationCubit(
-      currentUser: user,
-      device: Device(api.calls),
-      geocoder: Reverse(api.calls),
-    );
+    final flow = AllowLocationCubit(currentUser: user);
     await flow.turnOn();
     expect(api.calls, ['PATCH settings']);
     expect(api.payloads, [
@@ -359,45 +268,19 @@ void main() {
     await flow.close();
   });
   test('turnOn without a city never enables visibility', () async {
-    final flow = AllowLocationCubit(
-      currentUser: user,
-      device: Device(api.calls),
-      geocoder: Reverse(api.calls),
-    );
+    final flow = AllowLocationCubit(currentUser: user);
     await flow.turnOn();
     expect(api.calls, isEmpty);
     expect(flow.state.error, 'Choose your current city first.');
     await flow.close();
   });
-  test(
-    'chooseCity saves the picked city then turns on, without the device',
-    () async {
-      final flow = AllowLocationCubit(
-        currentUser: user,
-        device: Device(api.calls),
-        geocoder: Reverse(api.calls),
-      );
-      await flow.chooseCity(cairo());
-      expect(api.calls, ['PUT profile/location', 'PATCH settings']);
-      expect(api.payloads, [
-        {'location': 'Cairo, EG'},
-        {'show_in_travel_buddy': true},
-      ]);
-      expect(flow.state.enabled, true);
-      await flow.close();
-    },
-  );
-  test('repeated Allow Location taps do not duplicate requests', () async {
+  test('repeated Turn On taps do not duplicate requests', () async {
     api.pendingPut = Completer<dynamic>();
-    final flow = AllowLocationCubit(
-      currentUser: user,
-      device: Device(api.calls),
-      geocoder: Reverse(api.calls),
-    );
-    final pending = flow.allow();
+    final flow = AllowLocationCubit(currentUser: user);
+    final pending = flow.chooseCity(cairo());
     await Future<void>.delayed(Duration.zero);
-    await flow.allow();
-    expect(api.calls, ['device', 'reverse', 'PUT profile/location']);
+    await flow.chooseCity(cairo());
+    expect(api.calls, ['PUT profile/location']);
     api.pendingPut!.complete({
       'data': {...api.profile, 'current_location': 'Cairo, EG'},
     });
@@ -405,15 +288,11 @@ void main() {
     await flow.close();
   });
   test(
-    'Allow Location stops after session changes during the location write',
+    'Turn On stops after session changes during the location write',
     () async {
       api.pendingPut = Completer<dynamic>();
-      final flow = AllowLocationCubit(
-        currentUser: user,
-        device: Device(api.calls),
-        geocoder: Reverse(api.calls),
-      );
-      final pending = flow.allow();
+      final flow = AllowLocationCubit(currentUser: user);
+      final pending = flow.chooseCity(cairo());
       await Future<void>.delayed(Duration.zero);
       await preferences.saveToken('another-account');
       api.pendingPut!.complete({
@@ -490,48 +369,6 @@ void main() {
       await cubit.close();
     },
   );
-  test('Photon reverse uses coordinates, city layer and honest UA', () async {
-    final adapter = photon.PhotonAdapter()
-      ..data = photon.photonCollection([
-        photon.photonFeature(
-          name: 'Cairo',
-          country: 'Egypt',
-          code: 'eg',
-          lon: 31.23,
-          lat: 30.04,
-        ),
-      ]);
-    final provider = PhotonCityPlacesProvider(
-      transport: Dio()..httpClientAdapter = adapter,
-    );
-    final city = await provider.reverse(30.04, 31.23);
-    final request = adapter.requests.single;
-    expect(request.uri.path, '/reverse');
-    expect(request.queryParameters, {
-      'lat': 30.04,
-      'lon': 31.23,
-      'limit': 6,
-      'lang': 'en',
-      'layer': 'city',
-    });
-    expect(request.headers['User-Agent'], PhotonCityPlacesProvider.userAgent);
-    expect(request.headers.containsKey('Authorization'), false);
-    expect(city.countryCode, 'EG');
-    expect(city.latitude, 30.04);
-    expect(city.longitude, 31.23);
-  });
-  test('reverse refuses unrelated and incomplete features', () async {
-    final feature = photon.photonFeature();
-    (feature['properties'] as Map)['type'] = 'street';
-    final adapter = photon.PhotonAdapter()
-      ..data = photon.photonCollection([feature]);
-    await expectLater(
-      PhotonCityPlacesProvider(
-        transport: Dio()..httpClientAdapter = adapter,
-      ).reverse(0, 0),
-      throwsA(isA<CityPlacesException>()),
-    );
-  });
   for (final locale in ['en', 'ar']) {
     test('countries $locale is public, localized and cached', () async {
       final adapter = photon.PhotonAdapter()

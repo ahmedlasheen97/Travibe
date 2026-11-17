@@ -178,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Show your current city.',
                     value: profile?.showInTravelBuddy,
                     saving: state.saving == 'show_in_travel_buddy',
-                    // Turning on goes through the location sheet so a
+                    // Turning on goes through the Show me in Buddies sheet so a
                     // current city is saved first; turning off is direct.
                     onChanged: !ready || _saving
                         ? null

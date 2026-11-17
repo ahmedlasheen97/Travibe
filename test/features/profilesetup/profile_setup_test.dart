@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/features/profilesetup/widgets/setup_step_indicator.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/profilesetup/data/profile_selection_options.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'package:travibe/features/profilesetup/widgets/step3_travel_style.dart';
@@ -520,49 +523,125 @@ void main() {
     },
   );
 
-  testWidgets(
-    'step 2: unselected chips use white text; 48 above the Next button',
-    (tester) async {
-      tester.view.physicalSize = const Size(390, 3000);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Step2LanguagesInterests(
-              selectedLanguages: const ['English'],
-              selectedInterests: const [],
-              onLanguagesChanged: (_) {},
-              onInterestsChanged: (_) {},
-              onNext: () {},
-              onSkip: () {},
-              isSaving: false,
-            ),
+  testWidgets('step 2 matches Figma chips, spacing and Skip For Now', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 3000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Step2LanguagesInterests(
+            selectedLanguages: const ['English'],
+            selectedInterests: const ['Hiking'],
+            onLanguagesChanged: (_) {},
+            onInterestsChanged: (_) {},
+            onNext: () {},
+            onSkip: () {},
+            isSaving: false,
           ),
         ),
-      );
-      Color? colorOf(String label) =>
-          tester.widget<Text>(find.text(label)).style?.color;
-      expect(colorOf(profileInterestOptions.first), Colors.white);
-      expect(colorOf(profileLanguageOptions[1]), Colors.white);
-      // Selected chip unchanged: white, bold.
-      expect(colorOf('English'), Colors.white);
+      ),
+    );
+    BoxDecoration chip(String label) =>
+        tester
+                .widget<Container>(
+                  find
+                      .ancestor(
+                        of: find.text(label),
+                        matching: find.byType(Container),
+                      )
+                      .first,
+                )
+                .decoration!
+            as BoxDecoration;
+    TextStyle text(String label) =>
+        tester.widget<Text>(find.text(label)).style!;
+
+    // Unselected languages and interests: same dark chip, thin grey border,
+    // white text.
+    for (final label in [
+      profileLanguageOptions[1],
+      profileInterestOptions.last,
+    ]) {
+      expect(chip(label).color, TravibeChoiceChip.fill);
       expect(
-        tester.widget<Text>(find.text('English')).style?.fontWeight,
-        FontWeight.w600,
+        (chip(label).border! as Border).top,
+        const BorderSide(color: TravibeChoiceChip.border),
       );
-      final interestsBottom = tester
-          .getRect(
-            find.ancestor(
-              of: find.text(profileInterestOptions.last),
-              matching: find.byType(Wrap),
-            ),
+      expect(text(label).color, Colors.white);
+      expect(text(label).fontSize, 14);
+    }
+    // Selected stays orange with white semibold text.
+    for (final label in ['English', 'Hiking']) {
+      expect(chip(label).color, DarkColors.primaryColor);
+      expect(text(label).color, Colors.white);
+      expect(text(label).fontWeight, FontWeight.w600);
+    }
+    // Figma chip height: 8 + 20 + 8 + 2px border.
+    expect(
+      tester
+          .getSize(
+            find
+                .ancestor(
+                  of: find.text('English'),
+                  matching: find.byType(Container),
+                )
+                .first,
           )
-          .bottom;
-      expect(
-        tester.getRect(find.byType(CustomButton)).top - interestsBottom,
-        48,
+          .height,
+      38,
+    );
+    expect(find.text('Add Another'), findsNothing);
+    expect(showAddAnotherLanguage, false);
+
+    final interests = tester.getRect(
+      find.ancestor(
+        of: find.text(profileInterestOptions.last),
+        matching: find.byType(Wrap),
+      ),
+    );
+    final next = tester.getRect(find.byType(CustomButton));
+    expect(next.top - interests.bottom, 28);
+    final skip = find.widgetWithText(TextButton, 'Skip For Now');
+    expect(tester.getRect(skip).top - next.bottom, 16);
+    expect(
+      tester.widget<TextButton>(skip).style!.foregroundColor!.resolve({}),
+      DarkColors.primaryColor,
+    );
+  });
+
+  testWidgets('step indicator: equal bars, done and current orange', (
+    tester,
+  ) async {
+    Future<List<Color?>> bars(int current) async {
+      await tester.pumpWidget(
+        MaterialApp(home: SetupStepIndicator(count: 3, current: current)),
       );
-    },
-  );
+      await tester.pumpAndSettle();
+      return [
+        for (var i = 0; i < 3; i++)
+          (tester
+                      .widget<AnimatedContainer>(
+                        find.byKey(ValueKey('setup-step-bar-$i')),
+                      )
+                      .decoration!
+                  as BoxDecoration)
+              .color,
+      ];
+    }
+
+    const orange = DarkColors.primaryColor;
+    const grey = SetupStepIndicator.upcomingColor;
+    expect(await bars(0), [orange, grey, grey]);
+    expect(await bars(1), [orange, orange, grey]);
+    expect(await bars(2), [orange, orange, orange]);
+    for (var i = 0; i < 3; i++) {
+      expect(
+        tester.getSize(find.byKey(ValueKey('setup-step-bar-$i'))),
+        const Size(44, 6),
+      );
+    }
+  });
 }

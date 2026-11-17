@@ -2,8 +2,12 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/features/profilesetup/widgets/setup_skip_button.dart';
 import 'package:travibe/features/profilesetup/data/profile_selection_options.dart';
+
+/// "Add Another" language chip; hidden until custom languages are supported.
+const showAddAnotherLanguage = false;
 
 class Step2LanguagesInterests extends StatefulWidget {
   final List<String> selectedLanguages;
@@ -70,102 +74,56 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
 
   @override
   Widget build(BuildContext context) {
+    // Spacing follows Figma (docs/figma/profile/setup_step2.png).
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        const SizedBox(height: 24),
-        const Text(
-          'Languages Spoken',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Select languages you speak ($_maxLanguages max)',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 30),
+        const _SectionTitle('Languages Spoken'),
+        const SizedBox(height: 6),
+        _SectionSubtitle('Select languages you speak ($_maxLanguages max)'),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 10,
           runSpacing: 10,
           children: [
             for (final option in profileLanguageOptions)
-              _chip(
-                option,
-                widget.selectedLanguages.contains(option),
-                _toggleLanguage,
+              TravibeChoiceChip(
+                label: option,
+                selected: widget.selectedLanguages.contains(option),
+                onTap: widget.isSaving ? null : () => _toggleLanguage(option),
               ),
-            _addAnotherChip(),
+            if (showAddAnotherLanguage) _addAnotherChip(),
           ],
         ),
-        const SizedBox(height: 28),
-        const Text(
-          'Interests',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'What excites you most? ($_maxInterests max)',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.5),
-            fontSize: 13,
-          ),
-        ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 32),
+        const _SectionTitle('Interests'),
+        const SizedBox(height: 6),
+        _SectionSubtitle('What excites you most? ($_maxInterests max)'),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 10,
           runSpacing: 10,
           children: [
             for (final option in profileInterestOptions)
-              _chip(
-                option,
-                widget.selectedInterests.contains(option),
-                _toggleInterest,
+              TravibeChoiceChip(
+                label: option,
+                selected: widget.selectedInterests.contains(option),
+                onTap: widget.isSaving ? null : () => _toggleInterest(option),
               ),
           ],
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: 28),
         CustomButton(
           title: widget.isSaving ? 'Saving...' : 'Next',
           onPressed: widget.isSaving ? null : widget.onNext,
         ),
         if (widget.onSkip != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 16),
           SetupSkipButton(onPressed: widget.onSkip),
         ],
         const SizedBox(height: 24),
       ],
-    );
-  }
-
-  Widget _chip(String label, bool isSelected, ValueChanged<String> onTap) {
-    return GestureDetector(
-      onTap: widget.isSaving ? null : () => onTap(label),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? DarkColors.primaryColor : const Color(0xFF1C1C1C),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-          ),
-        ),
-      ),
     );
   }
 
@@ -189,4 +147,33 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
       ),
     );
   }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: const TextStyle(
+      color: Colors.white,
+      fontSize: 18,
+      height: 24 / 18,
+      fontWeight: FontWeight.w600,
+    ),
+  );
+}
+
+class _SectionSubtitle extends StatelessWidget {
+  const _SectionSubtitle(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    style: const TextStyle(
+      color: DarkColors.greyColor,
+      fontSize: 14,
+      height: 20 / 14,
+    ),
+  );
 }

@@ -5,10 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
-import 'package:travibe/core/location/device_location_service.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
-import 'package:travibe/features/buddies/cubit/allow_location_cubit.dart';
 import 'package:travibe/features/buddies/widgets/buddies_visibility_invitation.dart';
 import 'package:travibe/features/buddies/widgets/show_in_buddies_sheet.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -18,42 +16,11 @@ import 'package:travibe/features/profile/data/settings_update.dart';
 import 'package:travibe/features/profile/screens/settings_screen.dart';
 import 'buddies_backend_integration_test.dart' show LocationApi, cairo;
 
-/// Exact device fix; only a ~1 km rounded copy may leave the device.
-class PreciseDevice implements DeviceLocationService {
-  PreciseDevice(this.events);
-  final List<String> events;
-  Object? failure;
-  int settingsOpened = 0;
-  @override
-  Future<DeviceCoordinates> locate() async {
-    events.add('device');
-    if (failure != null) throw failure!;
-    return const DeviceCoordinates(30.044419, 31.235712);
-  }
-
-  @override
-  Future<void> openSettings() async => settingsOpened++;
-}
-
-class RecordingReverse implements CityReverseGeocoder {
-  RecordingReverse(this.events);
-  final List<String> events;
-  double? latitude, longitude;
-  @override
-  Future<CitySelection> reverse(double latitude, double longitude) async {
-    events.add('reverse');
-    this.latitude = latitude;
-    this.longitude = longitude;
-    return cairo();
-  }
-}
-
 void main() {
   final preferences = PreferencesManager();
   late LocationApi api;
   late CurrentUserCubit user;
-  late PreciseDevice device;
-  late RecordingReverse reverse;
+  CitySelection? picked;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -72,15 +39,14 @@ void main() {
     );
     await user.load();
     api.calls.clear();
-    device = PreciseDevice(api.calls);
-    reverse = RecordingReverse(api.calls);
+    picked = cairo();
   });
   tearDown(() async {
     await user.close();
     await preferences.clear();
   });
 
-  Future<void> openSheet(WidgetTester tester) async {
+  Future<void> openSheet(WidgetTester tester, {bool realPicker = false}) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: darkTheme,
@@ -91,8 +57,12 @@ void main() {
               builder: (context) => TextButton(
                 onPressed: () => showShowInBuddiesSheet(
                   context,
-                  device: device,
-                  geocoder: reverse,
+                  pickCity: realPicker
+                      ? null
+                      : (_) async {
+                          api.calls.add('city search');
+                          return picked;
+                        },
                 ),
                 child: const Text('open'),
               ),
@@ -105,52 +75,48 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('coordinates are coarsened to 2 decimals', () {
-    expect(coarseCoordinate(30.044419), 30.04);
-    expect(coarseCoordinate(-0.125), -0.13);
-    expect(coarseCoordinate(31.235712), 31.24);
-  });
-
-  void expectOnlyTwoButtons() {
-    expect(find.text('Allow Location'), findsOneWidget);
+  void expectOnlyTwoButtons({required bool hasCity}) {
+    expect(find.text('Turn On'), hasCity ? findsOneWidget : findsNothing);
+    expect(find.text('Choose City'), hasCity ? findsNothing : findsOneWidget);
+    expect(find.text('Allow Location'), findsNothing);
     expect(find.text('Not Now'), findsOneWidget);
     expect(find.text('Use my location'), findsNothing);
     expect(find.text('Choose city manually'), findsNothing);
     expect(find.text('Change city'), findsNothing);
-    expect(find.text('Turn On'), findsNothing);
+    expect(find.text('Open Settings'), findsNothing);
     expect(find.byType(ElevatedButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsNothing);
   }
 
-  testWidgets('no city: Figma copy with only Allow Location and Not Now', (
+  testWidgets('no city: city copy with only Choose City and Not Now', (
     tester,
   ) async {
     await openSheet(tester);
     expect(find.text('Show me in Buddies'), findsOneWidget);
     expect(
       find.text(
-        'Allow Travibe to use your current location to show you to people nearby.',
+        'Share your current city so travelers in your city can discover you.',
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('location to show'), findsNothing);
     expect(
       find.text("We'll show your city, not your exact location."),
       findsOneWidget,
     );
     expect(find.byIcon(Icons.location_on_rounded), findsOneWidget);
-    expectOnlyTwoButtons();
+    expectOnlyTwoButtons(hasCity: false);
     await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets(
-    'no city: Allow Location saves only the city, turns on Show in Buddies, closes and toasts',
+    'no city: Choose City searches a city, saves it, turns on, closes and toasts',
     (tester) async {
       await openSheet(tester);
-      await tester.tap(find.text('Allow Location'));
+      await tester.tap(find.text('Choose City'));
       await tester.pumpAndSettle();
       expect(api.calls, [
-        'device',
-        'reverse',
+        'city search',
         'PUT profile/location',
         'PATCH settings',
       ]);
@@ -158,13 +124,7 @@ void main() {
         {'location': 'Cairo, EG'},
         {'show_in_travel_buddy': true},
       ]);
-      // The exact fix never leaves the device, even to the geocoder.
-      expect(reverse.latitude, 30.04);
-      expect(reverse.longitude, 31.24);
-      for (final payload in api.payloads) {
-        expect(payload.keys, isNot(contains('latitude')));
-        expect(payload.keys, isNot(contains('longitude')));
-      }
+      expect(user.state.profile!.currentLocation, 'Cairo, EG');
       expect(user.state.profile!.showInTravelBuddy, true);
       expect(find.byType(ShowInBuddiesSheet), findsNothing);
       expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
@@ -172,37 +132,37 @@ void main() {
     },
   );
 
-  testWidgets('denied permission shows the message and saves nothing', (
+  testWidgets('no city: closing the city search changes nothing', (
     tester,
   ) async {
-    device.failure = const DeviceLocationException(
-      'Location permission was not granted.',
-    );
+    picked = null;
     await openSheet(tester);
-    await tester.tap(find.text('Allow Location'));
+    await tester.tap(find.text('Choose City'));
     await tester.pumpAndSettle();
-    expect(find.text('Location permission was not granted.'), findsOneWidget);
-    expect(find.text('Open Settings'), findsNothing);
-    expect(api.calls, ['device']);
+    expect(api.calls, ['city search']);
+    expect(user.state.profile!.showInTravelBuddy, false);
     expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
+    expectOnlyTwoButtons(hasCity: false);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('permanently denied offers Open Settings', (tester) async {
-    device.failure = const DeviceLocationException(
-      'Location permission is disabled.',
-      openSettings: true,
-    );
-    await openSheet(tester);
-    await tester.tap(find.text('Allow Location'));
-    await tester.pumpAndSettle();
-    expect(find.text('Location permission is disabled.'), findsOneWidget);
-    await tester.tap(find.text('Open Settings'));
-    await tester.pump();
-    expect(device.settingsOpened, 1);
-    expect(user.state.profile!.showInTravelBuddy, false);
-    await tester.pumpWidget(const SizedBox());
-  });
+  testWidgets(
+    'no city: Choose City opens the Profile Setup / Edit Profile city search',
+    (tester) async {
+      await openSheet(tester, realPicker: true);
+      await tester.tap(find.text('Choose City'));
+      await tester.pumpAndSettle();
+      expect(find.text('Current City'), findsOneWidget);
+      expect(find.text('Search for your current city'), findsOneWidget);
+      // Dismissing the search leaves the sheet as it was.
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+      expect(find.text('Current City'), findsNothing);
+      expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
+      expect(api.calls, isEmpty);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
 
   testWidgets('Not Now closes without any request', (tester) async {
     await openSheet(tester);
@@ -227,15 +187,15 @@ void main() {
         find.text("We'll show your city, not your exact location."),
         findsOneWidget,
       );
-      expectOnlyTwoButtons();
+      expectOnlyTwoButtons(hasCity: true);
       await tester.pumpWidget(const SizedBox());
     });
 
     testWidgets(
-      'Allow Location uses the saved city: no permission, only PATCHes show_in_travel_buddy',
+      'Turn On uses the saved city: no search, only PATCHes show_in_travel_buddy',
       (tester) async {
         await openSheet(tester);
-        await tester.tap(find.text('Allow Location'));
+        await tester.tap(find.text('Turn On'));
         await tester.pumpAndSettle();
         expect(api.calls, ['PATCH settings']);
         expect(api.payloads, [
@@ -252,10 +212,10 @@ void main() {
     ) async {
       api.settingsError = ApiError(message: 'Offline');
       await openSheet(tester);
-      await tester.tap(find.text('Allow Location'));
+      await tester.tap(find.text('Turn On'));
       await tester.pumpAndSettle();
       expect(find.text('Offline'), findsOneWidget);
-      expect(find.text('Allow Location'), findsOneWidget);
+      expect(find.text('Turn On'), findsOneWidget);
       expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });

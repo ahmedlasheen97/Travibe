@@ -727,7 +727,7 @@ void main() {
     await show(tester, cubit);
     expect(find.text('Full Name *'), findsOneWidget);
     expect(find.text('User Name *'), findsOneWidget);
-    expect(find.text('Skip for now'), findsNothing);
+    expect(find.text('Skip For Now'), findsNothing);
     final button = find.byType(CustomButton);
     expect(tester.widget<CustomButton>(button).onPressed, isNull);
     await tester.enterText(find.byType(TextFormField).first, '  ');
@@ -753,11 +753,11 @@ void main() {
   ) async {
     final cubit = make(SetupApi());
     await show(tester, cubit, whole: true);
-    expect(find.text('Skip for now'), findsNothing);
+    expect(find.text('Skip For Now'), findsNothing);
     cubit.onPageChanged(1);
     cubit.pageController.jumpToPage(1);
     await tester.pumpAndSettle();
-    expect(find.text('Skip for now'), findsOneWidget);
+    expect(find.text('Skip For Now'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('photo preview shows while pending without a loading overlay', (
@@ -894,7 +894,7 @@ void main() {
     expect(cubit.state.step, 0);
     expect(cubit.fullNameController.text, 'New Name');
     expect(cubit.usernameController.text, 'saved_user');
-    expect(find.text('Skip for now'), findsNothing);
+    expect(find.text('Skip For Now'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
