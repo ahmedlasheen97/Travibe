@@ -16,12 +16,14 @@ import 'fixtures.dart';
 class PipelineApi extends MediaApi {
   Map<String, dynamic>? patchBody;
   Object? patchError;
+  bool avatarSaved = false;
   @override
   Future<dynamic> patch(String endpoint, Map<String, dynamic> data) async {
     calls.add('PATCH $endpoint');
     expect(endpoint, 'profile');
     if (patchError != null) throw patchError!;
     patchBody = data;
+    avatarSaved |= data.containsKey('avatar_media_id');
     return {'data': []};
   }
 
@@ -35,7 +37,7 @@ class PipelineApi extends MediaApi {
       return Future.value({
         'data': {
           ...profileJson(),
-          'avatar_url': patchBody == null
+          'avatar_url': !avatarSaved
               ? null
               : 'https://example.invalid/new-avatar.png',
           'bio': patchBody?['bio'] ?? 'Exploring Egypt',
@@ -95,14 +97,28 @@ void main() {
     );
   }
 
-  /// Picks a photo and waits for its background upload + attach.
+  /// Picks a photo and waits for its background upload (no profile write).
   Future<void> pickAndSettle(_Rig r) async {
     await r.editor.pickAvatar();
-    await r.pictures.settled();
+    if (r.pictures.uploading) {
+      await r.pictures.stream.firstWhere((s) => s is! ProfilePictureUploading);
+    }
   }
 
+  /// What Edit Profile does when the upload finishes: the picture becomes a
+  /// pending form change.
+  ProfileDraft draftFor(_Rig r, {String? bio}) {
+    final draft = ProfileDraft((r.owner.state as ProfileLoaded).profile);
+    if (bio != null) draft.set('bio', bio);
+    draft.set('avatar_media_id', r.pictures.mediaId);
+    return draft;
+  }
+
+  String? avatarOf(_Rig r) =>
+      (r.owner.state as ProfileLoaded).profile.avatarUrl;
+
   test(
-    'full real pipeline uploads on pick, attaches the avatar, then saves fields',
+    'pick only uploads; Save Changes sends the picture with the other fields',
     () async {
       final api = PipelineApi();
       final storage = StorageAdapter()
@@ -115,7 +131,11 @@ void main() {
         'size': r.source.bytes.length,
       });
       expect(storage.bytes, r.source.bytes);
-      expect(api.patchBody, {'avatar_media_id': 19});
+      expect(r.pictures.state, isA<ProfilePictureDone>());
+      expect(r.pictures.mediaId, 19);
+      // Nothing is attached until Save Changes.
+      expect(api.patchBody, isNull);
+      expect(avatarOf(r), isNull);
       expect(api.calls, [
         'GET profile',
         'POST media/presign',
@@ -124,18 +144,12 @@ void main() {
         'GET media/19',
         'GET media/19',
         'GET media/19',
-        'PATCH profile',
-        'GET profile',
       ]);
-      expect(r.pictures.state, isA<ProfilePictureDone>());
-      expect(
-        (r.owner.state as ProfileLoaded).profile.avatarUrl,
-        'https://example.invalid/new-avatar.png',
-      );
-      final draft = ProfileDraft((r.owner.state as ProfileLoaded).profile)
-        ..set('bio', 'New bio');
+      final draft = draftFor(r, bio: 'New bio');
       expect(await r.editor.save(draft), true);
-      expect(api.patchBody, {'bio': 'New bio'});
+      expect(api.patchBody, {'bio': 'New bio', 'avatar_media_id': 19});
+      expect(api.calls.where((c) => c == 'PATCH profile'), hasLength(1));
+      expect(avatarOf(r), 'https://example.invalid/new-avatar.png');
       expect((r.owner.state as ProfileLoaded).profile.bio, 'New bio');
       expect(r.editor.state.saved, true);
       expect(draft.isDirty, false);
@@ -143,21 +157,16 @@ void main() {
   );
 
   test(
-    'ambiguous storage timeout keeps preview and fields; Retry reconciles without writes',
+    'ambiguous storage timeout keeps the preview; other fields still save without it; Retry reconciles without writes',
     () async {
       final api = PipelineApi()..statuses = ['pending'];
       final storage = StorageAdapter()..receiveTimeout = true;
       final r = await rig(api, storage);
-      final original = (r.owner.state as ProfileLoaded).profile;
       await pickAndSettle(r);
       expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(r.pictures.state.preview, r.source.bytes);
-      final draft = ProfileDraft(original)..set('bio', 'Keep this draft');
-      // Save never goes ahead over a failed picture.
-      expect(await r.editor.save(draft), false);
-      expect((r.owner.state as ProfileLoaded).profile, same(original));
+      final draft = draftFor(r, bio: 'Keep this draft');
       expect(draft.changes, {'bio': 'Keep this draft'});
-      expect(api.patchBody, isNull);
       await r.pictures.retry();
       expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(storage.requests, 1);
@@ -168,16 +177,17 @@ void main() {
       api.statuses = ['ready'];
       await r.pictures.retry();
       expect(r.pictures.state, isA<ProfilePictureDone>());
-      expect(api.patchBody, {'avatar_media_id': 19});
+      expect(api.patchBody, isNull);
       expect(storage.requests, 1);
       expect(api.calls.where((e) => e.contains('finalize')), isEmpty);
+      draft.set('avatar_media_id', r.pictures.mediaId);
       expect(await r.editor.save(draft), true);
-      expect(api.patchBody, {'bio': 'Keep this draft'});
+      expect(api.patchBody, {'bio': 'Keep this draft', 'avatar_media_id': 19});
     },
   );
 
   test(
-    'observed top-level media ready response recovers failed finalize parsing and PATCHes without another upload',
+    'observed top-level media ready response recovers failed finalize parsing without another upload',
     () async {
       final api = PipelineApi()
         ..finalizeResponse = {'unexpected': {}}
@@ -187,49 +197,39 @@ void main() {
       final r = await rig(api, storage);
       await pickAndSettle(r);
       expect(r.pictures.state, isA<ProfilePictureFailed>());
-      expect(api.patchBody, isNull);
       await r.pictures.retry();
-      expect(r.pictures.state, isA<ProfilePictureDone>());
-      expect(api.patchBody, {'avatar_media_id': 19});
+      expect(r.pictures.mediaId, 19);
+      expect(api.patchBody, isNull);
       expect(storage.requests, 1);
       expect(api.calls.where((c) => c == 'POST media/presign'), hasLength(1));
       expect(api.calls.where((c) => c.contains('finalize')), hasLength(1));
-      expect(api.calls.last, 'GET profile');
-      expect(
-        (r.owner.state as ProfileLoaded).profile.avatarUrl,
-        'https://example.invalid/new-avatar.png',
-      );
-    },
-  );
-
-  test(
-    'finalize 409 reconciles ready media then performs avatar-only PATCH and refresh',
-    () async {
-      final api = PipelineApi()
-        ..finalizeError = ApiError(
-          message: 'Already finalized',
-          statusCode: 409,
-        )
-        ..statuses = ['processing', 'ready'];
-      final storage = StorageAdapter();
-      final r = await rig(api, storage);
-      await pickAndSettle(r);
-      expect(r.pictures.state, isA<ProfilePictureDone>());
+      expect(await r.editor.save(draftFor(r)), true);
       expect(api.patchBody, {'avatar_media_id': 19});
-      expect(api.calls.where((c) => c.contains('finalize')), [
-        'POST media/19/finalize',
-      ]);
-      expect(storage.requests, 1);
       expect(api.calls.last, 'GET profile');
-      expect(
-        (r.owner.state as ProfileLoaded).profile.avatarUrl,
-        'https://example.invalid/new-avatar.png',
-      );
+      expect(avatarOf(r), 'https://example.invalid/new-avatar.png');
     },
   );
 
+  test('finalize 409 reconciles ready media; Save attaches it', () async {
+    final api = PipelineApi()
+      ..finalizeError = ApiError(message: 'Already finalized', statusCode: 409)
+      ..statuses = ['processing', 'ready'];
+    final storage = StorageAdapter();
+    final r = await rig(api, storage);
+    await pickAndSettle(r);
+    expect(r.pictures.mediaId, 19);
+    expect(api.patchBody, isNull);
+    expect(api.calls.where((c) => c.contains('finalize')), [
+      'POST media/19/finalize',
+    ]);
+    expect(storage.requests, 1);
+    expect(await r.editor.save(draftFor(r)), true);
+    expect(api.patchBody, {'avatar_media_id': 19});
+    expect(avatarOf(r), 'https://example.invalid/new-avatar.png');
+  });
+
   test(
-    'finalize 422 fails the picture and keeps the existing profile and fields',
+    'finalize 422 fails the picture; Save keeps the old picture and saves the fields',
     () async {
       final validation = ApiError(
         message: 'Invalid uploaded image',
@@ -241,22 +241,19 @@ void main() {
       final api = PipelineApi()..finalizeError = validation;
       final storage = StorageAdapter();
       final r = await rig(api, storage);
-      final original = (r.owner.state as ProfileLoaded).profile;
       await pickAndSettle(r);
       expect(r.pictures.state, isA<ProfilePictureFailed>());
       expect(r.pictures.state.preview, r.source.bytes);
-      final draft = ProfileDraft(original)..set('bio', 'Keep my changes');
-      expect(await r.editor.save(draft), false);
-      expect(draft.changes, {'bio': 'Keep my changes'});
-      expect((r.owner.state as ProfileLoaded).profile, same(original));
-      expect(api.patchBody, isNull);
       expect(api.calls.where((c) => c.startsWith('GET media')), isEmpty);
       expect(storage.requests, 1);
+      expect(await r.editor.save(draftFor(r, bio: 'Keep my changes')), true);
+      expect(api.patchBody, {'bio': 'Keep my changes'});
+      expect(avatarOf(r), isNull);
     },
   );
 
   test(
-    'failed processing never PATCHes or replaces server avatar; PATCH error reuses ready media on retry',
+    'failed processing never writes the profile; a Save PATCH error reuses the ready media',
     () async {
       final api = PipelineApi()..statuses = ['failed'];
       final storage = StorageAdapter();
@@ -267,13 +264,15 @@ void main() {
       expect(api.patchBody, isNull);
       expect((r.owner.state as ProfileLoaded).profile, same(original));
       api.statuses = ['ready'];
-      api.patchError = ApiError(message: 'Invalid', statusCode: 422);
       await r.pictures.retry();
-      expect(r.pictures.state, isA<ProfilePictureFailed>());
+      expect(r.pictures.mediaId, 19);
       expect(storage.requests, 2);
+      final draft = draftFor(r);
+      api.patchError = ApiError(message: 'Invalid', statusCode: 422);
+      expect(await r.editor.save(draft), false);
+      expect(draft.changes, {'avatar_media_id': 19});
       api.patchError = null;
-      await r.pictures.retry();
-      expect(r.pictures.state, isA<ProfilePictureDone>());
+      expect(await r.editor.save(draft), true);
       expect(storage.requests, 2);
       expect(api.patchBody, {'avatar_media_id': 19});
     },

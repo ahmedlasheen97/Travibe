@@ -12,6 +12,7 @@ import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/profile/screens/edit_profile_screen.dart';
+import 'edit_profile_test.dart' show EditingRepo;
 import 'fixtures.dart';
 
 PublicUserModel publicUser(String id, {bool blocked = false}) =>
@@ -127,6 +128,39 @@ void main() {
       repo.result = ProfileModel.fromJson({...profileJson(), 'is_me': true});
       await show(tester, userId: 7);
       expect(find.text('Edit Profile'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Save Changes returns to the profile with one green Profile updated toast',
+    (tester) async {
+      final editing = EditingRepo();
+      repo = editing;
+      await show(tester);
+      await tester.tap(find.text('Edit Profile'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('full_name')),
+        'Mona Updated',
+      );
+      await tester.pump();
+      final save = find.widgetWithText(ElevatedButton, 'Save Changes');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(editing.writes.single, {'full_name': 'Mona Updated'});
+      expect(find.byType(EditProfileScreen), findsNothing);
+      expect(find.text('Profile updated'), findsOneWidget);
+      expect(find.text('Picture updated successfully'), findsNothing);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pumpAndSettle();
+      expect(find.text('Profile updated'), findsNothing);
+      // Leaving without saving shows nothing.
+      await tester.tap(find.text('Edit Profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+      expect(find.text('Profile updated'), findsNothing);
     },
   );
 

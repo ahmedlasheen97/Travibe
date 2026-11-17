@@ -1,4 +1,5 @@
 import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/upload_progress_ring.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -51,6 +52,12 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     final data = profilePictureToast(
       uploading: state.uploadingAvatar,
       failed: state.avatarUploadFailed,
+      // The SnackBar is built outside this provider, so bind the cubit.
+      progress: BlocSelector<ProfileSetupCubit, ProfileSetupState, double>(
+        bloc: cubit,
+        selector: (state) => state.avatarProgress,
+        builder: (_, progress) => UploadProgressRing(progress: progress),
+      ),
       onRetry: cubit.uploadAvatar,
       onDiscard: cubit.discardAvatar,
     );

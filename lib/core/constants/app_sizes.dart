@@ -1,10 +1,6 @@
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppSizes {
-  /// Auth heading gap inside the scroll body: 64 on the 390 × 844 reference,
-  /// reducing to at least 48 on compact displays, independent of keyboard insets.
-  static double get authHeaderSpacing => 64.h.clamp(48.0, 64.0);
-
   // Opt-in responsive values. Legacy fields below remain unchanged.
   static double get w64 => 64.w;
   static double get h64 => 64.h;

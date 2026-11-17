@@ -12,9 +12,12 @@ final class ProfilePictureIdle extends ProfilePictureUploadState {
 }
 
 final class ProfilePictureUploading extends ProfilePictureUploadState {
-  const ProfilePictureUploading(this.preview);
+  const ProfilePictureUploading(this.preview, {this.progress = .1});
   @override
   final Uint8List preview;
+
+  /// 0.1..1 for the toast's white progress ring.
+  final double progress;
 }
 
 final class ProfilePictureFailed extends ProfilePictureUploadState {
@@ -23,8 +26,10 @@ final class ProfilePictureFailed extends ProfilePictureUploadState {
   final Uint8List preview;
 }
 
+/// Uploaded and ready; saved to the profile only by Save Changes.
 final class ProfilePictureDone extends ProfilePictureUploadState {
-  const ProfilePictureDone(this.preview);
+  const ProfilePictureDone(this.preview, {required this.mediaId});
   @override
   final Uint8List preview;
+  final int mediaId;
 }

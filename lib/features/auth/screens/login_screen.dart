@@ -73,7 +73,7 @@ class LoginScreen extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.fromLTRB(
                         AppSizes.adaptiveWidth(8),
-                        AppSizes.authHeaderSpacing,
+                        AppSizes.adaptiveHeight(24),
                         AppSizes.adaptiveWidth(8),
                         AppSizes.adaptiveHeight(8),
                       ),
@@ -84,9 +84,7 @@ class LoginScreen extends StatelessWidget {
                           children: [
                             Text(
                               'Hey,\nWelcome Back!',
-                              style: AppStyles.primaryHeadLinesStyle.copyWith(
-                                fontSize: AppSizes.adaptiveFont(32),
-                              ),
+                              style: AppStyles.authTitleStyle,
                             ),
                             SizedBox(height: AppSizes.adaptiveRadius(24)),
                             CustomTextField(

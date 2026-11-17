@@ -1,3 +1,4 @@
+import 'package:travibe/core/theme/app_styles.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
@@ -199,11 +200,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     children: [
                       Text(
                         'Create\nyour account',
-                        style: TextStyle(
-                          fontSize: AppSizes.adaptiveFont(24),
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
+                        style: AppStyles.authTitleStyle,
                       ),
                       // CustomTextField(
                       //   controller: nameController,

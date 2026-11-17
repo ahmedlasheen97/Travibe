@@ -18,6 +18,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
@@ -121,6 +122,7 @@ class Upload extends MediaUploadService {
   Completer<int>? gate;
   CancelToken? cancel;
   String? contentTypeSeen;
+  void Function(int, int)? progress;
   @override
   Future<int> upload({
     required String filename,
@@ -134,6 +136,7 @@ class Upload extends MediaUploadService {
     calls++;
     cancel = cancelToken;
     contentTypeSeen = contentType;
+    progress = onProgress;
     onStage(MediaUploadStage.uploading);
     if (error != null) throw error!;
     return gate == null ? 19 : gate!.future;
@@ -793,6 +796,34 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
       expect(find.text('Uploading your picture'), findsOneWidget);
+      // Same white progress ring as Stories, never the spinner's lines.
+      final toast = find.byType(TravibeToastView);
+      final ring = find.descendant(
+        of: toast,
+        matching: find.byType(CircularProgressIndicator),
+      );
+      expect(tester.widget<CircularProgressIndicator>(ring).value, .1);
+      expect(
+        find.descendant(
+          of: toast,
+          matching: find.byType(CupertinoActivityIndicator),
+        ),
+        findsNothing,
+      );
+      // No loader on the avatar itself.
+      expect(
+        find.descendant(
+          of: find.byType(DottedBorder),
+          matching: find.byType(ProgressIndicator),
+        ),
+        findsNothing,
+      );
+      upload.progress!(50, 100);
+      await tester.pump();
+      expect(
+        tester.widget<CircularProgressIndicator>(ring).value,
+        closeTo(.475, 1e-9),
+      );
       // The form stays usable while uploading.
       await tester.enterText(find.byType(TextField).first, 'Typing');
       await tester.pump();

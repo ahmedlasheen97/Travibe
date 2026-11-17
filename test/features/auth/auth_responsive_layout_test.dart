@@ -98,14 +98,12 @@ void main() {
               final gap =
                   tester.getTopLeft(heading).dy -
                   tester.getBottomLeft(find.byType(AppBar)).dy;
-              if (screen.key == 'Signup') {
-                expect(gap, inInclusiveRange(20.4 - .01, 27.6 + .01));
-              } else if (size.height >= 844) {
-                expect(gap, closeTo(64, .01));
-              } else {
-                expect(gap, inInclusiveRange(48, 64));
-                expect(gap, lessThan(64));
-              }
+              // Login and Sign Up share one heading gap and title style.
+              expect(gap, inInclusiveRange(20.4 - .01, 27.6 + .01));
+              final style = tester.widget<Text>(heading).style!;
+              expect(style.fontWeight, FontWeight.w700);
+              expect(style.height, 1.25);
+              expect(style.fontSize, inInclusiveRange(32 * .9, 32 * 1.1));
             }
             tester.view.viewInsets = const FakeViewPadding(bottom: 270);
             await tester.pump();

@@ -30,6 +30,9 @@ class ProfileSetupState {
   final bool selectingAvatar;
   final bool uploadingAvatar;
   final MediaUploadStage? avatarStage;
+
+  /// 0.1..1 while uploading, for the toast's white progress ring.
+  final double avatarProgress;
   final Map<String, List<String>> fieldErrors;
   final bool restoring;
   final String? restoreError;
@@ -57,6 +60,7 @@ class ProfileSetupState {
     this.selectingAvatar = false,
     this.uploadingAvatar = false,
     this.avatarStage,
+    this.avatarProgress = 0,
     this.fieldErrors = const {},
     this.restoring = false,
     this.restoreError,
@@ -85,6 +89,7 @@ class ProfileSetupState {
     bool? selectingAvatar,
     bool? uploadingAvatar,
     MediaUploadStage? avatarStage,
+    double? avatarProgress,
     bool clearAvatar = false,
     bool clearAvatarError = false,
     Map<String, List<String>>? fieldErrors,
@@ -113,6 +118,7 @@ class ProfileSetupState {
       selectingAvatar: selectingAvatar ?? this.selectingAvatar,
       uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
       avatarStage: avatarStage ?? this.avatarStage,
+      avatarProgress: avatarProgress ?? this.avatarProgress,
       fieldErrors: fieldErrors ?? this.fieldErrors,
       restoring: restoring ?? this.restoring,
       restoreError: clearRestoreError

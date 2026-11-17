@@ -124,7 +124,7 @@ void main() {
           expect(
             tester.getTopLeft(heading).dy -
                 tester.getBottomLeft(find.byType(AppBar)).dy,
-            closeTo(signup ? 24 : 64, .01),
+            closeTo(24, .01),
           );
           expect(
             tester.widget<Scaffold>(find.byType(Scaffold)).backgroundColor,

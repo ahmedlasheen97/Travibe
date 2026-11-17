@@ -110,7 +110,7 @@ class _PipelineAdapter implements HttpClientAdapter {
 
 void main() {
   testWidgets(
-    'picking completes presign 201 PUT 200 finalize 200 ready 200 PATCH 200 refresh 200; Save then sends fields only',
+    'picking completes presign 201 PUT 200 finalize 200 ready 200; Save sends picture and fields in one PATCH 200 + refresh 200',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -175,29 +175,24 @@ void main() {
         find.byKey(const ValueKey('pick-profile-avatar')),
       );
       await tester.runAsync(() async {
-        final refreshed = owner.stream.firstWhere(
-          (state) =>
-              state is ProfileLoaded &&
-              state.profile.avatarUrl ==
-                  'https://example.invalid/updated-avatar.png',
-        );
-        // Picking alone runs the whole pipeline in the background.
+        // Picking runs the upload pipeline in the background, without PATCH.
         await tester.tap(find.byKey(const ValueKey('pick-profile-avatar')));
-        await refreshed.timeout(const Duration(seconds: 5));
+        for (var i = 0; i < 500 && !events.contains('GET media/41 200'); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
       });
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
       expect(events, [
         'GET profile 200',
         'POST media/presign 201',
         'PUT storage 200',
         'POST media/41/finalize 200',
         'GET media/41 200',
-        'PATCH profile 200',
-        'GET profile 200',
       ]);
-      expect(apiAdapter.patch, {'avatar_media_id': 41});
-      expect(find.text('Picture updated successfully'), findsOneWidget);
+      expect(apiAdapter.patch, isNull);
+      expect(find.text('Picture updated successfully'), findsNothing);
+      expect(find.text('Uploading your picture'), findsNothing);
       await tester.enterText(
         find.byKey(const ValueKey('full_name')),
         'Updated name',
@@ -213,7 +208,7 @@ void main() {
         await saved.timeout(const Duration(seconds: 5));
       });
       await tester.pumpAndSettle();
-      expect(events.skip(7), ['PATCH profile 200', 'GET profile 200']);
+      expect(events.skip(5), ['PATCH profile 200', 'GET profile 200']);
       expect(storage.requests, 1);
       expect(storage.bytes, photos.photo.bytes);
       expect(
@@ -225,7 +220,11 @@ void main() {
         'content_type': 'image/png',
         'size': photos.photo.bytes.length,
       });
-      expect(apiAdapter.patch, {'full_name': 'Updated name'});
+      // One PATCH: the picture is saved together with the other fields.
+      expect(apiAdapter.patch, {
+        'full_name': 'Updated name',
+        'avatar_media_id': 41,
+      });
       expect(find.byType(EditProfileScreen), findsNothing);
       expect(find.text('Open editor'), findsOneWidget);
       expect(find.textContaining('uncertain'), findsNothing);

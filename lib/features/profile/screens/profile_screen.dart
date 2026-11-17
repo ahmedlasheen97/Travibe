@@ -40,7 +40,7 @@ import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
-import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
+import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
@@ -446,6 +446,21 @@ class _ProfileViewState extends State<_ProfileView> {
     },
   );
 
+  /// One green toast after Save Changes; the refreshed profile (picture
+  /// included) reaches every screen through ProfileCubit/CurrentUserCubit.
+  Future<void> _editProfile(BuildContext context, ProfileModel profile) async {
+    final toast = TravibeToast.of(context);
+    final saved = await Navigator.of(context).push(
+      MaterialPageRoute<bool>(
+        builder: (_) => EditProfileScreen(
+          profile: profile,
+          owner: context.read<ProfileCubit>(),
+        ),
+      ),
+    );
+    if (saved == true) toast.present(profileUpdatedToast);
+  }
+
   Future<void> _shareMyProfile(Uri url, Rect origin) async {
     try {
       await PostShareActions(verifiedPostUri: url).moreOptions(origin);
@@ -676,16 +691,7 @@ class _ProfileViewState extends State<_ProfileView> {
                 ProfileActionButtons(
                   onEdit: state.refreshing
                       ? null
-                      : () => Navigator.of(context).push(
-                          MaterialPageRoute<bool>(
-                            builder: (_) => EditProfileScreen(
-                              profile: profile,
-                              owner: context.read<ProfileCubit>(),
-                              pictureUploads: context
-                                  .read<ProfilePictureUploadCubit?>(),
-                            ),
-                          ),
-                        ),
+                      : () => _editProfile(context, profile),
                   onShare: profile.url == null
                       ? null
                       : (origin) => _shareMyProfile(profile.url!, origin),

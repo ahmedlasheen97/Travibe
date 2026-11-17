@@ -8,6 +8,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/features/profile/data/profile_avatar_repo.dart';
+import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart'
+    show pictureUploadFraction;
 import 'package:travibe/features/profilesetup/data/profile_identity_validation.dart';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -314,6 +316,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     emit(
       state.copyWith(
         uploadingAvatar: true,
+        avatarProgress: .1,
         avatarUploadFailed: false,
         clearAvatarError: true,
       ),
@@ -331,7 +334,24 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
           isActive: active,
           cancelToken: cancel,
           onStage: (stage) {
-            if (active()) emit(state.copyWith(avatarStage: stage));
+            if (!active()) return;
+            emit(
+              state.copyWith(
+                avatarStage: stage,
+                avatarProgress: stage == MediaUploadStage.processing
+                    ? .85
+                    : null,
+              ),
+            );
+          },
+          onProgress: (sent, total) {
+            if (active() && total > 0) {
+              emit(
+                state.copyWith(
+                  avatarProgress: pictureUploadFraction(sent, total),
+                ),
+              );
+            }
           },
         );
         if (!active()) return;
@@ -341,6 +361,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
       if (!active()) return;
       ProfileSetupResult? result;
       if (!_avatarAttached) {
+        emit(state.copyWith(avatarProgress: .95));
         result = await _repo.saveSetup(avatarMediaId: _readyMediaId);
         if (!active()) return;
         _avatarAttached = true;

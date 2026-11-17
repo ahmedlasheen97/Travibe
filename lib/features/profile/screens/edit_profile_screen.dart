@@ -11,6 +11,7 @@ import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/upload_progress_ring.dart';
 import 'package:travibe/core/widgets/dashed_avatar_picker.dart';
 import 'package:travibe/features/profile/cubit/profile_picture_upload_cubit.dart';
 import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
@@ -37,7 +38,6 @@ class EditProfileScreen extends StatefulWidget {
     required this.owner,
     this.selectionRepo,
     this.avatarRepo,
-    this.pictureUploads,
     this.mediaUpload,
   });
   final ProfileModel profile;
@@ -45,11 +45,7 @@ class EditProfileScreen extends StatefulWidget {
   final ProfileSetupRepo? selectionRepo;
   final ProfileAvatarRepo? avatarRepo;
 
-  /// Root's background picture upload; it keeps going after this screen
-  /// closes. Without one (e.g. tests), the screen owns a private uploader.
-  final ProfilePictureUploadCubit? pictureUploads;
-
-  /// Only used for the private uploader when [pictureUploads] is null.
+  /// Uploads a picked picture; injectable for tests.
   final MediaUploadService? mediaUpload;
 
   @override
@@ -80,7 +76,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   /// The chip section whose option catalog is loading.
   ReferenceKind? _loadingCatalog;
   bool _confirming = false;
-  bool get _isDirty => _draft.isDirty;
+
+  /// A picture still uploading or failed is an unsaved change too.
+  bool get _isDirty =>
+      _draft.isDirty ||
+      _pictures.state is ProfilePictureUploading ||
+      _pictures.state is ProfilePictureFailed;
   bool get _isSaving => _editor.state.saving;
   bool get _pickingAvatar => _editor.state.selectingAvatar;
   Map<String, List<String>> _errors = {};
@@ -99,13 +100,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         ? loaded.profile
         : widget.profile;
     _draft = ProfileDraft(_initialProfile);
-    _pictures =
-        widget.pictureUploads ??
-        ProfilePictureUploadCubit(
-          uploads: widget.mediaUpload == null
-              ? null
-              : () => widget.mediaUpload!,
-        );
+    // Owned by this screen: leaving without saving cancels the upload and
+    // keeps the old picture.
+    _pictures = ProfilePictureUploadCubit(
+      uploads: widget.mediaUpload == null ? null : () => widget.mediaUpload!,
+    );
     _editor = EditProfileCubit(
       widget.owner,
       pictures: _pictures,
@@ -151,10 +150,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   bool get _canSave =>
-      _isDirty &&
       !_isSaving &&
       !_selecting &&
       !_pickingAvatar &&
+      !_pictures.uploading &&
+      _draft.isDirty &&
       !_choosingCity &&
       !_confirming &&
       !_editor.state.sessionChanged &&
@@ -163,7 +163,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   @override
   void dispose() {
     _editor.close();
-    if (widget.pictureUploads == null) _pictures.close();
+    _pictures.close();
     _fullNameController.dispose();
     _usernameController.dispose();
     _bioController.dispose();
@@ -333,8 +333,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _pickingAvatar ||
         _selecting ||
         _choosingCity ||
+        _pictures.uploading ||
         _editor.state.sessionChanged ||
-        !_isDirty) {
+        !_draft.isDirty) {
       return;
     }
     setState(() => _errors = ProfileUpdate.validate(_draft.changes));
@@ -406,21 +407,36 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
   }
 
+  /// The picture works like a form field: uploading shows the white-ring
+  /// toast; a finished upload marks the form changed (no success toast) and
+  /// Save Changes commits it; a failure is a red toast with Retry and X.
   void _onPictureUpload(BuildContext context, ProfilePictureUploadState state) {
     // Float above the bottom Save Changes button instead of covering it.
     final toast = TravibeToast.of(
       context,
       bottomMargin: AppSizes.h56 + AppSizes.ph12 + AppSizes.ph20 + AppSizes.h8,
     );
-    final data = state is ProfilePictureDone
-        ? profilePictureUpdatedToast
-        : profilePictureToast(
-            uploading: state is ProfilePictureUploading,
-            failed: state is ProfilePictureFailed,
-            onRetry: _pictures.retry,
-            onDiscard: _pictures.discard,
-          );
+    final data = profilePictureToast(
+      uploading: state is ProfilePictureUploading,
+      failed: state is ProfilePictureFailed,
+      // The SnackBar is built by the messenger, so bind the cubit directly;
+      // progress ticks update the ring without re-presenting the toast.
+      progress:
+          BlocSelector<
+            ProfilePictureUploadCubit,
+            ProfilePictureUploadState,
+            double
+          >(
+            bloc: _pictures,
+            selector: (state) =>
+                state is ProfilePictureUploading ? state.progress : 1,
+            builder: (_, progress) => UploadProgressRing(progress: progress),
+          ),
+      onRetry: _pictures.retry,
+      onDiscard: _pictures.discard,
+    );
     data == null ? toast.dismiss() : toast.present(data);
+    setState(() => _draft.set('avatar_media_id', _pictures.mediaId));
   }
 
   Widget _buildForm(BuildContext context) {
@@ -430,6 +446,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       key: _messenger,
       child: BlocListener<ProfilePictureUploadCubit, ProfilePictureUploadState>(
         bloc: _pictures,
+        // Status changes only; progress is drawn by the toast's ring.
+        listenWhen: (a, b) => a.runtimeType != b.runtimeType,
         listener: _onPictureUpload,
         child:
             BlocBuilder<ProfilePictureUploadCubit, ProfilePictureUploadState>(
@@ -987,7 +1005,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       child: ElevatedButton(
         onPressed: _canSave ? _saveChanges : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isDirty
+          backgroundColor: _canSave
               ? DarkColors.primaryColor
               : DarkColors.primaryColor.withValues(alpha: 0.5),
           foregroundColor: Colors.white,

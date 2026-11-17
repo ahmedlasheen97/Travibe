@@ -779,7 +779,7 @@ void main() {
     },
   );
   test(
-    'a picture saved on its own is not repeated when a later city save fails',
+    'a saved picture is not repeated when a later city save fails',
     () async {
       final uploads = Uploads();
       final pictures = ProfilePictureUploadCubit(uploads: () => uploads);
@@ -789,7 +789,13 @@ void main() {
         pictures: pictures,
       );
       await editor.pickAvatar();
-      final draft = ProfileDraft(getProfile())..selectCity(paris);
+      if (pictures.uploading) {
+        await pictures.stream.firstWhere((s) => s is! ProfilePictureUploading);
+      }
+      expect(api.patches, isEmpty); // Uploading never writes the profile.
+      final draft = ProfileDraft(getProfile())
+        ..selectCity(paris)
+        ..set('avatar_media_id', pictures.mediaId);
       api.locationError = ApiError(message: 'City failed');
       expect(await editor.save(draft), false);
       expect(uploads.calls, 1);

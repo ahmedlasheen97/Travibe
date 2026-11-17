@@ -43,7 +43,7 @@ class EditProfileCubit extends Cubit<EditProfileState> {
   }
   final ProfileCubit owner;
 
-  /// Background picture upload that Save Changes waits for.
+  /// Background picture upload; its media ID is saved with Save Changes.
   final ProfilePictureUploadCubit pictures;
   final bool _ownsPictures;
   final ProfileAvatarRepo _avatarRepo;
@@ -60,8 +60,8 @@ class EditProfileCubit extends Cubit<EditProfileState> {
 
   bool get _inactive => isClosed || state.sessionChanged || owner.isClosed;
 
-  /// Picks a photo and starts uploading it right away; the picture is saved
-  /// to the profile on its own, independently of Save Changes.
+  /// Picks a photo and starts uploading it right away. Like any other field,
+  /// it is saved to the profile only by Save Changes.
   Future<void> pickAvatar() async {
     if (_inactive ||
         state.selectingAvatar ||
@@ -84,16 +84,8 @@ class EditProfileCubit extends Cubit<EditProfileState> {
       }
       emit(const EditProfileState());
       if (selected == null) return;
-      final profile = owner;
-      unawaited(
-        pictures.start(
-          selected,
-          attach: (mediaId) => profile.updateMyProfile(
-            ProfileUpdate({'avatar_media_id': mediaId}),
-            expectedId: profileId,
-          ),
-        ),
-      );
+      // Uploads in the background; Save Changes commits the media ID.
+      unawaited(pictures.start(selected));
     } catch (error) {
       if (_inactive || generation != _selectionGeneration) return;
       if (owner.state is! ProfileLoaded ||
@@ -120,29 +112,20 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         state.saving ||
         state.saved ||
         state.selectingAvatar ||
+        pictures.uploading ||
         !draft.isDirty) {
       return false;
     }
-    // Only the picture upload flow can supply a media ID. Ignore draft IDs.
-    final changes = Map<String, dynamic>.of(draft.changes)
-      ..remove('avatar_media_id');
+    // Only the finished picture upload can supply a media ID.
+    final changes = Map<String, dynamic>.of(draft.changes);
+    if (changes['avatar_media_id'] != pictures.mediaId) {
+      changes.remove('avatar_media_id');
+    }
     if (changes.isEmpty && !draft.hasLocationChange) return false;
     emit(const EditProfileState(saving: true));
     var updatingProfile = false;
     var updatingLocation = false;
     try {
-      ProfileUpdate(changes); // Validate fields before waiting.
-      // Never save over a picture that is still uploading or failed. Only
-      // wait when one is in flight, so ordinary saves stay synchronous.
-      if (pictures.uploading) {
-        await pictures.settled();
-        if (_inactive) return false;
-      }
-      if (pictures.state is ProfilePictureFailed) {
-        throw ApiError(
-          message: 'Your picture didn’t upload. Retry it or dismiss it first.',
-        );
-      }
       if (owner.state is! ProfileLoaded &&
           draft.hasLocationChange &&
           changes.isEmpty) {
@@ -186,8 +169,11 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         if (_inactive) return false;
         draft.markLocationSaved(submitted: submitted, canonical: canonical);
       }
+      // A stripped (unverified) avatar ID is not a pending change.
       if (draft.hasLocationChange ||
-          draft.changes.keys.any((key) => key != 'avatar_media_id')) {
+          draft.changes.keys.any(
+            (key) => key != 'avatar_media_id' || changes.containsKey(key),
+          )) {
         // A later edit must stay pending even if this request has completed.
         emit(const EditProfileState());
         return false;

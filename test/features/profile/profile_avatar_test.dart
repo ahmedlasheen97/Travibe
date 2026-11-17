@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dotted_border/dotted_border.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/dashed_avatar_picker.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:dio/dio.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:flutter/services.dart';
@@ -144,11 +147,19 @@ void main() {
     return result;
   }
 
-  /// Lets the background upload and attach run to completion.
+  /// Lets the background upload run to completion (it never saves).
   Future<void> settle(EditProfileCubit cubit) async {
     await Future<void>.delayed(Duration.zero);
-    await cubit.pictures.settled();
+    if (cubit.pictures.uploading) {
+      await cubit.pictures.stream.firstWhere(
+        (s) => s is! ProfilePictureUploading,
+      );
+    }
   }
+
+  /// Edit Profile marks a finished upload as a pending form change.
+  ProfileDraft withPicture(EditProfileCubit cubit, ProfileDraft draft) =>
+      draft..set('avatar_media_id', cubit.pictures.mediaId);
 
   test(
     'avatar MIME comes from actual bytes, never an extension or placeholder',
@@ -224,7 +235,7 @@ void main() {
   );
 
   test(
-    'picking uploads right away and saves only avatar_media_id to the profile',
+    'picking uploads in the background; only Save Changes attaches the picture',
     () async {
       final repo = _AvatarRepo();
       final upload = _Upload();
@@ -238,16 +249,19 @@ void main() {
       expect(cubit.pictures.state.preview, _bytes());
       await settle(cubit);
       expect(upload.calls, 1);
-      expect(repo.writes.single, {'avatar_media_id': 77});
-      expect(cubit.pictures.state, isA<ProfilePictureDone>());
+      expect(repo.writes, isEmpty);
+      expect(cubit.pictures.mediaId, 77);
       expect(cubit.pictures.state.preview, _bytes());
+      expect((cubit.owner.state as ProfileLoaded).profile.avatarUrl, isNull);
+      expect(
+        await cubit.save(withPicture(cubit, ProfileDraft(profile()))),
+        true,
+      );
+      expect(repo.writes.single, {'avatar_media_id': 77});
       expect(
         (cubit.owner.state as ProfileLoaded).profile.avatarUrl,
         _AvatarRepo.url,
       );
-      // The picture is not an unsaved form change.
-      expect(await cubit.save(ProfileDraft(profile())), false);
-      expect(repo.writes, hasLength(1));
     },
   );
 
@@ -284,7 +298,7 @@ void main() {
   });
 
   test(
-    'Save Changes waits for the picture, then saves fields separately',
+    'Save is refused while uploading, then sends picture and fields in one PATCH',
     () async {
       final repo = _AvatarRepo();
       final upload = _Upload()..pending = Completer<int>();
@@ -295,16 +309,12 @@ void main() {
       );
       await cubit.pickAvatar();
       final draft = ProfileDraft(profile())..set('bio', 'Changed');
-      final saving = cubit.save(draft);
-      await Future<void>.delayed(Duration.zero);
-      expect(cubit.state.saving, true);
+      expect(await cubit.save(draft), false);
       expect(repo.writes, isEmpty);
       upload.pending!.complete(77);
-      expect(await saving, true);
-      expect(repo.writes, [
-        {'avatar_media_id': 77},
-        {'bio': 'Changed'},
-      ]);
+      await settle(cubit);
+      expect(await cubit.save(withPicture(cubit, draft)), true);
+      expect(repo.writes.single, {'bio': 'Changed', 'avatar_media_id': 77});
       expect(
         (cubit.owner.state as ProfileLoaded).profile.avatarUrl,
         _AvatarRepo.url,
@@ -313,7 +323,7 @@ void main() {
   );
 
   test(
-    'failed picture blocks Save; Retry re-attaches without re-uploading',
+    'a failed Save keeps the uploaded picture; saving again reuses its ID',
     () async {
       final repo = EditingRepo()..saveError = ApiError(message: 'Nope');
       final upload = _Upload();
@@ -324,20 +334,16 @@ void main() {
       );
       await cubit.pickAvatar();
       await settle(cubit);
-      expect(cubit.pictures.state, isA<ProfilePictureFailed>());
-      expect(cubit.pictures.state.preview, _bytes());
-      repo.saveError = null;
-      final draft = ProfileDraft(profile())..set('bio', 'Unsaved');
+      final draft = withPicture(
+        cubit,
+        ProfileDraft(profile())..set('bio', 'Unsaved'),
+      );
       expect(await cubit.save(draft), false);
-      expect(cubit.state.error?.message, contains('picture'));
-      expect(repo.writes, hasLength(1)); // Only the failed attach.
-      expect(draft.changes, {'bio': 'Unsaved'});
-      await cubit.pictures.retry();
-      expect(cubit.pictures.state, isA<ProfilePictureDone>());
-      expect(upload.calls, 1); // Reuses the uploaded media ID.
-      expect(repo.writes.last, {'avatar_media_id': 77});
+      expect(draft.changes, {'bio': 'Unsaved', 'avatar_media_id': 77});
+      repo.saveError = null;
       expect(await cubit.save(draft), true);
-      expect(repo.writes.last, {'bio': 'Unsaved'});
+      expect(upload.calls, 1);
+      expect(repo.writes.last, {'bio': 'Unsaved', 'avatar_media_id': 77});
     },
   );
 
@@ -605,7 +611,6 @@ void main() {
     _Photos photos,
     EditingRepo repo, {
     _Upload? upload,
-    ProfilePictureUploadCubit? pictures,
   }) async {
     final owner = ProfileCubit(profileRepo: repo);
     await owner.loadProfile();
@@ -627,7 +632,6 @@ void main() {
                       profile: profile(),
                       owner: owner,
                       avatarRepo: photos,
-                      pictureUploads: pictures,
                       mediaUpload: upload ?? _Upload(),
                     ),
                   ),
@@ -649,54 +653,81 @@ void main() {
   Finder save() => find.byType(ElevatedButton);
   const uploadingText = 'Uploading your picture';
   const successText = 'Picture updated successfully';
+  bool canSave(WidgetTester tester) =>
+      tester.widget<ElevatedButton>(save()).onPressed != null;
+  Finder toastRing() => find.descendant(
+    of: find.byType(TravibeToastView),
+    matching: find.byType(CircularProgressIndicator),
+  );
   const failureText = 'Couldn’t upload your picture';
 
-  // The uploading toast's spinner never settles.
+  // Lets the toast's SnackBar animate in.
   Future<void> pumpUploading(WidgetTester tester) async {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
 
   testWidgets(
-    'upload shows the floating toast, no loading line, and the form stays usable',
+    'upload shows the white-ring toast; when done there is no success toast and Save enables',
     (tester) async {
       final photos = _Photos()..result = _photo();
       final upload = _Upload()..pending = Completer<int>();
       final repo = _AvatarRepo();
       await show(tester, photos, repo, upload: upload);
-      expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
+      expect(canSave(tester), false);
       await tester.tap(pick());
       await pumpUploading(tester);
       expect(find.text(uploadingText), findsOneWidget);
+      expect(toastRing(), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(TravibeToastView),
+          matching: find.byType(CupertinoActivityIndicator),
+        ),
+        findsNothing,
+      );
       expect(find.byType(LinearProgressIndicator), findsNothing);
+      // No loader on the avatar itself: just the local preview.
+      expect(
+        find.descendant(
+          of: find.byType(DashedAvatarPicker),
+          matching: find.byType(ProgressIndicator),
+        ),
+        findsNothing,
+      );
       expect(
         tester.widget<CircleAvatar>(avatar()).backgroundImage,
         isA<MemoryImage>(),
       );
-      // Usable while uploading; the picture alone is not a form change.
-      expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
+      // The form stays usable, but Save waits for the upload.
       await tester.enterText(
         find.byKey(const ValueKey('full_name')),
         'Typing during upload',
       );
       await pumpUploading(tester);
       expect(find.text('Typing during upload'), findsOneWidget);
-      expect(tester.widget<ElevatedButton>(save()).onPressed, isNotNull);
+      expect(canSave(tester), false);
       upload.pending!.complete(77);
       await tester.pumpAndSettle();
-      expect(repo.writes.single, {'avatar_media_id': 77});
+      expect(repo.writes, isEmpty);
       expect(find.text(uploadingText), findsNothing);
-      expect(find.text(successText), findsOneWidget);
-      // Keeps the local picture after success (no flicker to network).
+      expect(find.text(successText), findsNothing);
+      expect(canSave(tester), true);
       expect(
         tester.widget<CircleAvatar>(avatar()).backgroundImage,
         isA<MemoryImage>(),
       );
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-      expect(find.text(successText), findsNothing);
     },
   );
+
+  testWidgets('the picture alone makes the form changed', (tester) async {
+    final photos = _Photos()..result = _photo();
+    await show(tester, photos, _AvatarRepo());
+    await tester.tap(pick());
+    await tester.pumpAndSettle();
+    expect(find.text(successText), findsNothing);
+    expect(canSave(tester), true);
+  });
 
   testWidgets(
     'Edit Profile uses the Setup dashed orange 128 ring and the whole circle picks',
@@ -718,8 +749,6 @@ void main() {
       expect(find.text(uploadingText), findsOneWidget);
       upload.pending!.complete(5);
       await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
     },
   );
 
@@ -733,15 +762,15 @@ void main() {
     expect(find.text(failureText), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
     expect(find.byTooltip('Dismiss'), findsOneWidget);
+    expect(canSave(tester), false);
     upload.error = null;
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(upload.calls, 2);
-    expect(repo.writes.single, {'avatar_media_id': 77});
+    expect(repo.writes, isEmpty);
     expect(find.text(failureText), findsNothing);
-    expect(find.text(successText), findsOneWidget);
-    await tester.pump(const Duration(seconds: 4));
-    await tester.pumpAndSettle();
+    expect(find.text(successText), findsNothing);
+    expect(canSave(tester), true);
   });
 
   testWidgets('X dismisses a failed picture and restores the old avatar', (
@@ -756,15 +785,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text(failureText), findsNothing);
     expect(tester.widget<CircleAvatar>(avatar()).backgroundImage, isNull);
+    expect(canSave(tester), false);
   });
 
   testWidgets(
-    'Save Changes waits for the picture upload, then saves and closes',
+    'Save Changes sends the picture with the fields in one PATCH and closes',
     (tester) async {
       final photos = _Photos()..result = _photo();
       final upload = _Upload()..pending = Completer<int>();
       final repo = _AvatarRepo();
-      await show(tester, photos, repo, upload: upload);
+      final owner = await show(tester, photos, repo, upload: upload);
       await tester.tap(pick());
       await pumpUploading(tester);
       await tester.enterText(
@@ -772,48 +802,48 @@ void main() {
         'Updated name',
       );
       await tester.pump();
+      expect(canSave(tester), false);
+      upload.pending!.complete(77);
+      await tester.pumpAndSettle();
       await tester.tap(save());
-      await pumpUploading(tester);
-      expect(tester.widget<ElevatedButton>(save()).onPressed, isNull);
-      expect(repo.writes, isEmpty);
-      upload.pending!.complete(77);
       await tester.pumpAndSettle();
-      expect(repo.writes, [
-        {'avatar_media_id': 77},
-        {'full_name': 'Updated name'},
-      ]);
+      expect(repo.writes.single, {
+        'full_name': 'Updated name',
+        'avatar_media_id': 77,
+      });
       expect(find.text('Open editor'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 4));
-      await tester.pumpAndSettle();
-    },
-  );
-
-  testWidgets(
-    'leaving mid-upload needs no discard prompt and the upload continues',
-    (tester) async {
-      final photos = _Photos()..result = _photo();
-      final upload = _Upload()..pending = Completer<int>();
-      final repo = _AvatarRepo();
-      final pictures = ProfilePictureUploadCubit(uploads: () => upload);
-      addTearDown(pictures.close);
-      final owner = await show(tester, photos, repo, pictures: pictures);
-      await tester.tap(pick());
-      await pumpUploading(tester);
-      await tester.pageBack();
-      for (var i = 0; i < 4; i++) {
-        await pumpUploading(tester);
-      }
-      expect(find.byType(EditProfileScreen), findsNothing);
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(find.text('Open editor'), findsOneWidget);
-      expect(find.text(uploadingText), findsNothing); // Root shows its own.
-      upload.pending!.complete(77);
-      await tester.pumpAndSettle();
-      expect(pictures.state, isA<ProfilePictureDone>());
-      expect(repo.writes.single, {'avatar_media_id': 77});
       expect((owner.state as ProfileLoaded).profile.avatarUrl, _AvatarRepo.url);
     },
   );
+
+  for (final finished in [false, true]) {
+    testWidgets(
+      'leaving ${finished ? 'after' : 'during'} the upload asks to discard; discarding keeps the old picture',
+      (tester) async {
+        final photos = _Photos()..result = _photo();
+        final upload = _Upload()..pending = Completer<int>();
+        final repo = _AvatarRepo();
+        final owner = await show(tester, photos, repo, upload: upload);
+        await tester.tap(pick());
+        await pumpUploading(tester);
+        if (finished) {
+          upload.pending!.complete(77);
+          await tester.pumpAndSettle();
+        }
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(find.text('Discard Changes?'), findsOneWidget);
+        await tester.tap(find.text('Discard'));
+        await tester.pumpAndSettle();
+        expect(find.byType(EditProfileScreen), findsNothing);
+        expect(find.text('Open editor'), findsOneWidget);
+        if (!finished) upload.pending!.complete(77);
+        await tester.pumpAndSettle();
+        expect(repo.writes, isEmpty);
+        expect((owner.state as ProfileLoaded).profile.avatarUrl, isNull);
+      },
+    );
+  }
 
   testWidgets(
     'pending picker shows no loading line and cancellation keeps avatar',
