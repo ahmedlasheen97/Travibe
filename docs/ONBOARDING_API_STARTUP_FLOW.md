@@ -236,3 +236,26 @@ See [Profile Setup identity and photo audit](PROFILE_SETUP_IDENTITY_PHOTO.md) fo
 contracts, session protection, tests, platform limitations and pending screenshot
 requirements. The two supplied visual references were not found locally; exact
 avatar/progress/field sizing comparison is not claimed.
+
+## Skipping Profile Setup
+
+Steps 2 (Languages & Interests) and 3 (Travel Style) show a grey **Skip for now**
+text button under Next / Continue to Home. Step 1 (full name, username) stays
+required; Current City stays optional.
+
+- `ProfileSetupCubit.skip()` PATCHes `/profile/setup` with whatever the current
+  step already has (nothing when empty), then emits `ProfileSetupStatus.skipped`.
+  If that PATCH happens to complete the profile, it is treated as Finish.
+- The server has no skip endpoint: `POST /profile/setup/complete` requires
+  `full_name`, `username`, 1–4 languages, 1–6 interests and 1–3 travel styles and
+  returns 422 otherwise ("Skipping stays allowed; completion can happen later").
+  The profile simply stays `profile_completed: false`.
+- The skip is stored per account (`PreferencesManager.markProfileSetupSkipped`,
+  key `profile_setup_skipped_<userId>`). `clearSession()` keeps it, so logging
+  back in still goes Home; `clear()` removes it.
+- `StartupCubit` routes to Home when `profile_completed == true` **or** that
+  account skipped; otherwise it still resumes Profile Setup.
+- Buddies shows "Complete your profile"; it opens
+  `ProfileSetupScreen(popOnComplete: true, initialStep: firstMissingStep)` —
+  page 0 for identity/current city, 1 for languages/interests, 2 for travel
+  style — with a Back button, and returns to Buddies on Finish or Skip.

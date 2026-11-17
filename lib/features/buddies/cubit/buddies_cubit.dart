@@ -30,15 +30,23 @@ class BuddiesCubit extends Cubit<BuddiesState> {
       final locationChanged = location != _location;
       _location = location;
       final visible = user.profile?.showInTravelBuddy;
+      final completed = user.profile?.profileCompleted;
+      final meta = state.home?.meta;
+      final visibilityChanged =
+          visible != null && visible != meta?.showInTravelBuddy;
+      final completionChanged =
+          completed != null &&
+          meta != null &&
+          completed != meta.profileCompleted;
       if (isClosed ||
-          (!locationChanged &&
-              (visible == null ||
-                  visible == state.home?.meta.showInTravelBuddy))) {
+          (!locationChanged && !visibilityChanged && !completionChanged)) {
         return;
       }
       ++_generation;
       _pending = null;
-      var home = state.home?.withVisibility(visible);
+      var home = state.home
+          ?.withVisibility(visible)
+          .withProfileCompleted(completed);
       if (user.profile?.locationIncluded == true && locationChanged) {
         home = home?.withLocation(location, invalidateCity: true);
       }
@@ -108,11 +116,12 @@ class BuddiesCubit extends Cubit<BuddiesState> {
             _currentUser!.state.profile!.currentLocation,
           );
         }
+        final profile = _currentUser?.state.profile;
         emit(
           BuddiesState(
-            home: home.withVisibility(
-              _currentUser?.state.profile?.showInTravelBuddy,
-            ),
+            home: home
+                .withVisibility(profile?.showInTravelBuddy)
+                .withProfileCompleted(profile?.profileCompleted),
           ),
         );
       }

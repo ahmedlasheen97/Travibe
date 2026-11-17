@@ -1,3 +1,4 @@
+import 'package:travibe/features/buddies/cubit/buddies_filters_cubit.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
@@ -207,6 +208,9 @@ class _RootState extends State<Root> {
   bool _openingComposer = false;
   late final _blockCubit = BlockCubit(follow: _followCubit);
 
+  /// Applied Buddies filters, kept for the session across listing/search.
+  final _buddiesFilters = BuddiesFiltersCubit();
+
   /// The one source of active Stories for Home's row and every profile ring;
   /// publishing, viewing, deleting and expiry all update it in place.
   late final _stories = StoriesCubit(
@@ -242,6 +246,7 @@ class _RootState extends State<Root> {
     _activity.close();
     _hidden.close();
     _blockCubit.close();
+    _buddiesFilters.close();
     _incoming.close();
     _followCubit.close();
     super.dispose();
@@ -302,6 +307,7 @@ class _RootState extends State<Root> {
         BlocProvider.value(value: _followCubit),
         BlocProvider.value(value: _incoming),
         BlocProvider.value(value: _blockCubit),
+        BlocProvider.value(value: _buddiesFilters),
         BlocProvider.value(value: _postUploads),
         BlocProvider.value(value: _storyUploads),
         BlocProvider.value(value: _pictureUploads),

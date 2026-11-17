@@ -8,6 +8,9 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import '../data/buddies_filters.dart';
+import 'package:travibe/core/reference/nationality_labels.dart';
+import 'package:travibe/core/widgets/country_picker_field.dart';
+import 'package:travibe/core/widgets/country_search_sheet.dart';
 
 class BuddiesFiltersScreen extends StatefulWidget {
   const BuddiesFiltersScreen({
@@ -26,7 +29,6 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
   final _preferences = PreferencesManager();
   bool _invalidSession = false;
   List<ReferenceCountry> _countries = [];
-  String? _countriesError;
   bool _countriesLoading = false;
   int _countryGeneration = 0;
   late final int _session = _preferences.sessionRevision;
@@ -41,6 +43,12 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
   final Set<ReferenceKind> _loading = {};
   final Map<ReferenceKind, String> _failed = {};
   final Set<ReferenceKind> _expanded = {...ReferenceKind.values};
+  static const _collapsed = 6;
+  static const _sectionTitle = TextStyle(
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+  );
 
   @override
   void initState() {
@@ -68,7 +76,6 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
     final generation = ++_countryGeneration;
     setState(() {
       _countriesLoading = true;
-      _countriesError = null;
       _countries = [];
     });
     try {
@@ -76,14 +83,8 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
       if (mounted && generation == _countryGeneration) {
         setState(() => _countries = items);
       }
-    } catch (error) {
-      if (mounted && generation == _countryGeneration) {
-        setState(
-          () => _countriesError = error is ApiError
-              ? error.message
-              : 'Unable to load countries.',
-        );
-      }
+    } catch (_) {
+      // The nationality sheet shows the error and its own Retry.
     } finally {
       if (mounted && generation == _countryGeneration) {
         setState(() => _countriesLoading = false);
@@ -92,58 +93,32 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
   }
 
   Future<void> _pickNationality() async {
-    var text = '';
-    final country = await showModalBottomSheet<ReferenceCountry>(
-      context: context,
-      useSafeArea: true,
-      isScrollControlled: true,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: SizedBox(
-            height: MediaQuery.sizeOf(context).height * .7,
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: TextField(
-                    decoration: const InputDecoration(
-                      hintText: 'Search country',
-                    ),
-                    onChanged: (value) =>
-                        setSheetState(() => text = value.trim().toLowerCase()),
-                  ),
-                ),
-                Expanded(
-                  child: ListView(
-                    children: [
-                      for (final country in _countries.where(
-                        (item) =>
-                            item.name.toLowerCase().contains(text) ||
-                            item.nameEn.toLowerCase().contains(text) ||
-                            item.code.toLowerCase().contains(text),
-                      ))
-                        ListTile(
-                          title: Text(country.name),
-                          subtitle: Text(country.code),
-                          onTap: () => Navigator.pop(context, country),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final country = await showCountrySearchSheet(
+      context,
+      selected: _nationality,
+      load: () async {
+        if (_countries.isNotEmpty) return _countries;
+        final items = await _repo.loadCountries(_preferences.language.value);
+        if (mounted) setState(() => _countries = items);
+        return items;
+      },
     );
     if (mounted &&
         _session == _preferences.sessionRevision &&
         country != null) {
       setState(() => _nationality.add(country.code));
     }
+  }
+
+  String _nationalityChipLabel(String code) {
+    final name = _countries
+        .where((country) => country.code == code)
+        .map((country) => country.name)
+        .firstOrNull;
+    // Figma shows demonyms (Egyptian, Italian); Arabic keeps localized names.
+    return _preferences.language.value == 'ar'
+        ? name ?? code
+        : nationalityLabel(code, countryName: name);
   }
 
   Future<void> _load(ReferenceKind kind) async {
@@ -185,15 +160,12 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
     final missing = _selected[kind]!.difference(
       items.map((item) => item.slug).toSet(),
     );
-    final shown = (_expanded.contains(kind) ? items : items.take(6)).toList();
-    final columns = kind == ReferenceKind.travelStyles ? 2 : 3;
+    final shown = (_expanded.contains(kind) ? items : items.take(_collapsed))
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
+        Text(title, style: _sectionTitle),
         const SizedBox(height: 12),
         if (_failed.containsKey(kind))
           Column(
@@ -217,26 +189,20 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
               fontWeight: FontWeight.w400,
             ),
           ),
-        for (var offset = 0; offset < shown.length; offset += columns)
-          Padding(
-            padding: EdgeInsets.only(
-              bottom: offset + columns < shown.length ? 8 : 0,
-            ),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final item in shown.skip(offset).take(columns))
-                  _chip(item.name, _selected[kind]!.contains(item.slug), () {
-                    setState(() {
-                      if (!_selected[kind]!.add(item.slug)) {
-                        _selected[kind]!.remove(item.slug);
-                      }
-                    });
-                  }),
-              ],
-            ),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final item in shown)
+              _chip(item.name, _selected[kind]!.contains(item.slug), () {
+                setState(() {
+                  if (!_selected[kind]!.add(item.slug)) {
+                    _selected[kind]!.remove(item.slug);
+                  }
+                });
+              }),
+          ],
+        ),
         // Applied values remain explicit and removable when a catalog changes
         // or is unavailable. Never silently broaden the originating query.
         if (missing.isNotEmpty)
@@ -261,7 +227,7 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
                 ),
             ],
           ),
-        if (items.length > 6)
+        if (items.length > _collapsed)
           TextButton.icon(
             iconAlignment: IconAlignment.end,
             style: TextButton.styleFrom(
@@ -295,11 +261,14 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
     materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     backgroundColor: const Color(0xFF141414),
     selectedColor: DarkColors.primaryColor,
-    side: const BorderSide(color: Color(0xFF292929)),
+    side: BorderSide(
+      color: selected ? DarkColors.primaryColor : const Color(0xFF292929),
+    ),
     shape: const StadiumBorder(),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
     labelStyle: const TextStyle(
       color: Colors.white,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: FontWeight.w400,
     ),
   );
@@ -364,10 +333,7 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
                   vertical: 20,
                 ),
                 children: [
-                  const Text(
-                    'Traveler Gender',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
+                  const Text('Gender', style: _sectionTitle),
                   for (final entry in {
                     'male': 'Male',
                     'female': 'Female',
@@ -378,11 +344,21 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
                       title: Text(
                         entry.value,
                         style: const TextStyle(
+                          color: Colors.white,
                           fontSize: 14,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
                       activeColor: DarkColors.primaryColor,
+                      checkColor: Colors.white,
+                      checkboxShape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      side: const BorderSide(
+                        color: DarkColors.greyColor,
+                        width: 1.5,
+                      ),
+                      visualDensity: VisualDensity.compact,
                       value: _gender.contains(entry.key),
                       onChanged: (value) => setState(() {
                         if (value == true) {
@@ -396,57 +372,20 @@ class _BuddiesFiltersScreenState extends State<BuddiesFiltersScreen> {
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Divider(color: Color(0xFF292929), thickness: 1),
                   ),
-                  const Text(
-                    'Nationality',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      foregroundColor: DarkColors.greyColor,
-                      side: const BorderSide(color: Color(0xFF292929)),
-                      textStyle: Theme.of(context).textTheme.labelLarge!
-                          .copyWith(fontSize: 14, fontWeight: FontWeight.w400),
-                      backgroundColor: const Color(0xFF141414),
-                      shape: const StadiumBorder(),
-                    ),
-                    onPressed: _countriesLoading || _countries.isEmpty
-                        ? null
-                        : _pickNationality,
-                    child: const Row(
-                      children: [
-                        Expanded(child: Text('Select nationality')),
-                        Icon(Icons.keyboard_arrow_down),
-                      ],
-                    ),
-                  ),
-                  if (_countriesError != null)
-                    TextButton(
-                      onPressed: _loadCountries,
-                      child: Text('$_countriesError Retry countries'),
-                    ),
-                  if (!_countriesLoading &&
-                      _countriesError == null &&
-                      _countries.isEmpty)
-                    TextButton(
-                      onPressed: _loadCountries,
-                      child: const Text('Countries are unavailable. Retry'),
-                    ),
+                  const Text('Nationality', style: _sectionTitle),
                   const SizedBox(height: 12),
+                  CountryPickerField(
+                    hint: 'Select nationality',
+                    onTap: _pickNationality,
+                  ),
+                  if (_nationality.isNotEmpty) const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
                     children: [
                       for (final code in _nationality)
                         InputChip(
-                          label: Text(
-                            _countries
-                                    .where((country) => country.code == code)
-                                    .map((country) => country.name)
-                                    .firstOrNull ??
-                                code,
-                          ),
+                          label: Text(_nationalityChipLabel(code)),
                           backgroundColor: DarkColors.primaryColor,
                           labelStyle: const TextStyle(
                             color: Colors.white,

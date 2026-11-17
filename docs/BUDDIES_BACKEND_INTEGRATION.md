@@ -79,7 +79,18 @@ an explicit Allow Location action, and reads low-accuracy coordinates with a
 timeouts have actionable messages. Settings actions open app or location settings
 as appropriate. Manual destination search remains available throughout.
 
-The existing Photon provider also implements `CityReverseGeocoder`:
+**Use my location** reverse-geocodes with `DeviceCityReverseGeocoder`
+(`lib/core/places/device_city_reverse_geocoder.dart`): the OS geocoder via the
+`geocoding` package (CLGeocoder on iOS, `android.location.Geocoder` on Android),
+with results forced to English (`en_US`) so saved city names match across users.
+It falls back to Photon on web (the plugin has no web implementation), on Android
+devices without a geocoder backend (`isPresent() == false`, e.g. no Google Play
+services), when the OS lookup throws (offline, throttled, missing plugin), and when
+no placemark has both a city (`locality`, else `subAdministrativeArea`) and an
+ISO-2 country. Photon errors still reach the sheet. Coordinates passed to either
+geocoder are rounded to 2 decimals.
+
+The Photon provider implements `CityReverseGeocoder` for that fallback:
 
 ```text
 GET https://photon.komoot.io/reverse?lat=30.0444&lon=31.2357&limit=6&lang=en&layer=city
@@ -96,14 +107,36 @@ produce a handled failure; the app does not fabricate a city.
 `AllowLocationCubit` serializes this sequence:
 
 1. Request/check foreground permission and obtain coordinates.
-2. Reverse-geocode and validate the Photon selection.
+2. Round the coordinates to 2 decimals (~1 km, `coarseCoordinate`), then
+   reverse-geocode and validate the Photon selection. The exact fix never
+   leaves the device; Travibe's API never receives coordinates
+   (`UpdateLocationRequest` only accepts `location`).
 3. PUT `/profile/location` with `location` only.
 4. After confirmed save, PATCH `/settings` with `show_in_travel_buddy: true` only.
 5. Synchronize current-user and Buddies eligibility/visibility data.
 
+The flow is presented by the shared **Show me in Buddies** sheet
+(`widgets/show_in_buddies_sheet.dart`, `showShowInBuddiesSheet`), which always
+shows the green "We'll show your city, not your exact location." note:
+
+- **Current city already saved** (Profile Setup / Edit Profile): "We'll show you
+  in {city}", **Turn On** (`AllowLocationCubit.turnOn`: only
+  `PATCH /settings {show_in_travel_buddy: true}`, no location permission) and
+  **Change city** (city picker → `chooseCity`: PUT location, then PATCH).
+- **No city:** **Use my location** (`useLocation`: permission → reverse geocode →
+  PUT → PATCH) and **Choose city manually** (picker → PUT → PATCH).
+
+Success closes the sheet with a success toast. Errors stay inline; a permanently
+denied permission or disabled services add **Open Settings**. If the PATCH fails
+after the city was saved, the sheet switches to Turn On mode, so a retry only
+PATCHes. The same sheet is opened by the Buddies "Turn On Visibility" card, by
+Settings when **Show Me in Buddies** is switched on (switching it off still
+PATCHes directly). Profile Setup only picks the current city; it never turns on
+visibility.
+
 Repeated taps are ignored while busy. Failure before step 4 never enables
 visibility. If step 4 fails, the saved location is retained and the action becomes
-**Retry visibility**; retry skips device access/geocoding/location PUT. If the saved
+**Retry**; retry skips device access/geocoding/location PUT. If the saved
 location is subsequently cleared, the flow obtains a location again. Session
 changes invalidate every intermediate result. Busy feedback stays on the action;
 background synchronization does not add a second full-page spinner.

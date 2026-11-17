@@ -18,6 +18,7 @@ import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/core/location/device_location_service.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/core/places/photon_city_places_provider.dart';
+import 'package:travibe/core/places/device_city_reverse_geocoder.dart';
 import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/buddies/cubit/allow_location_cubit.dart';
@@ -328,8 +329,60 @@ void main() {
       expect(user.state.profile!.currentLocation, 'Cairo, EG');
       api.calls.clear();
       api.settingsError = null;
-      await flow.allow();
+      // The saved city puts the sheet in Turn On mode: only the PATCH runs.
+      await flow.turnOn();
       expect(api.calls, ['PATCH settings']);
+      expect(flow.state.enabled, true);
+      await flow.close();
+    },
+  );
+  test('Use my location defaults to the device geocoder', () async {
+    final flow = AllowLocationCubit(currentUser: user);
+    expect(flow.geocoder, isA<DeviceCityReverseGeocoder>());
+    await flow.close();
+  });
+  test('turnOn with a saved city only PATCHes visibility', () async {
+    await user.saveLocation(cairo());
+    api.calls.clear();
+    api.payloads.clear();
+    final flow = AllowLocationCubit(
+      currentUser: user,
+      device: Device(api.calls),
+      geocoder: Reverse(api.calls),
+    );
+    await flow.turnOn();
+    expect(api.calls, ['PATCH settings']);
+    expect(api.payloads, [
+      {'show_in_travel_buddy': true},
+    ]);
+    expect(flow.state.enabled, true);
+    await flow.close();
+  });
+  test('turnOn without a city never enables visibility', () async {
+    final flow = AllowLocationCubit(
+      currentUser: user,
+      device: Device(api.calls),
+      geocoder: Reverse(api.calls),
+    );
+    await flow.turnOn();
+    expect(api.calls, isEmpty);
+    expect(flow.state.error, 'Choose your current city first.');
+    await flow.close();
+  });
+  test(
+    'chooseCity saves the picked city then turns on, without the device',
+    () async {
+      final flow = AllowLocationCubit(
+        currentUser: user,
+        device: Device(api.calls),
+        geocoder: Reverse(api.calls),
+      );
+      await flow.chooseCity(cairo());
+      expect(api.calls, ['PUT profile/location', 'PATCH settings']);
+      expect(api.payloads, [
+        {'location': 'Cairo, EG'},
+        {'show_in_travel_buddy': true},
+      ]);
       expect(flow.state.enabled, true);
       await flow.close();
     },
@@ -703,7 +756,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(InputChip, 'Egypt'), findsOneWidget);
+      // English shows the Figma demonym; Arabic keeps the localized name.
+      expect(find.widgetWithText(InputChip, 'Egyptian'), findsOneWidget);
       await preferences.saveLanguage('ar');
       await tester.pumpAndSettle();
       expect(find.widgetWithText(InputChip, 'مصر'), findsOneWidget);

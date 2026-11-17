@@ -10,6 +10,8 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/buddies/cubit/buddies_listing_cubit.dart';
+import 'package:travibe/features/buddies/cubit/buddies_filters_cubit.dart';
+import 'package:travibe/features/buddies/cubit/buddies_search_cubit.dart';
 import 'package:travibe/features/buddies/data/buddies_filters.dart';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
 import 'package:travibe/features/buddies/screens/buddies_filters_screen.dart';
@@ -178,7 +180,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
-            .widget<InputChip>(find.widgetWithText(InputChip, 'Egypt'))
+            .widget<InputChip>(find.widgetWithText(InputChip, 'Egyptian'))
             .labelStyle!
             .decoration,
         TextDecoration.none,
@@ -273,13 +275,13 @@ void main() {
         await tester.tap(find.text(country).last);
         await tester.pumpAndSettle();
       }
-      final chip = find.widgetWithText(InputChip, 'Egypt');
+      final chip = find.widgetWithText(InputChip, 'Egyptian');
       await tester.ensureVisible(chip);
       await tester.tap(
         find.descendant(of: chip, matching: find.byIcon(Icons.cancel_outlined)),
       );
       await tester.pumpAndSettle();
-      expect(find.widgetWithText(InputChip, 'Egypt'), findsNothing);
+      expect(find.widgetWithText(InputChip, 'Egyptian'), findsNothing);
       await tester.tap(find.text('Apply'));
       await tester.pumpAndSettle();
       expect(host.applied.nationality, {'IT'});
@@ -578,4 +580,146 @@ void main() {
       },
     );
   }
+
+  group('shared session filters', () {
+    Widget app(BuddiesFiltersCubit store, home.FakeApi api) => MaterialApp(
+      theme: darkTheme,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => BlocProvider.value(
+                  value: store,
+                  child: BuddiesListingScreen(
+                    listing: BuddiesListing.city,
+                    repo: BuddiesRepo(apiService: api),
+                    catalogRepo: FilterCatalog(),
+                  ),
+                ),
+              ),
+            ),
+            child: const Text('See All'),
+          ),
+        ),
+      ),
+    );
+
+    testWidgets(
+      'every filter reaches the API, the badge counts them, and they survive leaving the listing',
+      (tester) async {
+        final store = BuddiesFiltersCubit();
+        addTearDown(store.close);
+        final api = home.FakeApi(listing.page(ids: [1]));
+        await tester.pumpWidget(app(store, api));
+        await tester.tap(find.text('See All'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('buddies-filter-count')),
+          findsNothing,
+        );
+
+        await tapVisible(tester, find.text('Filters'));
+        await tapVisible(tester, find.text('Female'));
+        await tapVisible(tester, find.text('Select nationality'));
+        await tester.tap(find.text('Italy').last);
+        await tester.pumpAndSettle();
+        await tapVisible(tester, find.text('languages option 0'));
+        await tapVisible(tester, find.text('interests option 1'));
+        await tapVisible(tester, find.text('travelStyles option 1'));
+        await tester.tap(find.text('Apply'));
+        await tester.pumpAndSettle();
+
+        expect(api.query, {
+          'per_page': 15,
+          'gender[]': ['female'],
+          'nationality[]': ['IT'],
+          'languages[]': ['languages-0'],
+          'interests[]': ['interests-1'],
+          'travel_styles[]': ['travelStyles-1'],
+        });
+        expect(
+          find.descendant(
+            of: find.byKey(const ValueKey('buddies-filter-count')),
+            matching: find.text('5'),
+          ),
+          findsOneWidget,
+        );
+        expect(store.state.activeCount, 5);
+
+        // Leave the listing, then come back: filters and badge remain.
+        await tester.tap(find.byTooltip('Back'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('See All'));
+        await tester.pumpAndSettle();
+        expect(api.query!['nationality[]'], ['IT']);
+        expect(find.text('5'), findsOneWidget);
+
+        // Reset + Apply clears everything, request included.
+        await tapVisible(tester, find.text('Filters'));
+        await tester.tap(find.text('Reset'));
+        await tester.tap(find.text('Apply'));
+        await tester.pumpAndSettle();
+        expect(api.query, {'per_page': 15});
+        expect(
+          find.byKey(const ValueKey('buddies-filter-count')),
+          findsNothing,
+        );
+        expect(store.state, BuddiesFilters());
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    test(
+      'store is shared by listings and search and resets on logout',
+      () async {
+        final store = BuddiesFiltersCubit();
+        final api = home.FakeApi(listing.page(ids: [1]));
+        final repo = BuddiesRepo(apiService: api);
+        final city = BuddiesListingCubit(
+          listing: BuddiesListing.city,
+          repo: repo,
+          filtersStore: store,
+        );
+        addTearDown(store.close);
+        addTearDown(city.close);
+        await city.apply(BuddiesFilters(gender: ['male']));
+        final interests = BuddiesListingCubit(
+          listing: BuddiesListing.interests,
+          repo: repo,
+          filtersStore: store,
+        );
+        final search = BuddiesSearchCubit(repo: repo, filtersStore: store);
+        addTearDown(interests.close);
+        addTearDown(search.close);
+        expect(interests.state.filters.gender, {'male'});
+        expect(search.state.filters.gender, {'male'});
+        await preferences.saveToken('another-account');
+        expect(store.state, BuddiesFilters());
+      },
+    );
+
+    testWidgets('dark nationality sheet searches and marks selected', (
+      tester,
+    ) async {
+      final host = DraftHost(
+        BuddiesFilters(nationality: ['EG']),
+        FilterCatalog(),
+      );
+      await openDraft(tester, host);
+      expect(find.widgetWithText(InputChip, 'Egyptian'), findsOneWidget);
+      await tapVisible(tester, find.text('Select nationality'));
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.decoration!.fillColor, isNot(Colors.white));
+      expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'ita');
+      await tester.pumpAndSettle();
+      expect(find.text('Egypt'), findsNothing);
+      await tester.tap(find.text('Italy'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(InputChip, 'Italian'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
 }

@@ -1,3 +1,4 @@
+import 'package:travibe/features/profile/data/profile_model.dart';
 import 'dart:async';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
@@ -26,12 +27,14 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     this.currentUser,
     ProfileAvatarRepo? avatarRepo,
     MediaUploadService? mediaUpload,
-  }) : _repo = repo ?? ProfileSetupRepo(),
+    int initialStep = 0,
+  }) : _initialStep = initialStep.clamp(0, 2),
+       _repo = repo ?? ProfileSetupRepo(),
        _profiles = profileRepo ?? ProfileRepo(),
        _avatarRepo = avatarRepo ?? ProfileAvatarRepo(),
        _mediaUpload = mediaUpload ?? MediaUploadService(),
        _ownsUpload = mediaUpload == null,
-       super(const ProfileSetupState()) {
+       super(ProfileSetupState(step: initialStep.clamp(0, 2))) {
     fullNameController.addListener(_identityChanged);
     PreferencesManager().addListener(_sessionChanged);
   }
@@ -50,6 +53,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     _avatarAttached = false;
     _readyAvatar = null;
     _restoring = false;
+    _userId = null;
     _identityEdited = false;
     _usernameDebounce?.cancel();
     ++_usernameRequestId;
@@ -72,6 +76,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
   bool _avatarAttached = false;
   ProfileAvatarDraft? _readyAvatar;
   bool _restoring = false;
+  String? _userId;
   bool _identityEdited = false;
   void _identityChanged() {
     _identityEdited = true;
@@ -94,6 +99,7 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
           currentUser?.state.profile ??
           await _profiles.getMyProfile().timeout(const Duration(seconds: 12));
       if (isClosed || session != PreferencesManager().sessionRevision) return;
+      _userId = profile.id;
       if (!_identityEdited) {
         fullNameController.text = profile.name ?? '';
         usernameController.text = profile.username ?? '';
@@ -197,7 +203,26 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     _city = null;
   }
 
-  final pageController = PageController();
+  final int _initialStep;
+  late final pageController = PageController(initialPage: _initialStep);
+
+  /// First page with missing data, in order: identity/current city (page 0),
+  /// languages & interests (1), travel style (2).
+  static int firstMissingStep(ProfileModel? profile) {
+    if (profile == null ||
+        (profile.name?.trim().isEmpty ?? true) ||
+        (profile.username?.trim().isEmpty ?? true) ||
+        profile.currentLocation == null) {
+      return 0;
+    }
+    if (profile.languageSelections.isEmpty ||
+        profile.interestSelections.isEmpty) {
+      return 1;
+    }
+    if (profile.travelStyleSelections.isEmpty) return 2;
+    return 0;
+  }
+
   final fullNameController = TextEditingController();
   final usernameController = TextEditingController();
 
@@ -617,6 +642,44 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
       ),
     );
     if (ok != null) _navigate(ok);
+  }
+
+  /// "Skip for now" on steps 2 and 3: saves what this step already has, then
+  /// leaves setup incomplete. The skip is remembered per account so startup
+  /// goes to Home instead of back into setup.
+  Future<void> skip() async {
+    if (isClosed ||
+        state.isSaving ||
+        state.selectingAvatar ||
+        state.uploadingAvatar) {
+      return;
+    }
+    final session = PreferencesManager().sessionRevision;
+    ProfileSetupResult? saved;
+    if (state.step == 1 &&
+        (state.languages.isNotEmpty || state.interests.isNotEmpty)) {
+      saved = await _save(
+        () => _repo.saveSetup(
+          languages: state.languages.isEmpty ? null : state.languages,
+          interests: state.interests.isEmpty ? null : state.interests,
+        ),
+      );
+      if (saved == null) return;
+    } else if (state.step == 2 && state.travelStyles.isNotEmpty) {
+      saved = await _save(
+        () => _repo.saveSetup(travelStyles: state.travelStyles),
+      );
+      if (saved == null) return;
+    }
+    if (isClosed || session != PreferencesManager().sessionRevision) return;
+    if (saved?.profileCompleted == true) {
+      _navigate(saved!);
+      return;
+    }
+    final id = currentUser?.state.profile?.id ?? saved?.profile?.id ?? _userId;
+    if (id != null) await PreferencesManager().markProfileSetupSkipped(id);
+    if (isClosed || session != PreferencesManager().sessionRevision) return;
+    emit(state.copyWith(status: ProfileSetupStatus.skipped));
   }
 
   Future<void> finish() async {

@@ -7,7 +7,6 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'dart:typed_data';
-
 import 'package:travibe/features/profile/widgets/profile_picture_upload_toast.dart';
 import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
@@ -17,8 +16,21 @@ import 'package:travibe/features/profilesetup/widgets/step3_travel_style.dart';
 import 'package:travibe/root.dart';
 
 class ProfileSetupScreen extends StatefulWidget {
-  const ProfileSetupScreen({super.key, this.createCubit});
+  const ProfileSetupScreen({
+    super.key,
+    this.createCubit,
+    this.popOnComplete = false,
+    this.initialStep = 0,
+  });
   final ProfileSetupCubit Function(BuildContext)? createCubit;
+
+  /// Opened from inside the app (Buddies "Complete Profile"): step 1 can be
+  /// left with Back, and completion returns to the caller instead of
+  /// replacing the stack with a new Root.
+  final bool popOnComplete;
+
+  /// Page to open on (see [ProfileSetupCubit.firstMissingStep]).
+  final int initialStep;
   @override
   State<ProfileSetupScreen> createState() => _ProfileSetupScreenState();
 }
@@ -54,6 +66,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
   }
 
   void _goHome(BuildContext context) {
+    if (widget.popOnComplete) {
+      Navigator.of(context).pop(true);
+      return;
+    }
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (context) => Root()),
@@ -68,6 +84,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
           (widget.createCubit?.call(context) ??
                 ProfileSetupCubit(
                   currentUser: context.read<CurrentUserCubit?>(),
+                  initialStep: widget.initialStep,
                 ))
             ..restore()
             ..loadCatalogs(),
@@ -77,7 +94,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
         child: BlocConsumer<ProfileSetupCubit, ProfileSetupState>(
           listenWhen: (previous, current) => previous.status != current.status,
           listener: (context, state) {
-            if (state.status == ProfileSetupStatus.completed) {
+            if (state.status == ProfileSetupStatus.completed ||
+                state.status == ProfileSetupStatus.skipped) {
               _goHome(context);
             } else if (state.status == ProfileSetupStatus.failure) {
               TravibeToast.show(
@@ -92,7 +110,8 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             // The account already exists, so setup never pops back to Signup or
             // OTP. Back moves to the previous step; on step 1 it does nothing.
             return PopScope(
-              canPop: false,
+              canPop:
+                  widget.popOnComplete && state.step == 0 && !state.isSaving,
               onPopInvokedWithResult: (didPop, result) {
                 if (!didPop) cubit.goBack();
               },
@@ -108,6 +127,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                     automaticallyImplyLeading: false,
                     leading: state.step > 0
                         ? BackButtonWidget(onTap: cubit.goBack)
+                        : widget.popOnComplete
+                        ? BackButtonWidget(
+                            onTap: () => Navigator.of(context).maybePop(),
+                          )
                         : null,
                     title: const Text(
                       'Profile Setup',
@@ -146,6 +169,7 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                               onInterestsChanged: cubit.setInterests,
                               isSaving: state.isSaving,
                               onNext: cubit.saveLanguagesAndInterests,
+                              onSkip: state.isSaving ? null : cubit.skip,
                             ),
                             Step3TravelStyle(
                               catalog: state.catalog(
@@ -156,6 +180,10 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
                               selectedTravelStyles: state.travelStyles,
                               onTravelStylesChanged: cubit.setTravelStyles,
                               onFinish: state.isSaving ? null : cubit.finish,
+                              onSkip: state.isSaving ? null : cubit.skip,
+                              finishLabel: widget.popOnComplete
+                                  ? 'Done'
+                                  : 'Continue to Home',
                               isSubmitting: state.isSaving,
                             ),
                           ],

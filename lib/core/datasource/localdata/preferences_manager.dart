@@ -134,7 +134,19 @@ class PreferencesManager extends ChangeNotifier {
     await removal;
   }
 
-  /// Remove account-scoped values, retaining app language, onboarding and non-secret push cleanup IDs.
+  static const _setupSkippedPrefix = 'profile_setup_skipped_';
+
+  /// Whether account [userId] chose "Skip for now" in Profile Setup. Kept
+  /// across logout so that account is not forced back into setup.
+  bool isProfileSetupSkipped(String userId) =>
+      _preferences.getBool('$_setupSkippedPrefix$userId') ?? false;
+
+  Future<void> markProfileSetupSkipped(String userId) async {
+    await _preferences.setBool('$_setupSkippedPrefix$userId', true);
+  }
+
+  /// Remove account-scoped values, retaining app language, onboarding,
+  /// non-secret push cleanup IDs and per-account setup skips.
   /// Removal calls update SharedPreferences' memory synchronously before yielding,
   /// so a later account cannot be cleared by an old session's completion.
   Future<void> clearSession() async {
@@ -142,7 +154,8 @@ class PreferencesManager extends ChangeNotifier {
       for (final key in _preferences.getKeys())
         if (key != _languageKey &&
             key != onboardingCompletedKey &&
-            key != pushDeviceRecordsKey)
+            key != pushDeviceRecordsKey &&
+            !key.startsWith(_setupSkippedPrefix))
           _preferences.remove(key),
     ];
     _setSession(null);

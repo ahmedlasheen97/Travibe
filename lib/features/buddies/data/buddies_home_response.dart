@@ -86,6 +86,16 @@ class BuddiesHomeMeta {
     required this.hasCurrentCity,
     required this.currentCity,
   });
+
+  /// Server completion plus a current city: Buddies needs both before it
+  /// stops asking the user to complete their profile.
+  bool get needsProfile => !profileCompleted || !hasCurrentCity;
+  BuddiesHomeMeta withProfileCompleted(bool value) => BuddiesHomeMeta._(
+    profileCompleted: value,
+    showInTravelBuddy: showInTravelBuddy,
+    hasCurrentCity: hasCurrentCity,
+    currentCity: currentCity,
+  );
   BuddiesHomeMeta withVisibility(bool value) => BuddiesHomeMeta._(
     profileCompleted: profileCompleted,
     showInTravelBuddy: value,
@@ -136,6 +146,13 @@ class BuddiesHomeResponse {
           inYourCity: inYourCity,
           withSameInterests: withSameInterests,
           meta: meta.withVisibility(value),
+        );
+  BuddiesHomeResponse withProfileCompleted(bool? value) => value == null
+      ? this
+      : BuddiesHomeResponse._(
+          inYourCity: inYourCity,
+          withSameInterests: withSameInterests,
+          meta: meta.withProfileCompleted(value),
         );
   BuddiesHomeResponse withLocation(
     String? location, {

@@ -20,8 +20,12 @@ selection-count limits.
 Reset clears only the draft. Back/system Back discards changes. Apply returns
 immutable selections to the originating listing, resets its pagination and
 requests the filtered first page. Reopening Filters restores those applied
-selections. Filters remain independent per listing Cubit, live for that listing
-route, and are cleared on account/session changes; no disk persistence was added.
+selections. Applied filters are also written to the session-scoped
+`BuddiesFiltersCubit` (created by `Root`, forwarded to pushed Buddies routes), so
+In Your City, With Same Interests and destination search share one filter set
+that survives leaving and reopening those screens. It is cleared on
+account/session changes; no disk persistence was added. The Filters button shows
+an orange badge with `BuddiesFilters.activeCount` (selected values).
 Stage 2 generation/session guards reject stale successes and failures, including
 responses from pending pagination when filters change. Existing loading, empty,
 error/retry, safe continuation links and block filtering remain in use.
@@ -50,7 +54,7 @@ GET /api/v1/buddies/with-same-interests send only selected values:
 | Parameter | Source | Remaining backend confirmation |
 | --- | --- | --- |
 | gender[] | User-verified male / female values | None for the specified values |
-| nationality[] | Existing country_picker country codes/names | Live acceptance of the picker's supported territories/codes |
+| nationality[] | `GET /reference/countries` codes via the shared dark `showCountrySearchSheet`; chips show demonyms (`nationality_labels.dart`) in English | Live acceptance of the returned codes |
 | languages[] | ProfileSetupRepo → GET reference/languages; returned slugs | Live catalog availability and Buddies acceptance of those slugs |
 | interests[] | ProfileSetupRepo → GET reference/interests; returned slugs | Live catalog availability and Buddies acceptance of those slugs |
 | travel_styles[] | ProfileSetupRepo → GET reference/travel-styles; returned slugs | Live catalog availability and Buddies acceptance of those slugs |

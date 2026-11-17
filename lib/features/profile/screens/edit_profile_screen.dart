@@ -1,3 +1,5 @@
+import 'package:travibe/core/reference/nationality_labels.dart';
+import 'package:travibe/core/widgets/country_search_sheet.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
@@ -85,39 +87,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   static const int _bioMaxLength = 180;
 
-  // Common country -> nationality (demonym) map. Extend as needed;
-  // falls back to the country name itself if not listed.
-  static const Map<String, String> _demonyms = {
-    'EG': 'Egyptian',
-    'SA': 'Saudi',
-    'AE': 'Emirati',
-    'JO': 'Jordanian',
-    'LB': 'Lebanese',
-    'MA': 'Moroccan',
-    'DZ': 'Algerian',
-    'TN': 'Tunisian',
-    'IQ': 'Iraqi',
-    'SY': 'Syrian',
-    'KW': 'Kuwaiti',
-    'QA': 'Qatari',
-    'BH': 'Bahraini',
-    'OM': 'Omani',
-    'US': 'American',
-    'GB': 'British',
-    'FR': 'French',
-    'DE': 'German',
-    'IT': 'Italian',
-    'ES': 'Spanish',
-    'IN': 'Indian',
-    'PK': 'Pakistani',
-    'TR': 'Turkish',
-    'CA': 'Canadian',
-    'AU': 'Australian',
-  };
-
-  String _nationalityLabel(Country country) {
-    return _demonyms[country.countryCode] ?? country.name;
-  }
+  String _nationalityLabel(Country country) =>
+      nationalityLabel(country.countryCode, countryName: country.name);
 
   @override
   void initState() {
@@ -225,36 +196,21 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     await _editor.pickAvatar();
   }
 
-  void _pickNationality() {
-    showCountryPicker(
-      context: context,
-      showPhoneCode: false,
-      exclude: ['AC', 'XK'],
-      countryListTheme: CountryListThemeData(
-        backgroundColor: const Color(0xFF141414),
-        textStyle: TextStyle(color: Colors.white, fontSize: AppSizes.sp14),
-        searchTextStyle: const TextStyle(color: Colors.white),
-        bottomSheetHeight: MediaQuery.of(context).size.height * 0.75,
-        inputDecoration: InputDecoration(
-          hintText: 'Search country',
-          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-          filled: true,
-          fillColor: const Color(0xFF1C1C1C),
-          prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppSizes.r28),
-            borderSide: BorderSide.none,
-          ),
-        ),
-      ),
-      onSelect: (country) {
-        setState(() {
-          _nationalityCountry = country;
-          _draft.set('nationality_code', country.countryCode);
-          _errors.remove('nationality_code');
-        });
-      },
+  Future<void> _pickNationality() async {
+    final code = _nationalityCountry?.countryCode;
+    final picked = await showCountrySearchSheet(
+      context,
+      selected: {?code},
+      load: () =>
+          _selectionRepo.loadCountries(PreferencesManager().language.value),
     );
+    final country = picked == null ? null : Country.tryParse(picked.code);
+    if (!mounted || country == null) return;
+    setState(() {
+      _nationalityCountry = country;
+      _draft.set('nationality_code', country.countryCode);
+      _errors.remove('nationality_code');
+    });
   }
 
   Future<void> _pickCurrentCity() async {

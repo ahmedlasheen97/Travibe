@@ -51,24 +51,19 @@ void main() {
     }
   }
 
-  testWidgets('production defaults contain no sample users or location claims', (
-    tester,
-  ) async {
-    await show(tester);
-    expect(find.byType(BuddiesTravelerCard), findsNothing);
-    expect(
-      find.text('Traveler discovery is not available yet.'),
-      findsOneWidget,
-    );
-    expect(
-      find.text(
-        'Your current city is saved only after you allow location. You can still search destinations manually.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Hazem Ali'), findsNothing);
-    expect(find.text('You can turn this off from settings.'), findsNothing);
-  });
+  testWidgets(
+    'production defaults contain no sample users or location claims',
+    (tester) async {
+      await show(tester);
+      expect(find.byType(BuddiesTravelerCard), findsNothing);
+      expect(
+        find.text('Traveler discovery is not available yet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Hazem Ali'), findsNothing);
+      expect(find.text('You can turn this off from settings.'), findsOneWidget);
+    },
+  );
 
   testWidgets(
     'visibility landing uses current banner and shared-interest cards',
@@ -82,7 +77,7 @@ void main() {
       expect(find.text('BuddiesScreen'), findsNothing);
       expect(find.text('Find people for your next adventure'), findsOneWidget);
       expect(find.byType(BuddiesVisibilityInvitation), findsOneWidget);
-      expect(find.text('Allow Location'), findsOneWidget);
+      expect(find.text('Turn On Visibility'), findsOneWidget);
       expect(find.text('With Same Interests'), findsOneWidget);
       expect(find.text('In Your City'), findsNothing);
       expect(find.byType(BuddiesTravelerCard), findsNWidgets(2));
@@ -126,14 +121,10 @@ void main() {
     'unverified actions stay disabled and do not navigate or request input',
     (tester) async {
       await show(tester);
-      for (final button in tester.widgetList<TextButton>(
-        find.byType(TextButton),
-      )) {
-        expect(button.onPressed, isNull);
-      }
       expect(find.byType(TextField), findsNothing);
       await tester.tap(find.text('Choose Destination'));
-      await tester.tap(find.text('Allow Location'));
+      // Without a signed-in CurrentUserCubit the sheet cannot open.
+      await tester.tap(find.text('Turn On Visibility'));
       await tester.pumpAndSettle();
       expect(find.byType(BuddiesLandingView), findsOneWidget);
       expect(find.byType(BuddiesVisibilityInvitation), findsOneWidget);

@@ -4,10 +4,11 @@ import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import '../cubit/buddies_listing_cubit.dart';
+import '../cubit/buddies_filters_cubit.dart';
+import '../widgets/buddies_filter_button.dart';
 import '../data/buddies_filters.dart';
 import '../data/buddies_landing_data.dart';
 import '../data/buddies_repo.dart';
@@ -26,7 +27,11 @@ class BuddiesListingScreen extends StatelessWidget {
   final ProfileSetupRepo? catalogRepo;
   @override
   Widget build(BuildContext context) => BlocProvider(
-    create: (_) => BuddiesListingCubit(listing: listing, repo: repo)..refresh(),
+    create: (context) => BuddiesListingCubit(
+      listing: listing,
+      repo: repo,
+      filtersStore: context.read<BuddiesFiltersCubit?>(),
+    )..refresh(),
     child: _ListingView(listing: listing, catalogRepo: catalogRepo),
   );
 }
@@ -91,26 +96,8 @@ class _ListingView extends StatelessWidget {
                   children: [
                     Align(
                       alignment: Alignment.centerLeft,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          foregroundColor: Colors.white,
-                          backgroundColor: const Color(0xFF2F2E2D),
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          textStyle: Theme.of(context).textTheme.labelLarge!
-                              .copyWith(
-                                fontSize: 18,
-                                height: 24 / 18,
-                                letterSpacing: 0,
-                                fontWeight: FontWeight.w500,
-                                decoration: TextDecoration.none,
-                              ),
-                        ),
+                      child: BuddiesFilterButton(
+                        count: state.filters.activeCount,
                         onPressed: () async {
                           final revision = PreferencesManager().sessionRevision;
                           final filters = await Navigator.push<BuddiesFilters>(
@@ -130,10 +117,6 @@ class _ListingView extends StatelessWidget {
                             cubit.apply(filters);
                           }
                         },
-                        icon: SvgPicture.asset(
-                          'assets/images/interactions/buddies-filter.svg',
-                        ),
-                        label: const Text('Filters'),
                       ),
                     ),
                     const SizedBox(height: 24),

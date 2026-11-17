@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import '../data/buddies_filters.dart';
+import 'buddies_filters_cubit.dart';
 import '../data/buddies_home_response.dart';
 import '../data/buddies_page.dart';
 import '../data/buddies_repo.dart';
@@ -24,13 +25,20 @@ class BuddiesListingState {
 }
 
 class BuddiesListingCubit extends Cubit<BuddiesListingState> {
-  BuddiesListingCubit({required this.listing, BuddiesRepo? repo})
-    : _repo = repo ?? BuddiesRepo(),
-      super(BuddiesListingState(filters: BuddiesFilters())) {
+  BuddiesListingCubit({
+    required this.listing,
+    BuddiesRepo? repo,
+    BuddiesFiltersCubit? filtersStore,
+  }) : _repo = repo ?? BuddiesRepo(),
+       _store = filtersStore,
+       super(
+         BuddiesListingState(filters: filtersStore?.state ?? BuddiesFilters()),
+       ) {
     _preferences.addListener(_sessionChanged);
   }
   final BuddiesListing listing;
   final BuddiesRepo _repo;
+  final BuddiesFiltersCubit? _store;
   final _preferences = PreferencesManager();
   int _generation = 0;
   Future<void>? _pending;
@@ -48,6 +56,7 @@ class BuddiesListingCubit extends Cubit<BuddiesListingState> {
 
   Future<void> apply(BuddiesFilters filters) async {
     if (isClosed || filters == state.filters) return;
+    _store?.apply(filters);
     ++_generation;
     _pending = null;
     emit(BuddiesListingState(filters: filters));

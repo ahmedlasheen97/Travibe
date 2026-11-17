@@ -349,7 +349,7 @@ void main() {
       final user = settingsCubit(api);
       addTearDown(user.close);
       await user.load();
-      final homeApi = buddies.FakeApi(buddies.home(visible: false));
+      final homeApi = buddies.FakeApi(buddies.home(visible: false, city: true));
       final discovery = BuddiesCubit(
         repo: BuddiesRepo(apiService: homeApi),
         currentUser: user,
@@ -610,7 +610,7 @@ void main() {
       final user = settingsCubit(api);
       addTearDown(user.close);
       await user.load();
-      final homeApi = buddies.FakeApi(buddies.home(visible: false));
+      final homeApi = buddies.FakeApi(buddies.home(visible: false, city: true));
       await tester.pumpWidget(
         MaterialApp(
           theme: darkTheme,

@@ -27,6 +27,7 @@ import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
 import 'package:travibe/features/profile/widgets/language_bottom_sheet.dart';
 import 'package:travibe/features/profile/widgets/logout_dialog_widget.dart';
 import '../cubit/current_user_cubit.dart';
+import 'package:travibe/features/buddies/widgets/show_in_buddies_sheet.dart';
 import '../data/account_repo.dart';
 import '../data/settings_update.dart';
 import 'session_exit.dart';
@@ -177,11 +178,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     subtitle: 'Show your current city.',
                     value: profile?.showInTravelBuddy,
                     saving: state.saving == 'show_in_travel_buddy',
+                    // Turning on goes through the location sheet so a
+                    // current city is saved first; turning off is direct.
                     onChanged: !ready || _saving
                         ? null
-                        : (v) => _user.update(
-                            SettingsUpdate({'show_in_travel_buddy': v}),
-                          ),
+                        : (v) => v
+                              ? showShowInBuddiesSheet(
+                                  context,
+                                  currentUser: _user,
+                                )
+                              : _user.update(
+                                  SettingsUpdate({
+                                    'show_in_travel_buddy': false,
+                                  }),
+                                ),
                   ),
                   _divider(),
                   _settingsToggleTile(

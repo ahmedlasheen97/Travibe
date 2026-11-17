@@ -1,9 +1,7 @@
 import 'package:travibe/core/constants/app_sizes.dart';
-import 'package:travibe/core/location/device_location_service.dart';
 import 'package:flutter/foundation.dart';
 import '../widgets/buddies_loading_overlay.dart';
 import '../widgets/buddies_traveler_skeleton.dart';
-import '../cubit/allow_location_cubit.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import '../data/buddies_filters.dart';
 import 'buddies_listing_screen.dart';
@@ -12,7 +10,9 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
+import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 import '../cubit/buddies_cubit.dart';
+import '../cubit/buddies_filters_cubit.dart';
 import '../data/buddies_home_response.dart';
 import '../data/buddies_repo.dart';
 import 'package:flutter/material.dart';
@@ -21,6 +21,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/features/buddies/data/buddies_landing_data.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_section.dart';
 import 'package:travibe/features/buddies/widgets/buddies_visibility_invitation.dart';
+import 'package:travibe/features/buddies/widgets/buddies_complete_profile_card.dart';
 
 class BuddiesScreen extends StatelessWidget {
   const BuddiesScreen({super.key, this.repo, this.refreshSignal});
@@ -37,7 +38,15 @@ class BuddiesScreen extends StatelessWidget {
       child: BlocBuilder<BuddiesCubit, BuddiesState>(
         builder: (context, state) {
           final block = context.watch<BlockCubit?>();
+          final filters = context.read<BuddiesFiltersCubit?>();
           void openDiscovery(Widget screen) {
+            // Pushed routes sit outside Root; hand over the session filters.
+            if (filters != null) {
+              screen = BlocProvider<BuddiesFiltersCubit>.value(
+                value: filters,
+                child: screen,
+              );
+            }
             if (block != null) {
               screen = BlocProvider<BlockCubit>.value(
                 value: block,
@@ -147,6 +156,9 @@ class BuddiesLandingView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Each card shows whenever it applies; both stack when both apply
+    // (profile first, then visibility).
+    final needsProfile = meta?.needsProfile ?? false;
     final invitation = meta != null
         ? !meta!.showInTravelBuddy
         : variant == BuddiesLandingVariant.visibilityInvitation;
@@ -201,43 +213,26 @@ class BuddiesLandingView extends StatelessWidget {
                         ),
                         const SizedBox(height: 27),
                         _DestinationSearch(onTap: onSearch),
-                        if (meta?.profileCompleted == false) ...[
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Complete your profile',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const Text(
-                            'Complete your profile to help travelers get to know you.',
-                          ),
-                          FilledButton(
-                            onPressed: () async {
+                        if (needsProfile) ...[
+                          const SizedBox(height: 28),
+                          BuddiesCompleteProfileCard(
+                            onComplete: () async {
+                              final step = ProfileSetupCubit.firstMissingStep(
+                                context
+                                    .read<CurrentUserCubit?>()
+                                    ?.state
+                                    .profile,
+                              );
                               await Navigator.of(context).push(
                                 MaterialPageRoute<void>(
-                                  builder: (_) => const ProfileSetupScreen(),
+                                  builder: (_) => ProfileSetupScreen(
+                                    popOnComplete: true,
+                                    initialStep: step,
+                                  ),
                                 ),
                               );
                               if (context.mounted) onRefresh?.call();
                             },
-                            child: const Text('Complete Profile'),
-                          ),
-                        ],
-                        if (meta != null) ...[
-                          const SizedBox(height: 16),
-                          Text(
-                            meta!.hasCurrentCity
-                                ? (meta!.currentCity == null
-                                      ? 'Current city available'
-                                      : [
-                                          meta!.currentCity!.city,
-                                          if (meta!.currentCity!.countryCode !=
-                                              null)
-                                            meta!.currentCity!.countryCode!,
-                                        ].join(', '))
-                                : 'No current city is available.',
                           ),
                         ],
                         if (errorMessage != null) ...[
@@ -250,7 +245,7 @@ class BuddiesLandingView extends StatelessWidget {
                             ),
                         ],
                         if (invitation) ...[
-                          const SizedBox(height: 28),
+                          SizedBox(height: needsProfile ? 16 : 28),
                           const BuddiesVisibilityInvitation(),
                         ],
                       ],
@@ -282,7 +277,12 @@ class BuddiesLandingView extends StatelessWidget {
                     ],
                     if (sharedInterestTravelers.isNotEmpty) ...[
                       SizedBox(
-                        height: invitation || nearbyTravelers.isEmpty ? 28 : 24,
+                        height:
+                            invitation ||
+                                needsProfile ||
+                                nearbyTravelers.isEmpty
+                            ? 28
+                            : 24,
                       ),
                       BuddiesTravelerSection(
                         title: 'With Same Interests',
@@ -389,20 +389,5 @@ class _BuddiesRefreshListenerState extends State<_BuddiesRefreshListener> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final user = context.read<CurrentUserCubit?>();
-    final places = context.read<CityPlacesProvider?>();
-    return user == null
-        ? widget.child
-        : BlocProvider(
-            create: (_) => AllowLocationCubit(
-              currentUser: user,
-              device: context.read<DeviceLocationService?>(),
-              geocoder: places is CityReverseGeocoder
-                  ? places as CityReverseGeocoder
-                  : null,
-            ),
-            child: widget.child,
-          );
-  }
+  Widget build(BuildContext context) => widget.child;
 }

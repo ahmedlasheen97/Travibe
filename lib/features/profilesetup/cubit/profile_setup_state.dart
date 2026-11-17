@@ -1,6 +1,7 @@
 part of 'profile_setup_cubit.dart';
 
-enum ProfileSetupStatus { editing, saving, completed, failure }
+/// [skipped]: the user chose "Skip for now"; setup stays incomplete.
+enum ProfileSetupStatus { editing, saving, completed, skipped, failure }
 
 enum UsernameStatus { idle, checking, available, taken, invalid }
 

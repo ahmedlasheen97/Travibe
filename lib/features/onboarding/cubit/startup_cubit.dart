@@ -124,7 +124,11 @@ class StartupCubit extends Cubit<StartupState> {
         );
       }
       if (!current()) return;
-      final home = user.profileCompleted == true;
+      // An incomplete profile goes to Home once this account chose
+      // "Skip for now"; Buddies then offers to complete it.
+      final home =
+          user.profileCompleted == true ||
+          _preferences.isProfileSetupSkipped(user.id);
       if (home) {
         await _preferences.setBool(confirmedHomeKey, true);
       } else {

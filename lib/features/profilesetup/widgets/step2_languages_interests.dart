@@ -2,6 +2,7 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/features/profilesetup/widgets/setup_skip_button.dart';
 import 'package:travibe/features/profilesetup/data/profile_selection_options.dart';
 
 class Step2LanguagesInterests extends StatefulWidget {
@@ -139,20 +140,8 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
           onPressed: widget.isSaving ? null : widget.onNext,
         ),
         if (widget.onSkip != null) ...[
-          const SizedBox(height: 16),
-          Center(
-            child: TextButton(
-              onPressed: widget.onSkip,
-              child: Text(
-                'Skip For Now',
-                style: TextStyle(
-                  color: DarkColors.primaryColor,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ),
+          const SizedBox(height: 8),
+          SetupSkipButton(onPressed: widget.onSkip),
         ],
         const SizedBox(height: 24),
       ],

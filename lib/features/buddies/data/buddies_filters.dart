@@ -26,6 +26,14 @@ class BuddiesFilters {
     }
   }
   final Set<String> gender, nationality, languages, interests, travelStyles;
+
+  /// Number of selected values; shown as the Filters button badge.
+  int get activeCount =>
+      gender.length +
+      nationality.length +
+      languages.length +
+      interests.length +
+      travelStyles.length;
   Map<String, dynamic> toQuery() => {
     if (gender.isNotEmpty) 'gender[]': gender.toList(),
     if (nationality.isNotEmpty) 'nationality[]': nationality.toList(),

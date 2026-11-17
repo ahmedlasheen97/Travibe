@@ -135,6 +135,28 @@ void main() {
     expect(startup.state.decision!.email, 'traveler@example.invalid');
   });
   test(
+    'incomplete account that skipped setup goes Home, per account',
+    () async {
+      await preferences.completeOnboarding();
+      auth.handler = () async => startupUser(complete: false);
+      await preferences.saveToken('candidate');
+      await preferences.markProfileSetupSkipped('7');
+      await startup.resolve();
+      expect(startup.state.decision!.target, StartupTarget.home);
+      expect(preferences.getBool(StartupCubit.confirmedHomeKey), true);
+      // Another account's skip never applies.
+      expect(preferences.isProfileSetupSkipped('8'), false);
+    },
+  );
+  test('setup skip survives logout but not a full clear', () async {
+    await preferences.saveToken('candidate');
+    await preferences.markProfileSetupSkipped('7');
+    await preferences.clearSession();
+    expect(preferences.isProfileSetupSkipped('7'), true);
+    await preferences.clear();
+    expect(preferences.isProfileSetupSkipped('7'), false);
+  });
+  test(
     'verified incomplete account resumes profile setup rather than home',
     () async {
       await preferences.completeOnboarding();

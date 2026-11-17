@@ -2,6 +2,7 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/features/profilesetup/widgets/setup_skip_button.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'package:travibe/features/profilesetup/widgets/catalog_status_view.dart';
 
@@ -9,6 +10,13 @@ class Step3TravelStyle extends StatefulWidget {
   final List<String> selectedTravelStyles;
   final ValueChanged<List<String>> onTravelStylesChanged;
   final VoidCallback? onFinish;
+
+  /// "Skip for now": leave setup incomplete (null hides it).
+  final VoidCallback? onSkip;
+
+  /// Main button label: "Continue to Home" from signup, "Done" when setup
+  /// was opened from Buddies and returns there.
+  final String finishLabel;
   final bool isSubmitting;
   final ReferenceCatalog catalog;
   final VoidCallback onRetry;
@@ -18,6 +26,8 @@ class Step3TravelStyle extends StatefulWidget {
     required this.selectedTravelStyles,
     required this.onTravelStylesChanged,
     required this.onFinish,
+    this.onSkip,
+    this.finishLabel = 'Continue to Home',
     required this.isSubmitting,
     required this.catalog,
     required this.onRetry,
@@ -139,10 +149,24 @@ class _Step3TravelStyleState extends State<Step3TravelStyle> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-          child: CustomButton(
-            title: widget.isSubmitting ? 'Saving...' : 'Continue to Home',
-            onPressed: widget.onFinish,
+          padding: EdgeInsets.fromLTRB(
+            24,
+            12,
+            24,
+            widget.onSkip == null ? 20 : 8,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomButton(
+                title: widget.isSubmitting ? 'Saving...' : widget.finishLabel,
+                onPressed: widget.onFinish,
+              ),
+              if (widget.onSkip != null) ...[
+                const SizedBox(height: 4),
+                SetupSkipButton(onPressed: widget.onSkip),
+              ],
+            ],
           ),
         ),
       ],

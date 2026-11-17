@@ -12,6 +12,8 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import '../cubit/buddies_search_cubit.dart';
+import '../cubit/buddies_filters_cubit.dart';
+import '../widgets/buddies_filter_button.dart';
 import '../data/buddies_landing_data.dart';
 import '../data/buddies_filters.dart';
 import '../data/buddies_repo.dart';
@@ -31,7 +33,12 @@ class BuddiesSearchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MultiBlocProvider(
     providers: [
-      BlocProvider(create: (_) => BuddiesSearchCubit(repo: repo)),
+      BlocProvider(
+        create: (context) => BuddiesSearchCubit(
+          repo: repo,
+          filtersStore: context.read<BuddiesFiltersCubit?>(),
+        ),
+      ),
       BlocProvider(
         create: (_) => CityAutocompleteCubit(
           provider: placesProvider ?? context.read<CityPlacesProvider?>(),
@@ -111,13 +118,6 @@ class _SearchViewState extends State<_SearchView> {
           final items = state.items
               .where((item) => !blocked.contains(item.id.toString()))
               .toList();
-          final style = Theme.of(context).textTheme.labelLarge!.copyWith(
-            fontSize: 18,
-            height: 24 / 18,
-            letterSpacing: 0,
-            fontWeight: FontWeight.w500,
-            decoration: TextDecoration.none,
-          );
           return Scaffold(
             backgroundColor: const Color(0xFF0A0A0A),
             appBar: AppBar(
@@ -232,23 +232,9 @@ class _SearchViewState extends State<_SearchView> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            FilledButton.icon(
+                            BuddiesFilterButton(
+                              count: cubit.state.filters.activeCount,
                               onPressed: () => _filters(cubit),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF2F2E2D),
-                                foregroundColor: Colors.white,
-                                shape: const StadiumBorder(),
-                                textStyle: style,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
-                                ),
-                                minimumSize: Size.zero,
-                              ),
-                              icon: SvgPicture.asset(
-                                'assets/images/interactions/buddies-filter.svg',
-                              ),
-                              label: const Text('Filters'),
                             ),
                           ],
                         ),

@@ -4,6 +4,7 @@ import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import '../data/buddies_filters.dart';
+import 'buddies_filters_cubit.dart';
 import '../data/buddies_home_response.dart';
 import '../data/buddies_page.dart';
 import '../data/buddies_repo.dart';
@@ -66,12 +67,14 @@ class BuddiesSearchState {
 }
 
 class BuddiesSearchCubit extends Cubit<BuddiesSearchState> {
-  BuddiesSearchCubit({BuddiesRepo? repo})
+  BuddiesSearchCubit({BuddiesRepo? repo, BuddiesFiltersCubit? filtersStore})
     : _repo = repo ?? BuddiesRepo(),
-      super(BuddiesSearchState()) {
+      _store = filtersStore,
+      super(BuddiesSearchState(filters: filtersStore?.state)) {
     _preferences.addListener(_sessionChanged);
   }
   final BuddiesRepo _repo;
+  final BuddiesFiltersCubit? _store;
   final _preferences = PreferencesManager();
   Future<void>? _pending;
   int _generation = 0;
@@ -147,6 +150,7 @@ class BuddiesSearchCubit extends Cubit<BuddiesSearchState> {
 
   void apply(BuddiesFilters filters) {
     if (isClosed || filters == state.filters) return;
+    _store?.apply(filters);
     _replace(
       BuddiesSearchState(
         text: state.text,

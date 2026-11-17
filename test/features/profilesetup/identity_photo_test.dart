@@ -724,7 +724,7 @@ void main() {
     await show(tester, cubit);
     expect(find.text('Full Name *'), findsOneWidget);
     expect(find.text('User Name *'), findsOneWidget);
-    expect(find.text('Skip For Now'), findsNothing);
+    expect(find.text('Skip for now'), findsNothing);
     final button = find.byType(CustomButton);
     expect(tester.widget<CustomButton>(button).onPressed, isNull);
     await tester.enterText(find.byType(TextFormField).first, '  ');
@@ -745,16 +745,16 @@ void main() {
     expect(api.calls.where((call) => call.startsWith('PUT')), isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('whole wizard removes Skip in both identity and language steps', (
+  testWidgets('identity step has no Skip; the language step offers it', (
     tester,
   ) async {
     final cubit = make(SetupApi());
     await show(tester, cubit, whole: true);
-    expect(find.text('Skip For Now'), findsNothing);
+    expect(find.text('Skip for now'), findsNothing);
     cubit.onPageChanged(1);
     cubit.pageController.jumpToPage(1);
     await tester.pumpAndSettle();
-    expect(find.text('Skip For Now'), findsNothing);
+    expect(find.text('Skip for now'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('photo preview shows while pending without a loading overlay', (
@@ -863,7 +863,7 @@ void main() {
     expect(cubit.state.step, 0);
     expect(cubit.fullNameController.text, 'New Name');
     expect(cubit.usernameController.text, 'saved_user');
-    expect(find.text('Skip For Now'), findsNothing);
+    expect(find.text('Skip for now'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(

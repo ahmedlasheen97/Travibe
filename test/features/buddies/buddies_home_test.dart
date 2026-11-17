@@ -18,6 +18,8 @@ import 'package:travibe/features/buddies/cubit/buddies_cubit.dart';
 import 'package:travibe/features/buddies/screens/buddies_screen.dart';
 import 'package:travibe/features/buddies/widgets/buddies_visibility_invitation.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_card.dart';
+import 'package:travibe/features/buddies/widgets/buddies_complete_profile_card.dart';
+import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 
 Map<String, dynamic> buddy({int id = 7}) => {
   'id': id,
@@ -235,27 +237,139 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('incomplete and hidden profile shows both cards, profile first', (
+    tester,
+  ) async {
+    await show(tester, FakeApi(home(complete: false, visible: false)));
+    final profile = find.byType(BuddiesCompleteProfileCard);
+    final visibility = find.byType(BuddiesVisibilityInvitation);
+    expect(profile, findsOneWidget);
+    expect(find.text('Complete Profile'), findsOneWidget);
+    expect(visibility, findsOneWidget);
+    expect(find.text('Turn On Visibility'), findsOneWidget);
+    expect(
+      tester.getTopLeft(profile).dy,
+      lessThan(tester.getTopLeft(visibility).dy),
+    );
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Complete Profile card matches the Figma layout', (tester) async {
+    await show(tester, FakeApi(home(complete: false, city: true)));
+    final card = find.byType(BuddiesCompleteProfileCard);
+    final art = find.byKey(const ValueKey('complete-profile-art'));
+    final title = find.text('Complete your profile');
+    final button = find.widgetWithText(TextButton, 'Complete Profile');
+    expect(
+      find.text('Add more details so people can get to know you more.'),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: art,
+        matching: find.image(
+          const AssetImage('assets/images/buddies/completeprofile.png'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    // Picture on the left in a ~80 circle; text and button on the right.
+    expect(tester.getSize(art).width, closeTo(80, 1));
+    expect(
+      (tester.widget<Container>(art).decoration! as BoxDecoration).shape,
+      BoxShape.circle,
+    );
+    expect(tester.getTopRight(art).dx, lessThan(tester.getTopLeft(title).dx));
+    expect(
+      tester.getTopLeft(button).dy,
+      greaterThan(tester.getBottomLeft(title).dy),
+    );
+    // Button is right-aligned inside the card padding.
+    expect(
+      tester.getTopRight(card).dx - tester.getTopRight(button).dx,
+      lessThan(20),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Complete Profile card fits narrow screens with 2x text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: darkTheme,
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 640),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: SingleChildScrollView(
+              child: BuddiesCompleteProfileCard(onComplete: () {}),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('incomplete but visible profile shows only the profile card', (
+    tester,
+  ) async {
+    await show(tester, FakeApi(home(complete: false, city: true)));
+    expect(find.byType(BuddiesCompleteProfileCard), findsOneWidget);
+    expect(find.byType(BuddiesVisibilityInvitation), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('no current city counts as incomplete', (tester) async {
+    await show(tester, FakeApi(home()));
+    expect(find.byType(BuddiesCompleteProfileCard), findsOneWidget);
+    expect(find.byType(BuddiesVisibilityInvitation), findsNothing);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('complete but hidden profile shows the Figma visibility card', (
+    tester,
+  ) async {
+    await show(tester, FakeApi(home(visible: false, city: true)));
+    expect(find.byType(BuddiesCompleteProfileCard), findsNothing);
+    expect(find.byType(BuddiesVisibilityInvitation), findsOneWidget);
+    expect(find.text('Meet People in Your City'), findsOneWidget);
+    expect(find.text('Turn On Visibility'), findsOneWidget);
+    expect(find.text('You can turn this off from settings.'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Complete Profile opens setup and returns to Buddies', (
+    tester,
+  ) async {
+    await show(tester, FakeApi(home(complete: false)));
+    await tester.tap(find.text('Complete Profile'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(ProfileSetupScreen), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ProfileSetupScreen), findsNothing);
+    expect(find.byType(BuddiesCompleteProfileCard), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets(
-    'metadata controls banners and no-city state, visibility remains disabled',
-    (tester) async {
-      await show(tester, FakeApi(home(complete: false, visible: false)));
-      expect(find.text('Complete your profile'), findsOneWidget);
-      expect(find.byType(BuddiesVisibilityInvitation), findsOneWidget);
-      expect(find.text('No current city is available.'), findsOneWidget);
-      final button = tester.widget<TextButton>(
-        find.widgetWithText(TextButton, 'Allow Location'),
-      );
-      expect(button.onPressed, isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
-  testWidgets(
-    'completed visible profile hides banners and displays actual city and users',
+    'completed visible profile hides banners and shows traveler sections',
     (tester) async {
       await show(tester, FakeApi(home(city: true, users: [buddy()])));
-      expect(find.text('Complete your profile'), findsNothing);
+      expect(find.byType(BuddiesCompleteProfileCard), findsNothing);
       expect(find.byType(BuddiesVisibilityInvitation), findsNothing);
-      expect(find.text('Cairo'), findsOneWidget);
+      expect(find.text('In Your City'), findsOneWidget);
+      expect(find.text('See All'), findsOneWidget);
       expect(find.text('API traveler'), findsOneWidget);
       expect(find.byType(BuddiesTravelerCard), findsOneWidget);
       await tester.pumpWidget(const SizedBox());

@@ -1,3 +1,4 @@
+import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
@@ -59,6 +60,17 @@ class SelectionRepo extends ProfileSetupRepo {
     await gate?.future;
     return _catalog;
   }
+
+  @override
+  Future<List<ReferenceCountry>> loadCountries(String locale) async => const [
+    ReferenceCountry(code: 'EG', name: 'Egypt', nameEn: 'Egypt', nameAr: 'مصر'),
+    ReferenceCountry(
+      code: 'FR',
+      name: 'France',
+      nameEn: 'France',
+      nameAr: 'فرنسا',
+    ),
+  ];
 
   static const _catalog = [
     ReferenceItem(
