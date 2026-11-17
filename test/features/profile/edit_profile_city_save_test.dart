@@ -1,4 +1,4 @@
-import 'dart:ui' as ui;
+import 'package:travibe/core/widgets/compact_select_field.dart';
 import 'package:travibe/features/profile/data/settings_repo.dart';
 import 'package:travibe/features/profile/data/settings_update.dart';
 import 'dart:typed_data';
@@ -252,7 +252,7 @@ void main() {
     expect(draft.hasLocationChange, true);
   });
   testWidgets(
-    'gender field and focused dropdown stay dark, preserve values and save only gender',
+    'gender menu is compact, rounded and dark, capitalized, and saves only lowercase gender',
     (tester) async {
       api.resource['gender'] = 'female';
       await owner.loadProfile();
@@ -265,65 +265,53 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(tester.getSize(field).height, 52);
-      final dropdown = tester.widget<DropdownButton<String>>(
-        find.descendant(
-          of: field,
-          matching: find.byType(DropdownButton<String>),
-        ),
+      expect(
+        find.descendant(of: field, matching: find.text('Female')),
+        findsOneWidget,
       );
-      expect(dropdown.value, 'female');
-      expect(dropdown.focusColor, DarkColors.darkgreyColor);
-      expect(dropdown.dropdownColor, DarkColors.darkgreyColor);
-      expect(dropdown.style!.color, DarkColors.whiteColor);
-      expect((dropdown.icon as Icon).color, DarkColors.greyColor);
-      expect(dropdown.items!.map((item) => item.value), [
-        null,
-        'male',
-        'female',
-        'other',
-      ]);
       expect(enabled(tester), isFalse);
       await tester.tap(field);
       await tester.pumpAndSettle();
-      // Flutter paints this popup with CustomPaint, not a colored Material.
-      // Verify the actual popup painter's center pixel rather than its internals.
-      final menu = find
-          .ancestor(
-            of: find.text('male').last,
-            matching: find.byWidgetPredicate(
-              (widget) => widget is CustomPaint && widget.painter != null,
-            ),
-          )
-          .first;
-      final painted = tester.widget<CustomPaint>(menu);
-      final menuSize = tester.getSize(menu);
-      final recorder = ui.PictureRecorder();
-      painted.painter!.paint(Canvas(recorder), menuSize);
-      final picture = recorder.endRecording();
-      final image = picture.toImageSync(
-        menuSize.width.toInt(),
-        menuSize.height.toInt(),
-      );
-      final data = await tester.runAsync(
-        () => image.toByteData(format: ui.ImageByteFormat.rawRgba),
-      );
-      final bytes = data!.buffer.asUint8List();
-      final offset = ((image.height ~/ 2) * image.width + image.width ~/ 2) * 4;
-      expect(bytes.sublist(offset, offset + 4), [28, 28, 28, 255]);
-      image.dispose();
-      picture.dispose();
-      await tester.tap(find.text('male').last);
-      await tester.pumpAndSettle();
-      final input = tester.widget<InputDecorator>(
-        find.descendant(of: field, matching: find.byType(InputDecorator)),
-      );
-      expect(input.isFocused, isTrue);
-      final decoration = input.decoration;
-      expect(decoration.fillColor, DarkColors.darkgreyColor);
-      expect(decoration.focusColor, DarkColors.darkgreyColor);
+      for (final label in ['Not specified', 'Male', 'Female', 'Other']) {
+        expect(find.text(label).last, findsOneWidget);
+      }
+      expect(find.text('male'), findsNothing);
+      final items = find.byType(PopupMenuItem<SelectOption<String>>);
+      expect(items, findsNWidgets(4));
+      for (final item in tester.widgetList<PopupMenuItem<SelectOption<String>>>(
+        items,
+      )) {
+        expect(item.height, 44);
+      }
       expect(
-        (decoration.focusedBorder! as OutlineInputBorder).borderSide,
-        BorderSide.none,
+        tester.getSize(find.byKey(const ValueKey('select-option-male'))).height,
+        44,
+      );
+      expect(tester.widget<Text>(find.text('Male').last).style!.fontSize, 14);
+      // Same dark background, rounded like other popups.
+      final menu = tester.widget<Material>(
+        find.ancestor(of: items.first, matching: find.byType(Material)).last,
+      );
+      expect(menu.color, DarkColors.darkgreyColor);
+      expect(
+        (menu.shape! as RoundedRectangleBorder).borderRadius,
+        BorderRadius.circular(CompactSelectField.menuRadius),
+      );
+      // Only the selected item carries the subtle highlight.
+      BoxDecoration row(String value) =>
+          tester
+                  .widget<Container>(
+                    find.byKey(ValueKey('select-option-$value')),
+                  )
+                  .decoration!
+              as BoxDecoration;
+      expect(row('female').color, CompactSelectField.selectedColor);
+      expect(row('male').color, isNull);
+      await tester.tap(find.text('Male').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: field, matching: find.text('Male')),
+        findsOneWidget,
       );
       expect(enabled(tester), isTrue);
       await tester.tap(save());

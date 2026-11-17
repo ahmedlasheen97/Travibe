@@ -113,7 +113,7 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
               ),
           ],
         ),
-        const SizedBox(height: 28),
+        const SizedBox(height: 40),
         CustomButton(
           title: widget.isSaving ? 'Saving...' : 'Next',
           onPressed: widget.isSaving ? null : widget.onNext,

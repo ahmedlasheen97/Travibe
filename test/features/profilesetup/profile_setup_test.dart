@@ -603,7 +603,7 @@ void main() {
       ),
     );
     final next = tester.getRect(find.byType(CustomButton));
-    expect(next.top - interests.bottom, 28);
+    expect(next.top - interests.bottom, 40);
     final skip = find.widgetWithText(TextButton, 'Skip For Now');
     expect(tester.getRect(skip).top - next.bottom, 16);
     expect(

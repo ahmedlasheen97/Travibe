@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/compact_select_field.dart';
 import 'package:travibe/features/profile/data/settings_update.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/widgets/travibe_choice_chip.dart';
@@ -584,74 +585,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         SizedBox(height: AppSizes.h20),
                         _buildLabel('Gender'),
                         SizedBox(height: AppSizes.h8),
-                        DropdownButtonFormField<String>(
+                        CompactSelectField<String>(
                           key: const ValueKey('edit-profile-gender'),
-                          initialValue: _gender,
-                          isExpanded: true,
-                          dropdownColor: DarkColors.darkgreyColor,
-                          // DropdownButton replaces the fill with focusColor
-                          // while focused; the global input theme is light.
-                          focusColor: DarkColors.darkgreyColor,
-                          borderRadius: BorderRadius.circular(AppSizes.r28),
-                          icon: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: DarkColors.greyColor,
-                            size: AppSizes.w20,
-                          ),
-                          hint: Text(
-                            'Not specified',
-                            style: TextStyle(
-                              color: DarkColors.greyColor,
-                              fontSize: AppSizes.sp14,
-                            ),
-                          ),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: AppSizes.sp14,
-                          ),
-                          decoration: InputDecoration(
-                            errorText: _error('gender'),
-                            filled: true,
-                            fillColor: DarkColors.darkgreyColor,
-                            focusColor: DarkColors.darkgreyColor,
-                            hoverColor: Colors.transparent,
-                            constraints: BoxConstraints(
-                              minHeight: AppSizes.h52,
-                            ),
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: AppSizes.pw20,
-                              vertical: AppSizes.ph14,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppSizes.r28),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppSizes.r28),
-                              borderSide: BorderSide.none,
-                            ),
-                            disabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppSizes.r28),
-                              borderSide: BorderSide.none,
-                            ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(AppSizes.r28),
-                              borderSide: BorderSide.none,
-                            ),
-                          ),
-                          items: [
-                            const DropdownMenuItem<String>(
-                              value: null,
-                              child: Text(
-                                'Not specified',
-                                style: TextStyle(color: DarkColors.greyColor),
-                              ),
-                            ),
-                            for (final value in ['male', 'female', 'other'])
-                              DropdownMenuItem(
-                                value: value,
-                                child: Text(value),
-                              ),
+                          value: _gender,
+                          errorText: _error('gender'),
+                          enabled: !_isSaving,
+                          // Labels are display-only; API values stay lowercase.
+                          options: const [
+                            SelectOption(null, 'Not specified'),
+                            SelectOption('male', 'Male'),
+                            SelectOption('female', 'Female'),
+                            SelectOption('other', 'Other'),
                           ],
                           onChanged: (value) {
                             _gender = value;
