@@ -190,6 +190,8 @@ void main() {
       await tester.tap(find.text('Posts').last);
       await tester.pumpAndSettle();
       expect(find.text('No posts yet'), findsOneWidget);
+      // Only my own empty profile offers Create Post.
+      expect(find.text('Create Post'), findsNothing);
     },
   );
   testWidgets(

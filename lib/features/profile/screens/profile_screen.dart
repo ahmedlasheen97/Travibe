@@ -66,6 +66,7 @@ class ProfileScreen extends StatelessWidget {
     this.postsRepo,
     this.chatRepository,
     this.refreshSignal,
+    this.onCreatePost,
     this.onExplorePeople,
     this.storiesRepo,
   });
@@ -76,7 +77,9 @@ class ProfileScreen extends StatelessWidget {
   final PostsRepo? postsRepo;
   final ChatRepository? chatRepository;
   final ValueListenable<int>? refreshSignal;
-  final VoidCallback? onExplorePeople;
+
+  /// My empty Posts tab's "Create Post"; Root passes its nav-bar + flow.
+  final VoidCallback? onCreatePost, onExplorePeople;
 
   /// Used by my profile's "+" (add story) flow; defaults to the real repo.
   final StoriesRepo? storiesRepo;
@@ -165,6 +168,7 @@ class ProfileScreen extends StatelessWidget {
         postsRepo: postsRepo,
         chatRepository: chatRepository,
         refreshSignal: refreshSignal,
+        onCreatePost: onCreatePost,
         onExplorePeople: onExplorePeople,
         storiesRepo: storiesRepo,
       ),
@@ -218,10 +222,13 @@ class _ProfileView extends StatefulWidget {
     this.postsRepo,
     this.chatRepository,
     this.refreshSignal,
+    this.onCreatePost,
     this.onExplorePeople,
     this.storiesRepo,
   });
-  final VoidCallback? onExplorePeople;
+
+  /// My empty Posts tab's "Create Post"; Root passes its nav-bar + flow.
+  final VoidCallback? onCreatePost, onExplorePeople;
   final StoriesRepo? storiesRepo;
   final ValueListenable<int>? refreshSignal;
   final PostsRepo? postsRepo;
@@ -720,6 +727,7 @@ class _ProfileViewState extends State<_ProfileView> {
           )
         else if (selected == 0)
           ProfilePostsSliver(
+            onCreatePost: widget.onCreatePost,
             showLoadingIndicators: !_refreshing,
             bottomInset: inset,
             owner:

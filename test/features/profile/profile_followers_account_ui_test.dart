@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
@@ -475,15 +476,43 @@ void main() {
       final posts = AuthorPostsRepo()
         ..authors[7] = []
         ..stored = [];
+      var creates = 0;
       await show(
         tester,
-        child: ProfileScreen(profileRepo: profiles, postsRepo: posts),
+        child: ProfileScreen(
+          profileRepo: profiles,
+          postsRepo: posts,
+          onCreatePost: () => creates++,
+        ),
       );
       expect(find.text('No posts yet'), findsOneWidget);
       expect(emptyAsset(tester), 'assets/images/profile/emptypost.png');
       expect(find.text('Share your first trip'), findsNothing);
-      // The nav bar's + creates posts; the empty state has no button.
-      expect(find.text('Create Post'), findsNothing);
+      // My empty Posts: picture, title, then the orange 44-high button that
+      // runs the same flow as the nav bar's +.
+      final button = find.widgetWithText(FilledButton, 'Create Post');
+      expect(button, findsOneWidget);
+      // The visible pill (Material pads the tap target to 48).
+      expect(
+        tester
+            .getSize(
+              find.descendant(of: button, matching: find.byType(Material)),
+            )
+            .height,
+        AppSizes.h44,
+      );
+      expect(
+        tester.getTopLeft(button).dy,
+        greaterThan(tester.getBottomLeft(find.text('No posts yet')).dy),
+      );
+      expect(
+        tester.widget<FilledButton>(button).style!.backgroundColor!.resolve({}),
+        DarkColors.primaryColor,
+      );
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pump();
+      expect(creates, 1);
       await tester.ensureVisible(find.text('Saved'));
       await tester.tap(find.text('Saved'));
       await tester.pumpAndSettle();

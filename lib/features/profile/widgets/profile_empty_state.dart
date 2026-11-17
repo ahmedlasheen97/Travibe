@@ -102,10 +102,13 @@ class ProfileEmptyStateSliver extends StatelessWidget {
     required this.asset,
     required this.title,
     this.description,
+    this.actionLabel,
+    this.onAction,
     this.bottomInset = 0,
   });
   final String asset, title;
-  final String? description;
+  final String? description, actionLabel;
+  final VoidCallback? onAction;
   final double bottomInset;
 
   @override
@@ -128,6 +131,8 @@ class ProfileEmptyStateSliver extends StatelessWidget {
               asset: asset,
               title: title,
               description: description,
+              actionLabel: actionLabel,
+              onAction: onAction,
               padding: EdgeInsets.symmetric(
                 horizontal: AppSizes.pw16,
                 vertical: AppSizes.ph12,
