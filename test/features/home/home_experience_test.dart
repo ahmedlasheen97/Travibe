@@ -1,3 +1,4 @@
+import 'package:travibe/features/home/widgets/home_tabs.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
@@ -97,6 +98,27 @@ void main() {
           ),
         ),
         findsOneWidget,
+      );
+      // Placed close under the tabs, not centered in the remaining space.
+      final tabsBottom = tester.getRect(find.byType(HomeTabs)).bottom;
+      final imageTop = tester
+          .getTopLeft(
+            find.descendant(
+              of: find.byType(FollowingEmptyState),
+              matching: find.byType(Image),
+            ),
+          )
+          .dy;
+      expect(imageTop - tabsBottom, FollowingEmptyState.topGap);
+      // Internal spacing unchanged: picture → title 8.
+      final image = find.descendant(
+        of: find.byType(FollowingEmptyState),
+        matching: find.byType(Image),
+      );
+      expect(
+        tester.getTopLeft(find.text('You don’t follow anyone yet.')).dy -
+            tester.getBottomLeft(image).dy,
+        8,
       );
       await tester.ensureVisible(find.text('Explore People'));
       await tester.tap(find.text('Explore People'));

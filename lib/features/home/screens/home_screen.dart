@@ -872,7 +872,16 @@ class _HomeViewState extends State<_HomeView> {
       return SliverFillRemaining(
         hasScrollBody: false,
         child: account.followsNobody
-            ? FollowingEmptyState(onExplorePeople: _explorePeople)
+            // Close under the tabs, not centered in the remaining space.
+            ? Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    top: FollowingEmptyState.topGap - FollowingEmptyState.inset,
+                  ),
+                  child: FollowingEmptyState(onExplorePeople: _explorePeople),
+                ),
+              )
             : Center(child: _noPosts(posts, following: true)),
       );
     },

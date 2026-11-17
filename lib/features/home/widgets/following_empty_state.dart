@@ -6,11 +6,19 @@ class FollowingEmptyState extends StatelessWidget {
 
   const FollowingEmptyState({super.key, required this.onExplorePeople});
 
+  /// Own vertical padding.
+  static const inset = 24.0;
+
+  /// Tabs → illustration on the empty Following tab.
+  static const topGap = 40.0;
+
   @override
   Widget build(BuildContext context) {
+    // Centered horizontally only; the parent decides the vertical spot.
     return Center(
+      heightFactor: 1,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: inset),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
