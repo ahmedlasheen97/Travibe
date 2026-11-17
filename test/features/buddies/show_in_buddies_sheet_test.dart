@@ -182,7 +182,7 @@ void main() {
 
     testWidgets('shows the city and never asks for location', (tester) async {
       await openSheet(tester);
-      expect(find.text("We'll show you in Cairo, EG"), findsOneWidget);
+      expect(find.text("You'll appear to travelers in Cairo, EG."), findsOneWidget);
       expect(
         find.text("We'll show your city, not your exact location."),
         findsOneWidget,

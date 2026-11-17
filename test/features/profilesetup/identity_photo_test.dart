@@ -28,6 +28,7 @@ import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import 'package:travibe/features/profilesetup/screens/profile_setup_screen.dart';
 import 'package:travibe/features/profilesetup/widgets/step1_basic_info.dart';
 import '../../core/media/media_upload_test.dart' show MediaApi, StorageAdapter;
+import '../../core/places/fake_city_places.dart' show testCity;
 
 class SetupApi extends MediaApi {
   final profile = <String, dynamic>{
@@ -95,6 +96,20 @@ class SetupApi extends MediaApi {
     }
     if (endpoint == 'reference/travel-styles') return {'data': <dynamic>[]};
     return super.get(endpoint, queryParameters: queryParameters);
+  }
+
+  @override
+  Future<dynamic> put(String endpoint, Map<String, dynamic> data) async {
+    calls.add('PUT $endpoint');
+    profile['current_location'] = data['location'];
+    return {'data': Map.of(profile)};
+  }
+
+  @override
+  Future<dynamic> delete(String endpoint) async {
+    calls.add('DELETE $endpoint');
+    profile['current_location'] = null;
+    return null;
   }
 }
 
@@ -746,6 +761,29 @@ void main() {
     expect(find.text('Search for your current city'), findsOneWidget);
     expect(api.patches, isEmpty);
     expect(api.calls.where((call) => call.startsWith('PUT')), isEmpty);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('a selected city shows X instead of the arrow; X empties it', (
+    tester,
+  ) async {
+    final api = SetupApi();
+    final cubit = make(api);
+    await show(tester, cubit);
+    expect(find.byTooltip('Clear current city'), findsNothing);
+    await cubit.setCity(testCity('Cairo', code: 'EG', country: 'Egypt'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Cairo, EG'));
+    expect(find.byTooltip('Clear current city'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsNothing);
+    await tester.tap(find.byTooltip('Clear current city'));
+    await tester.pumpAndSettle();
+    expect(api.calls.last, 'DELETE profile/location');
+    expect(find.text('Cairo, EG'), findsNothing);
+    expect(find.text('Select your current city'), findsOneWidget);
+    expect(find.byTooltip('Clear current city'), findsNothing);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+    // No confirmation: the city is optional in setup.
+    expect(find.byType(Dialog), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('identity step has no Skip; the language step offers it', (

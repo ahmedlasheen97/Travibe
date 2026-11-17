@@ -143,7 +143,7 @@ class _ShowInBuddiesSheetState extends State<ShowInBuddiesSheet> {
                   SizedBox(height: AppSizes.adaptiveHeight(4)),
                   Text(
                     city != null
-                        ? "We'll show you in $city"
+                        ? "You'll appear to travelers in $city."
                         : showInBuddiesMessage,
                     key: const ValueKey('show-in-buddies-message'),
                     textAlign: TextAlign.center,

@@ -5,6 +5,7 @@ import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/screens/interests_screen.dart';
 import 'package:travibe/features/profile/screens/languages_screen.dart';
+import 'package:travibe/features/profile/screens/travel_style_screen.dart';
 
 const _options = [
   ProfileReference(slug: 'english', name: 'English'),
@@ -55,6 +56,10 @@ void main() {
       options: _options,
     ),
     'Interests': () => const InterestsScreen(
+      initiallySelected: ['english'],
+      options: _options,
+    ),
+    'Travel Style': () => const TravelStyleScreen(
       initiallySelected: ['english'],
       options: _options,
     ),

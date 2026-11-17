@@ -81,6 +81,7 @@ class ProfileSetupState {
     String? usernameMessage,
     String? normalizedUsername,
     String? currentLocation,
+    bool clearCurrentLocation = false,
     ProfileAvatarDraft? avatar,
     Uint8List? avatarPreview,
     bool? avatarUploadFailed,
@@ -109,7 +110,9 @@ class ProfileSetupState {
       usernameStatus: usernameStatus ?? this.usernameStatus,
       usernameMessage: usernameMessage ?? this.usernameMessage,
       normalizedUsername: normalizedUsername ?? this.normalizedUsername,
-      currentLocation: currentLocation ?? this.currentLocation,
+      currentLocation: clearCurrentLocation
+          ? null
+          : currentLocation ?? this.currentLocation,
       avatar: clearAvatar ? null : avatar ?? this.avatar,
       avatarPreview: avatarPreview ?? this.avatarPreview,
       avatarUploadFailed: avatarUploadFailed ?? this.avatarUploadFailed,

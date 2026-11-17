@@ -184,6 +184,42 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
     }
   }
 
+  /// X on the Current City field. The city is optional, so this only empties
+  /// it (setup saves a picked city at once, so the saved one is removed too).
+  Future<void> clearCity() async {
+    if (isClosed || state.isSaving) return;
+    final session = PreferencesManager().sessionRevision;
+    _city = null;
+    emit(state.copyWith(status: ProfileSetupStatus.saving, errorMessage: ''));
+    try {
+      if (currentUser != null) {
+        if (!await currentUser!.clearLocation()) {
+          throw currentUser!.state.error ??
+              ApiError(message: 'Unable to clear your current city.');
+        }
+      } else {
+        await _profiles.clearLocation();
+      }
+      if (!isClosed && session == PreferencesManager().sessionRevision) {
+        emit(
+          state.copyWith(
+            status: ProfileSetupStatus.editing,
+            clearCurrentLocation: true,
+          ),
+        );
+      }
+    } catch (error) {
+      if (!isClosed && session == PreferencesManager().sessionRevision) {
+        emit(
+          state.copyWith(
+            status: ProfileSetupStatus.failure,
+            errorMessage: _messageFrom(error),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _commitCity() async {
     final city = _city;
     if (city == null) return;

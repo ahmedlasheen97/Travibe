@@ -332,10 +332,26 @@ class _Step1BasicInfoState extends State<Step1BasicInfo> {
                 ),
               ),
             ),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              color: Colors.white54,
-            ),
+            // A selected city shows X (clear) in place of the arrow.
+            if (location != null)
+              IconButton(
+                tooltip: 'Clear current city',
+                style: IconButton.styleFrom(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                constraints: const BoxConstraints.tightFor(
+                  width: 32,
+                  height: 24,
+                ),
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.close, color: Colors.white54),
+                onPressed: state.isSaving ? null : cubit.clearCity,
+              )
+            else
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: Colors.white54,
+              ),
           ],
         ),
       ),

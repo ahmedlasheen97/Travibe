@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -20,17 +21,6 @@ class TravelStyleScreen extends StatefulWidget {
 
 class _TravelStyleScreenState extends State<TravelStyleScreen> {
   static const int _maxSelection = 3;
-
-  static const _options = [
-    {'label': 'Solo Traveler', 'image': 'assets/images/profile/avatar1.png'},
-    {'label': 'Group Traveler', 'image': 'assets/images/profile/avatar2.png'},
-    {'label': 'Couple Escapes', 'image': 'assets/images/profile/avatar3.png'},
-    {'label': 'Friends Getaway', 'image': 'assets/images/profile/avatar4.png'},
-    {'label': 'Family Traveler', 'image': 'assets/images/profile/avatar5.png'},
-    {'label': 'Backpacker', 'image': 'assets/images/profile/avatar6.png'},
-    {'label': 'Adventure Seeker', 'image': 'assets/images/profile/avatar7.png'},
-    {'label': 'Leisure Traveler', 'image': 'assets/images/profile/avatar8.png'},
-  ];
 
   late final Set<String> _selected = widget.initiallySelected.toSet();
 
@@ -64,60 +54,39 @@ class _TravelStyleScreenState extends State<TravelStyleScreen> {
             const SizedBox(height: 8),
             _buildTopBar(),
             Expanded(
-              child: CustomScrollView(
-                slivers: [
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverToBoxAdapter(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 12),
-                          const Text(
-                            'Travel Style',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'How do you love to travel? ($_maxSelection max)',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Travel Style',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    sliver: SliverGrid(
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.95,
-                          ),
-                      delegate: SliverChildBuilderDelegate((context, index) {
-                        final item = widget.options[index];
-                        final art = _options
-                            .where(
-                              (e) =>
-                                  e['label']!.toLowerCase() ==
-                                  item.name.toLowerCase(),
-                            )
-                            .firstOrNull;
-                        return _styleCard(item.slug, item.name, art?['image']);
-                      }, childCount: widget.options.length),
+                  const SizedBox(height: 4),
+                  Text(
+                    'How do you love to travel? ($_maxSelection max)',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 13,
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      for (final option in widget.options)
+                        TravibeChoiceChip(
+                          label: option.name,
+                          selected: _selected.contains(option.slug),
+                          onTap: () => _toggle(option.slug),
+                        ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -151,54 +120,6 @@ class _TravelStyleScreenState extends State<TravelStyleScreen> {
               alignment: AlignmentDirectional.centerStart,
               child: BackButtonWidget(
                 onTap: () => Navigator.of(context).maybePop(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _styleCard(String slug, String label, String? image) {
-    final isSelected = _selected.contains(slug);
-    return GestureDetector(
-      onTap: () => _toggle(slug),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF141414),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? DarkColors.primaryColor : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          children: [
-            Expanded(
-              child: image == null
-                  ? const Center(
-                      child: Icon(
-                        Icons.travel_explore,
-                        color: Colors.white54,
-                        size: 48,
-                      ),
-                    )
-                  : Image.asset(
-                      image,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              child: Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
               ),
             ),
           ],

@@ -82,6 +82,9 @@ class ProfileCubit extends Cubit<ProfileState> {
   ProfileModel? _lastCurrentUser;
   final CurrentUserCubit? _currentUser;
 
+  /// App-wide current user (settings, Buddies visibility), when provided.
+  CurrentUserCubit? get currentUser => _currentUser;
+
   final ProfileRepo _profileRepo;
   final int? userId;
   int _generation = 0;

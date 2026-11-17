@@ -1,3 +1,5 @@
+import 'package:travibe/features/profile/data/settings_update.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/widgets/travibe_choice_chip.dart';
 import 'package:travibe/core/reference/nationality_labels.dart';
 import 'package:travibe/core/widgets/country_search_sheet.dart';
@@ -354,6 +356,42 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       setState(() => _confirming = false);
       if (!confirmed || _isSaving) return;
     }
+    // Clearing the city while visible in Buddies: warn, then hide first so
+    // the user is never listed without a city.
+    final user = widget.owner.currentUser ?? context.read<CurrentUserCubit?>();
+    final hidesBuddies =
+        _draft.hasLocationChange &&
+        _draft.currentLocation == null &&
+        (user?.state.profile?.showInTravelBuddy ??
+                _initialProfile.showInTravelBuddy) ==
+            true;
+    if (hidesBuddies) {
+      setState(() => _confirming = true);
+      final confirmed = await showGlassConfirmDialog(
+        context,
+        title: 'Remove your city?',
+        message: "You'll be hidden from Buddies until you add a city.",
+        confirmLabel: 'Remove City',
+      );
+      if (!mounted) return;
+      if (!confirmed || _isSaving || user == null) {
+        setState(() => _confirming = false);
+        if (confirmed && user == null) {
+          _showError('Unable to hide you from Buddies. Try again.');
+        }
+        return;
+      }
+      await user.update(SettingsUpdate({'show_in_travel_buddy': false}));
+      if (!mounted) return;
+      setState(() => _confirming = false);
+      if (user.state.profile?.showInTravelBuddy != false) {
+        _showError(
+          user.state.error?.message ??
+              'Unable to hide you from Buddies. Try again.',
+        );
+        return;
+      }
+    }
     final saving = _editor.save(_draft);
     setState(() {});
     final saved = await saving;
@@ -367,21 +405,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final failure = _editor.state.error;
       setState(() => _errors = Map.of(failure?.fieldErrors ?? {}));
       _formKey.currentState!.validate();
-      if (failure != null) {
-        _messenger.currentState?.showSnackBar(
-          SnackBar(
-            content: Text(failure.message),
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.fromLTRB(
-              AppSizes.pw20,
-              0,
-              AppSizes.pw20,
-              AppSizes.ph100 + MediaQuery.paddingOf(context).bottom,
-            ),
-          ),
-        );
-      }
+      if (failure != null) _showError(failure.message);
     }
+  }
+
+  void _showError(String message) {
+    _messenger.currentState?.showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        margin: EdgeInsets.fromLTRB(
+          AppSizes.pw20,
+          0,
+          AppSizes.pw20,
+          AppSizes.ph100 + MediaQuery.paddingOf(context).bottom,
+        ),
+      ),
+    );
   }
 
   @override
@@ -836,6 +876,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     ),
                   ),
                 ),
+                // A selected city shows X (clear) in place of the arrow.
                 if (onClear != null)
                   IconButton(
                     tooltip: cityField ? 'Clear current city' : 'Clear',
@@ -852,8 +893,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         : null,
                     icon: const Icon(Icons.close, color: Colors.white54),
                     onPressed: enabled ? onClear : null,
-                  ),
-                if (cityField)
+                  )
+                else if (cityField)
                   IconButton(
                     tooltip: 'Choose current city',
                     style: IconButton.styleFrom(

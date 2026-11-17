@@ -44,7 +44,7 @@ class EditApi extends ApiService {
   final calls = <String>[];
   final patches = <Map<String, dynamic>>[];
   final locations = <Map<String, dynamic>>[];
-  ApiError? patchError, locationError;
+  ApiError? patchError, locationError, settingsError;
   Completer<void>? patchGate, locationGate;
   int failedReads = 0;
   bool failReadAfterPatch = false;
@@ -65,6 +65,11 @@ class EditApi extends ApiService {
   Future<dynamic> patch(String endpoint, Map<String, dynamic> data) async {
     calls.add('PATCH $endpoint');
     patches.add(Map.of(data));
+    if (endpoint == 'settings') {
+      if (settingsError != null) throw settingsError!;
+      resource.addAll(data);
+      return {'data': Map.of(resource)};
+    }
     if (patchGate != null) await patchGate!.future;
     if (patchError != null) throw patchError!;
     resource.addAll(data);
@@ -142,7 +147,10 @@ void main() {
     );
     api = EditApi();
     final repo = ProfileRepo(apiService: api);
-    user = CurrentUserCubit(profileRepo: repo);
+    user = CurrentUserCubit(
+      profileRepo: repo,
+      settingsRepo: SettingsRepo(apiService: api),
+    );
     await user.load();
     owner = ProfileCubit(profileRepo: repo, currentUser: user);
     await owner.loadProfile();
@@ -200,6 +208,11 @@ void main() {
       tester.widget<ElevatedButton>(save()).onPressed != null;
   Future<void> chooseParis(WidgetTester tester, {bool arrow = true}) async {
     await tester.ensureVisible(cityField());
+    if (arrow) {
+      // The arrow shows only for an empty field (X replaces it otherwise).
+      await tester.tap(find.byTooltip('Clear current city'));
+      await tester.pumpAndSettle();
+    }
     await tester.tap(
       arrow ? find.byTooltip('Choose current city') : find.text('Cairo, EG'),
     );
@@ -365,7 +378,7 @@ void main() {
   );
 
   testWidgets(
-    'inline X precedes arrow; clearing stays pending without picker or DELETE',
+    'selected city shows X instead of the arrow; clearing stays pending without picker or DELETE',
     (tester) async {
       await show(tester);
       await tester.ensureVisible(cityField());
@@ -375,15 +388,14 @@ void main() {
         find.widgetWithText(TextButton, 'Clear current city'),
         findsNothing,
       );
-      expect(
-        tester.getCenter(find.byTooltip('Clear current city')).dx,
-        lessThan(tester.getCenter(find.byTooltip('Choose current city')).dx),
-      );
+      expect(find.byTooltip('Clear current city'), findsOneWidget);
+      expect(find.byTooltip('Choose current city'), findsNothing);
       expect(enabled(tester), false);
       await tester.tap(find.byTooltip('Clear current city'));
       await tester.pumpAndSettle();
       expect(find.byType(BottomSheet), findsNothing);
       expect(find.byTooltip('Clear current city'), findsNothing);
+      expect(find.byTooltip('Choose current city'), findsOneWidget);
       expect(api.calls, isEmpty);
       expect(enabled(tester), true);
       expect(getProfile().currentLocation, 'Cairo, EG');
@@ -432,7 +444,7 @@ void main() {
     (tester) async {
       await show(tester);
       await tester.ensureVisible(cityField());
-      await tester.tap(find.byTooltip('Choose current city'));
+      await tester.tap(find.text('Cairo, EG'));
       await tester.pumpAndSettle();
       Navigator.of(tester.element(find.byType(BottomSheet))).pop();
       await tester.pumpAndSettle();
@@ -476,6 +488,76 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+  group('visible in Buddies', () {
+    setUp(() async {
+      api.resource['show_in_travel_buddy'] = true;
+      await user.load();
+      await owner.refresh();
+      api.calls.clear();
+    });
+    Future<void> clearAndSave(WidgetTester tester) async {
+      await show(tester);
+      await tester.ensureVisible(cityField());
+      await tester.tap(find.byTooltip('Clear current city'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove your city?'), findsOneWidget);
+      expect(
+        find.text("You'll be hidden from Buddies until you add a city."),
+        findsOneWidget,
+      );
+    }
+
+    testWidgets('cancelling the warning saves nothing', (tester) async {
+      await clearAndSave(tester);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(api.calls, isEmpty);
+      expect(enabled(tester), true);
+      expect(user.state.profile!.showInTravelBuddy, true);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('confirming hides from Buddies, then clears the city', (
+      tester,
+    ) async {
+      await clearAndSave(tester);
+      await tester.tap(find.text('Remove City'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['PATCH settings', 'DELETE profile/location']);
+      expect(api.patches.single, {'show_in_travel_buddy': false});
+      expect(user.state.profile!.showInTravelBuddy, false);
+      expect(user.state.profile!.currentLocation, isNull);
+      expect(find.text('Open editor'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a failed visibility change keeps the city and the form', (
+      tester,
+    ) async {
+      api.settingsError = ApiError(message: 'Offline');
+      await clearAndSave(tester);
+      await tester.tap(find.text('Remove City'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['PATCH settings']);
+      expect(find.text('Offline'), findsWidgets);
+      expect(getProfile().currentLocation, 'Cairo, EG');
+      expect(enabled(tester), true);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('picking another city needs no warning', (tester) async {
+      await show(tester);
+      await chooseParis(tester, arrow: false);
+      await tester.tap(find.text('Save Changes'));
+      await tester.pumpAndSettle();
+      expect(find.text('Remove your city?'), findsNothing);
+      expect(api.calls, ['PUT profile/location']);
+      expect(user.state.profile!.showInTravelBuddy, true);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
   for (final entry in {
     'full_name': 'New name',
     'username': 'new_name',
