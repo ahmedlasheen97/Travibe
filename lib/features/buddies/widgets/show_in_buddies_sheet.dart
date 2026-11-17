@@ -3,7 +3,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/location/device_location_service.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
-import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:travibe/core/places/device_city_reverse_geocoder.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -16,16 +15,14 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 
 const showInBuddiesSuccessMessage = "You're now visible in Buddies.";
 
-/// Opens the current-city picker; injectable for tests.
-typedef CityPicker = Future<CitySelection?> Function(BuildContext context);
-
 /// "Show me in Buddies" sheet, shared by the Buddies visibility card, Settings
 /// and the Profile Setup switch. Only a city is ever sent to Travibe.
 ///
-/// - With a saved current city: "We'll show you in {city}", **Turn On** (only
-///   PATCHes `show_in_travel_buddy`) and **Change city**.
-/// - Without one: **Use my location** (permission → reverse geocode → save
-///   city → turn on) and **Choose city manually** (picker → save → turn on).
+/// Two buttons, like Figma: **Allow Location** and **Not Now**.
+/// - With a saved current city, Allow Location never asks for permission; it
+///   only PATCHes `show_in_travel_buddy`.
+/// - Without one: permission → reverse geocode (device, English) → save city
+///   → turn on.
 ///
 /// Returns true once visibility is confirmed by the server.
 Future<bool> showShowInBuddiesSheet(
@@ -33,7 +30,6 @@ Future<bool> showShowInBuddiesSheet(
   CurrentUserCubit? currentUser,
   DeviceLocationService? device,
   CityReverseGeocoder? geocoder,
-  CityPicker? pickCity,
 }) async {
   final user = currentUser ?? context.read<CurrentUserCubit?>();
   if (user == null) return false;
@@ -68,7 +64,7 @@ Future<bool> showShowInBuddiesSheet(
           ),
         ),
       ],
-      child: ShowInBuddiesSheet(pickCity: pickCity ?? pickCurrentCity),
+      child: const ShowInBuddiesSheet(),
     ),
   );
   if (enabled == true) {
@@ -78,30 +74,16 @@ Future<bool> showShowInBuddiesSheet(
 }
 
 class ShowInBuddiesSheet extends StatefulWidget {
-  const ShowInBuddiesSheet({super.key, this.pickCity = pickCurrentCity});
-  final CityPicker pickCity;
+  const ShowInBuddiesSheet({super.key});
 
   @override
   State<ShowInBuddiesSheet> createState() => _ShowInBuddiesSheetState();
 }
 
 class _ShowInBuddiesSheetState extends State<ShowInBuddiesSheet> {
-  bool _picking = false;
-
   /// The mode is frozen while a request runs so saving the city midway does
   /// not swap the buttons under the user's finger.
   String? _city;
-
-  Future<void> _pickCity(AllowLocationCubit cubit) async {
-    if (_picking) return;
-    setState(() => _picking = true);
-    try {
-      final city = await widget.pickCity(context);
-      if (mounted && city != null) await cubit.chooseCity(city);
-    } finally {
-      if (mounted) setState(() => _picking = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +97,6 @@ class _ShowInBuddiesSheetState extends State<ShowInBuddiesSheet> {
         if (!state.busy) _city = location;
         final city = _city;
         final cubit = context.read<AllowLocationCubit>();
-        final idle = !state.busy && !_picking;
         return SafeArea(
           top: false,
           child: SingleChildScrollView(
@@ -181,38 +162,21 @@ class _ShowInBuddiesSheetState extends State<ShowInBuddiesSheet> {
                   ],
                   SizedBox(height: AppSizes.adaptiveHeight(16)),
                   _PrimaryButton(
-                    label: city != null ? 'Turn On' : 'Use my location',
+                    label: 'Allow Location',
                     busy: state.busy,
-                    onPressed: idle
-                        ? (city != null ? cubit.turnOn : cubit.useLocation)
-                        : null,
+                    onPressed: state.busy
+                        ? null
+                        : (city != null ? cubit.turnOn : cubit.useLocation),
                   ),
                   SizedBox(height: AppSizes.adaptiveHeight(8)),
-                  if (city != null)
-                    TextButton(
-                      onPressed: idle ? () => _pickCity(cubit) : null,
-                      style: TextButton.styleFrom(
-                        foregroundColor: DarkColors.primaryColor,
-                      ),
-                      child: Text(
-                        'Change city',
-                        style: TextStyle(
-                          fontSize: AppSizes.adaptiveFont(16),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    )
-                  else
-                    _SecondaryButton(
-                      label: 'Choose city manually',
-                      onPressed: idle ? () => _pickCity(cubit) : null,
-                    ),
+                  // Recovery only, after a permanent permission denial.
                   if (state.openSettings) ...[
                     SizedBox(height: AppSizes.adaptiveHeight(8)),
                     _SecondaryButton(
                       label: 'Open Settings',
                       onPressed: cubit.device.openSettings,
                     ),
+                    SizedBox(height: AppSizes.adaptiveHeight(8)),
                   ],
                   TextButton(
                     onPressed: state.busy

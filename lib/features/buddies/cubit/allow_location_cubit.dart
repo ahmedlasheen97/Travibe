@@ -106,8 +106,7 @@ class AllowLocationCubit extends Cubit<AllowLocationState> {
         DeviceLocationException e => e.message,
         CityPlacesException e => e.message,
         ApiError e => e.message,
-        _ =>
-          'Unable to get your location. Try again, or choose a city manually.',
+        _ => 'Unable to get your location. Try again.',
       };
       emit(
         AllowLocationState(

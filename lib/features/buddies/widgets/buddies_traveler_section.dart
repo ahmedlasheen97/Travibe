@@ -64,9 +64,11 @@ class BuddiesTravelerSection extends StatelessWidget {
     required this.title,
     required this.travelers,
     this.onSeeAll,
+    this.onOpenTraveler,
   });
   final String title;
   final VoidCallback? onSeeAll;
+  final ValueChanged<String>? onOpenTraveler;
   final List<BuddiesTraveler> travelers;
   @override
   Widget build(BuildContext context) {
@@ -93,6 +95,9 @@ class BuddiesTravelerSection extends StatelessWidget {
                     child: BuddiesTravelerCard(
                       key: ValueKey(travelers[i].id),
                       traveler: travelers[i],
+                      onTap: onOpenTraveler == null
+                          ? null
+                          : () => onOpenTraveler!(travelers[i].id),
                     ),
                   ),
                 ],

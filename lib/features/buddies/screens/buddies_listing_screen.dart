@@ -3,6 +3,7 @@ import '../widgets/buddies_loading_overlay.dart';
 import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
@@ -21,10 +22,14 @@ class BuddiesListingScreen extends StatelessWidget {
     required this.listing,
     this.repo,
     this.catalogRepo,
+    this.onOpenTraveler,
   });
   final BuddiesListing listing;
   final BuddiesRepo? repo;
   final ProfileSetupRepo? catalogRepo;
+
+  /// Opens a traveler's profile; defaults to [openUserProfile].
+  final ValueChanged<String>? onOpenTraveler;
   @override
   Widget build(BuildContext context) => BlocProvider(
     create: (context) => BuddiesListingCubit(
@@ -32,14 +37,23 @@ class BuddiesListingScreen extends StatelessWidget {
       repo: repo,
       filtersStore: context.read<BuddiesFiltersCubit?>(),
     )..refresh(),
-    child: _ListingView(listing: listing, catalogRepo: catalogRepo),
+    child: _ListingView(
+      listing: listing,
+      catalogRepo: catalogRepo,
+      onOpenTraveler: onOpenTraveler,
+    ),
   );
 }
 
 class _ListingView extends StatelessWidget {
-  const _ListingView({required this.listing, this.catalogRepo});
+  const _ListingView({
+    required this.listing,
+    this.catalogRepo,
+    this.onOpenTraveler,
+  });
   final BuddiesListing listing;
   final ProfileSetupRepo? catalogRepo;
+  final ValueChanged<String>? onOpenTraveler;
 
   @override
   Widget build(
@@ -48,6 +62,9 @@ class _ListingView extends StatelessWidget {
     builder: (context, state) {
       final cubit = context.read<BuddiesListingCubit>();
       final block = context.watch<BlockCubit?>();
+      void open(String id) => onOpenTraveler != null
+          ? onOpenTraveler!(id)
+          : openUserProfile(context, id);
       Widget body(Set<String> blocked) {
         final items = state.items
             .where((item) => !blocked.contains(item.id.toString()))
@@ -151,6 +168,9 @@ class _ListingView extends StatelessWidget {
                                 child: i + column >= items.length
                                     ? const SizedBox()
                                     : BuddiesTravelerCard(
+                                        onTap: () => open(
+                                          items[i + column].id.toString(),
+                                        ),
                                         traveler: BuddiesTraveler(
                                           id: items[i + column].id.toString(),
                                           name: items[i + column].name,

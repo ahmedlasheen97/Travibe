@@ -134,7 +134,7 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
               ),
           ],
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 48),
         CustomButton(
           title: widget.isSaving ? 'Saving...' : 'Next',
           onPressed: widget.isSaving ? null : widget.onNext,
@@ -160,7 +160,7 @@ class _Step2LanguagesInterestsState extends State<Step2LanguagesInterests> {
         child: Text(
           label,
           style: TextStyle(
-            color: isSelected ? Colors.white : Colors.white70,
+            color: Colors.white,
             fontSize: 13,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),

@@ -54,7 +54,6 @@ void main() {
   late CurrentUserCubit user;
   late PreciseDevice device;
   late RecordingReverse reverse;
-  CitySelection? picked;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
@@ -75,7 +74,6 @@ void main() {
     api.calls.clear();
     device = PreciseDevice(api.calls);
     reverse = RecordingReverse(api.calls);
-    picked = cairo();
   });
   tearDown(() async {
     await user.close();
@@ -95,10 +93,6 @@ void main() {
                   context,
                   device: device,
                   geocoder: reverse,
-                  pickCity: (_) async {
-                    api.calls.add('picker');
-                    return picked;
-                  },
                 ),
                 child: const Text('open'),
               ),
@@ -117,7 +111,18 @@ void main() {
     expect(coarseCoordinate(31.235712), 31.24);
   });
 
-  testWidgets('no city: Figma copy with Use my location and manual choice', (
+  void expectOnlyTwoButtons() {
+    expect(find.text('Allow Location'), findsOneWidget);
+    expect(find.text('Not Now'), findsOneWidget);
+    expect(find.text('Use my location'), findsNothing);
+    expect(find.text('Choose city manually'), findsNothing);
+    expect(find.text('Change city'), findsNothing);
+    expect(find.text('Turn On'), findsNothing);
+    expect(find.byType(ElevatedButton), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsNothing);
+  }
+
+  testWidgets('no city: Figma copy with only Allow Location and Not Now', (
     tester,
   ) async {
     await openSheet(tester);
@@ -133,18 +138,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.location_on_rounded), findsOneWidget);
-    expect(find.text('Use my location'), findsOneWidget);
-    expect(find.text('Choose city manually'), findsOneWidget);
-    expect(find.text('Change city'), findsNothing);
-    expect(find.text('Not Now'), findsOneWidget);
+    expectOnlyTwoButtons();
     await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets(
-    'Use my location saves only the city, turns on Show in Buddies, closes and toasts',
+    'no city: Allow Location saves only the city, turns on Show in Buddies, closes and toasts',
     (tester) async {
       await openSheet(tester);
-      await tester.tap(find.text('Use my location'));
+      await tester.tap(find.text('Allow Location'));
       await tester.pumpAndSettle();
       expect(api.calls, [
         'device',
@@ -177,7 +179,7 @@ void main() {
       'Location permission was not granted.',
     );
     await openSheet(tester);
-    await tester.tap(find.text('Use my location'));
+    await tester.tap(find.text('Allow Location'));
     await tester.pumpAndSettle();
     expect(find.text('Location permission was not granted.'), findsOneWidget);
     expect(find.text('Open Settings'), findsNothing);
@@ -192,7 +194,7 @@ void main() {
       openSettings: true,
     );
     await openSheet(tester);
-    await tester.tap(find.text('Use my location'));
+    await tester.tap(find.text('Allow Location'));
     await tester.pumpAndSettle();
     expect(find.text('Location permission is disabled.'), findsOneWidget);
     await tester.tap(find.text('Open Settings'));
@@ -211,32 +213,6 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('no city: Choose city manually saves the pick then turns on', (
-    tester,
-  ) async {
-    await openSheet(tester);
-    await tester.tap(find.text('Choose city manually'));
-    await tester.pumpAndSettle();
-    expect(api.calls, ['picker', 'PUT profile/location', 'PATCH settings']);
-    expect(api.payloads, [
-      {'location': 'Cairo, EG'},
-      {'show_in_travel_buddy': true},
-    ]);
-    expect(find.byType(ShowInBuddiesSheet), findsNothing);
-    expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-  });
-
-  testWidgets('no city: dismissing the picker changes nothing', (tester) async {
-    picked = null;
-    await openSheet(tester);
-    await tester.tap(find.text('Choose city manually'));
-    await tester.pumpAndSettle();
-    expect(api.calls, ['picker']);
-    expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
-    await tester.pumpWidget(const SizedBox());
-  });
-
   group('with a saved city', () {
     setUp(() async {
       await user.saveLocation(cairo());
@@ -251,53 +227,35 @@ void main() {
         find.text("We'll show your city, not your exact location."),
         findsOneWidget,
       );
-      expect(find.text('Turn On'), findsOneWidget);
-      expect(find.text('Change city'), findsOneWidget);
-      expect(find.text('Use my location'), findsNothing);
-      expect(find.text('Choose city manually'), findsNothing);
+      expectOnlyTwoButtons();
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('Turn On only PATCHes show_in_travel_buddy', (tester) async {
-      await openSheet(tester);
-      await tester.tap(find.text('Turn On'));
-      await tester.pumpAndSettle();
-      expect(api.calls, ['PATCH settings']);
-      expect(api.payloads, [
-        {'show_in_travel_buddy': true},
-      ]);
-      expect(find.byType(ShowInBuddiesSheet), findsNothing);
-      expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-    });
-
-    testWidgets('Change city picks, saves, then turns on', (tester) async {
-      picked = CitySelection(
-        cityName: 'Alexandria',
-        countryName: 'Egypt',
-        countryCode: 'EG',
-        latitude: 31.2,
-        longitude: 29.92,
-      );
-      await openSheet(tester);
-      await tester.tap(find.text('Change city'));
-      await tester.pumpAndSettle();
-      expect(api.calls, ['picker', 'PUT profile/location', 'PATCH settings']);
-      expect(api.payloads.first, {'location': 'Alexandria, EG'});
-      expect(user.state.profile!.currentLocation, 'Alexandria, EG');
-      expect(user.state.profile!.showInTravelBuddy, true);
-      await tester.pumpWidget(const SizedBox());
-    });
+    testWidgets(
+      'Allow Location uses the saved city: no permission, only PATCHes show_in_travel_buddy',
+      (tester) async {
+        await openSheet(tester);
+        await tester.tap(find.text('Allow Location'));
+        await tester.pumpAndSettle();
+        expect(api.calls, ['PATCH settings']);
+        expect(api.payloads, [
+          {'show_in_travel_buddy': true},
+        ]);
+        expect(find.byType(ShowInBuddiesSheet), findsNothing);
+        expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
     testWidgets('a failed PATCH keeps the sheet open with the error', (
       tester,
     ) async {
       api.settingsError = ApiError(message: 'Offline');
       await openSheet(tester);
-      await tester.tap(find.text('Turn On'));
+      await tester.tap(find.text('Allow Location'));
       await tester.pumpAndSettle();
       expect(find.text('Offline'), findsOneWidget);
-      expect(find.text('Turn On'), findsOneWidget);
+      expect(find.text('Allow Location'), findsOneWidget);
       expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });

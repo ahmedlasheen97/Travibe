@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../widgets/buddies_loading_overlay.dart';
 import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 import '../data/buddies_filters.dart';
 import 'buddies_listing_screen.dart';
 import 'buddies_search_screen.dart';
@@ -58,6 +59,10 @@ class BuddiesScreen extends StatelessWidget {
             ).push(MaterialPageRoute<void>(builder: (_) => screen));
           }
 
+          // Opened from the Buddies tab context (also for See All and
+          // search) so the profile gets Root's follow/block/like cubits.
+          void openTraveler(String id) => openUserProfile(context, id);
+
           Widget content(Set<String> blocked) {
             List<BuddiesTraveler> travelers(List<BuddyResource> items) => items
                 .where((item) => !blocked.contains(item.id.toString()))
@@ -96,19 +101,26 @@ class BuddiesScreen extends StatelessWidget {
                   ? null
                   : () => context.read<BuddiesCubit>().load(),
               onRefresh: context.read<BuddiesCubit>().load,
+              onOpenTraveler: openTraveler,
               onSeeCity: () => openDiscovery(
-                BuddiesListingScreen(listing: BuddiesListing.city, repo: repo),
+                BuddiesListingScreen(
+                  listing: BuddiesListing.city,
+                  repo: repo,
+                  onOpenTraveler: openTraveler,
+                ),
               ),
               onSeeInterests: () => openDiscovery(
                 BuddiesListingScreen(
                   listing: BuddiesListing.interests,
                   repo: repo,
+                  onOpenTraveler: openTraveler,
                 ),
               ),
               onSearch: () => openDiscovery(
                 BuddiesSearchScreen(
                   repo: repo,
                   placesProvider: context.read<CityPlacesProvider?>(),
+                  onOpenTraveler: openTraveler,
                 ),
               ),
             );
@@ -141,6 +153,7 @@ class BuddiesLandingView extends StatelessWidget {
     this.onSeeCity,
     this.onSeeInterests,
     this.onSearch,
+    this.onOpenTraveler,
   });
   final BuddiesLandingVariant variant;
   final List<BuddiesTraveler> nearbyTravelers;
@@ -152,6 +165,7 @@ class BuddiesLandingView extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onSeeCity, onSeeInterests;
   final VoidCallback? onSearch;
+  final ValueChanged<String>? onOpenTraveler;
   final Future<void> Function()? onRefresh;
 
   @override
@@ -167,6 +181,9 @@ class BuddiesLandingView extends StatelessWidget {
     // First load and refresh-from-empty show card skeletons; a refresh over
     // existing cards keeps them and shows the small floating loader.
     final skeleton = isLoading || refreshing && empty;
+    // Until the profile is complete only the cards show: no traveler
+    // sections and no empty state.
+    final showTravelers = !needsProfile;
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
       body: SafeArea(
@@ -251,7 +268,9 @@ class BuddiesLandingView extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (skeleton) ...[
+                  if (!showTravelers)
+                    const SizedBox.shrink()
+                  else if (skeleton) ...[
                     SizedBox(height: AppSizes.adaptiveHeight(28)),
                     const BuddiesSectionSkeleton(),
                     SizedBox(height: AppSizes.adaptiveHeight(24)),
@@ -272,21 +291,18 @@ class BuddiesLandingView extends StatelessWidget {
                       BuddiesTravelerSection(
                         title: 'In Your City',
                         onSeeAll: onSeeCity,
+                        onOpenTraveler: onOpenTraveler,
                         travelers: nearbyTravelers,
                       ),
                     ],
                     if (sharedInterestTravelers.isNotEmpty) ...[
                       SizedBox(
-                        height:
-                            invitation ||
-                                needsProfile ||
-                                nearbyTravelers.isEmpty
-                            ? 28
-                            : 24,
+                        height: invitation || nearbyTravelers.isEmpty ? 28 : 24,
                       ),
                       BuddiesTravelerSection(
                         title: 'With Same Interests',
                         onSeeAll: onSeeInterests,
+                        onOpenTraveler: onOpenTraveler,
                         travelers: sharedInterestTravelers,
                       ),
                     ],

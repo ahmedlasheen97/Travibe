@@ -2,6 +2,7 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 import '../widgets/buddies_loading_overlay.dart';
 import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 import 'package:flutter/services.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/core/places/city_autocomplete_cubit.dart';
@@ -26,8 +27,12 @@ class BuddiesSearchScreen extends StatelessWidget {
     this.repo,
     this.catalogRepo,
     this.placesProvider,
+    this.onOpenTraveler,
   });
   final BuddiesRepo? repo;
+
+  /// Opens a traveler's profile; defaults to [openUserProfile].
+  final ValueChanged<String>? onOpenTraveler;
   final CityPlacesProvider? placesProvider;
   final ProfileSetupRepo? catalogRepo;
   @override
@@ -45,13 +50,17 @@ class BuddiesSearchScreen extends StatelessWidget {
         ),
       ),
     ],
-    child: _SearchView(catalogRepo: catalogRepo),
+    child: _SearchView(
+      catalogRepo: catalogRepo,
+      onOpenTraveler: onOpenTraveler,
+    ),
   );
 }
 
 class _SearchView extends StatefulWidget {
-  const _SearchView({this.catalogRepo});
+  const _SearchView({this.catalogRepo, this.onOpenTraveler});
   final ProfileSetupRepo? catalogRepo;
+  final ValueChanged<String>? onOpenTraveler;
   @override
   State<_SearchView> createState() => _SearchViewState();
 }
@@ -59,6 +68,11 @@ class _SearchView extends StatefulWidget {
 class _SearchViewState extends State<_SearchView> {
   final _text = TextEditingController();
   bool _openingFilters = false;
+
+  void _openTraveler(String id) => widget.onOpenTraveler != null
+      ? widget.onOpenTraveler!(id)
+      : openUserProfile(context, id);
+
   @override
   void dispose() {
     _text.dispose();
@@ -319,6 +333,9 @@ class _SearchViewState extends State<_SearchView> {
                                                           .join(', ');
                                                   return BuddiesTravelerCard(
                                                     key: ValueKey(item.id),
+                                                    onTap: () => _openTraveler(
+                                                      item.id.toString(),
+                                                    ),
                                                     traveler: BuddiesTraveler(
                                                       id: item.id.toString(),
                                                       name: item.name,

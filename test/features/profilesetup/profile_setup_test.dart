@@ -4,6 +4,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/features/profilesetup/cubit/profile_setup_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
+import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/features/profilesetup/data/profile_selection_options.dart';
 import 'package:travibe/features/profilesetup/data/reference_item.dart';
 import 'package:travibe/features/profilesetup/widgets/step3_travel_style.dart';
@@ -516,6 +517,52 @@ void main() {
       await tester.pump();
       expect(selectedInterests, isEmpty);
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'step 2: unselected chips use white text; 48 above the Next button',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Step2LanguagesInterests(
+              selectedLanguages: const ['English'],
+              selectedInterests: const [],
+              onLanguagesChanged: (_) {},
+              onInterestsChanged: (_) {},
+              onNext: () {},
+              onSkip: () {},
+              isSaving: false,
+            ),
+          ),
+        ),
+      );
+      Color? colorOf(String label) =>
+          tester.widget<Text>(find.text(label)).style?.color;
+      expect(colorOf(profileInterestOptions.first), Colors.white);
+      expect(colorOf(profileLanguageOptions[1]), Colors.white);
+      // Selected chip unchanged: white, bold.
+      expect(colorOf('English'), Colors.white);
+      expect(
+        tester.widget<Text>(find.text('English')).style?.fontWeight,
+        FontWeight.w600,
+      );
+      final interestsBottom = tester
+          .getRect(
+            find.ancestor(
+              of: find.text(profileInterestOptions.last),
+              matching: find.byType(Wrap),
+            ),
+          )
+          .bottom;
+      expect(
+        tester.getRect(find.byType(CustomButton)).top - interestsBottom,
+        48,
+      );
     },
   );
 }

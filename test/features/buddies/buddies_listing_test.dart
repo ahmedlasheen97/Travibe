@@ -522,6 +522,27 @@ void main() {
   );
 
   for (final listing in BuddiesListing.values) {
+    testWidgets('${listing.title}: tapping a card opens that traveler', (
+      tester,
+    ) async {
+      final opened = <String>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          home: BuddiesListingScreen(
+            listing: listing,
+            repo: BuddiesRepo(apiService: fixtures.FakeApi(page(ids: [1, 2]))),
+            onOpenTraveler: opened.add,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BuddiesTravelerCard).at(1));
+      await tester.pump();
+      expect(opened, ['2']);
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('${listing.title} matches listing grid and controls', (
       tester,
     ) async {

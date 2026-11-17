@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:travibe/features/buddies/data/buddies_landing_data.dart';
 
 class BuddiesTravelerCard extends StatelessWidget {
-  const BuddiesTravelerCard({super.key, required this.traveler});
+  const BuddiesTravelerCard({super.key, required this.traveler, this.onTap});
   final BuddiesTraveler traveler;
+
+  /// Opens the traveler's profile.
+  final VoidCallback? onTap;
   static const _detail = TextStyle(
     letterSpacing: 0,
     color: Colors.white,
@@ -22,76 +25,80 @@ class BuddiesTravelerCard extends StatelessWidget {
     );
     return Semantics(
       container: true,
+      button: onTap != null,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: ColoredBox(
+        child: Material(
           color: const Color(0xFF171717),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ExcludeSemantics(
-                child: SizedBox(
-                  height: 134,
-                  child: traveler.photoUrl != null
-                      ? Image.network(
-                          traveler.photoUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => fallback,
-                          loadingBuilder: (_, child, progress) =>
-                              progress == null ? child : fallback,
-                        )
-                      : photo == null
-                      ? fallback
-                      : Image.asset(
-                          photo,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => fallback,
-                        ),
+          child: InkWell(
+            onTap: onTap,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ExcludeSemantics(
+                  child: SizedBox(
+                    height: 134,
+                    child: traveler.photoUrl != null
+                        ? Image.network(
+                            traveler.photoUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => fallback,
+                            loadingBuilder: (_, child, progress) =>
+                                progress == null ? child : fallback,
+                          )
+                        : photo == null
+                        ? fallback
+                        : Image.asset(
+                            photo,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => fallback,
+                          ),
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      traveler.name,
-                      style: const TextStyle(
-                        letterSpacing: 0,
-                        color: Colors.white,
-                        fontSize: 14,
-                        height: 24 / 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    if (traveler.destination case final String destination)
-                      Text(destination, style: _detail),
-                    if (traveler.dateLabel case final String dates) ...[
-                      const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        dates,
-                        style: _detail.copyWith(
-                          color: const Color(0xFFBDBCBB),
-                          fontWeight: FontWeight.w400,
+                        traveler.name,
+                        style: const TextStyle(
+                          letterSpacing: 0,
+                          color: Colors.white,
+                          fontSize: 14,
+                          height: 24 / 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
+                      if (traveler.destination case final String destination)
+                        Text(destination, style: _detail),
+                      if (traveler.dateLabel case final String dates) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          dates,
+                          style: _detail.copyWith(
+                            color: const Color(0xFFBDBCBB),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                      if (traveler.interests.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        Wrap(
+                          spacing: 4,
+                          runSpacing: 8,
+                          children: [
+                            for (final item in traveler.interests)
+                              BuddiesInterestChip(label: item),
+                          ],
+                        ),
+                      ],
                     ],
-                    if (traveler.interests.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 4,
-                        runSpacing: 8,
-                        children: [
-                          for (final item in traveler.interests)
-                            BuddiesInterestChip(label: item),
-                        ],
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

@@ -46,11 +46,13 @@ Future<void> showSearch(
   WidgetTester tester,
   home.FakeApi api, {
   BlockCubit? blocks,
+  ValueChanged<String>? onOpenTraveler,
 }) async {
   Widget screen = BuddiesSearchScreen(
     repo: BuddiesRepo(apiService: api),
     catalogRepo: filters.FilterCatalog(),
     placesProvider: FakeCityPlaces(),
+    onOpenTraveler: onOpenTraveler,
   );
   if (blocks != null) {
     screen = BlocProvider<BlockCubit>.value(value: blocks, child: screen);
@@ -276,6 +278,20 @@ void main() {
     expect(cubit.state.items.single.id, 2);
     expect(api.query!['city'], 'New');
     await cubit.close();
+  });
+
+  testWidgets('tapping a search result opens that traveler', (tester) async {
+    final opened = <String>[];
+    await showSearch(
+      tester,
+      home.FakeApi(searchPage(ids: [1, 2])),
+      onOpenTraveler: opened.add,
+    );
+    await searchText(tester, 'Bali');
+    await tester.tap(find.byType(BuddiesTravelerCard).at(1));
+    await tester.pump();
+    expect(opened, ['2']);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets(

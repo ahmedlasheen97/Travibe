@@ -393,7 +393,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(BuddiesSectionSkeleton), findsNothing);
     expect(find.text('Network unavailable'), findsOneWidget);
-    api.result = home();
+    api.result = home(city: true);
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(find.text('No travelers found yet.'), findsOneWidget);
@@ -405,7 +405,7 @@ void main() {
     (tester) async {
       final follow = FollowCubit();
       final block = TestBlockCubit(follow);
-      final api = FakeApi(home(users: [buddy()]));
+      final api = FakeApi(home(city: true, users: [buddy()]));
       await tester.pumpWidget(
         MaterialApp(
           theme: darkTheme,
@@ -430,7 +430,7 @@ void main() {
   testWidgets('session logout removes visible travelers immediately', (
     tester,
   ) async {
-    await show(tester, FakeApi(home(users: [buddy()])));
+    await show(tester, FakeApi(home(city: true, users: [buddy()])));
     expect(find.text('API traveler'), findsOneWidget);
     await preferences.clear();
     await tester.pump();
@@ -441,4 +441,88 @@ void main() {
     expect(cubit.state.home, isNull);
     await tester.pumpWidget(const SizedBox());
   });
+
+  for (final users in [
+    <dynamic>[],
+    [buddy()],
+  ]) {
+    testWidgets(
+      'incomplete profile shows only the cards (${users.length} travelers)',
+      (tester) async {
+        await show(
+          tester,
+          FakeApi(home(complete: false, visible: false, users: users)),
+        );
+        expect(find.byType(BuddiesCompleteProfileCard), findsOneWidget);
+        expect(find.byType(BuddiesVisibilityInvitation), findsOneWidget);
+        expect(find.text('No travelers found yet.'), findsNothing);
+        expect(
+          find.text('Traveler discovery is not available yet.'),
+          findsNothing,
+        );
+        expect(find.byType(BuddiesSectionSkeleton), findsNothing);
+        expect(find.text('In Your City'), findsNothing);
+        expect(find.byType(BuddiesTravelerCard), findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
+  testWidgets(
+    'tapping a traveler opens their profile; back keeps the scroll position',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 500);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final pushed = <String?>[];
+      final api = FakeApi({
+        'data': {
+          'in_your_city': [buddy(id: 7)],
+          'with_same_interests': [buddy(id: 8)],
+        },
+        'meta': home(city: true)['meta'],
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: darkTheme,
+          navigatorObservers: [_PushObserver(pushed)],
+          home: BuddiesScreen(repo: BuddiesRepo(apiService: api)),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final scrollable = find
+          .descendant(
+            of: find.byType(BuddiesLandingView),
+            matching: find.byWidgetPredicate(
+              (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+            ),
+          )
+          .first;
+      await tester.ensureVisible(find.byType(BuddiesTravelerCard).last);
+      await tester.pumpAndSettle();
+      final offset = tester.state<ScrollableState>(scrollable).position.pixels;
+      expect(offset, greaterThan(0));
+
+      pushed.clear();
+      await tester.tap(find.byType(BuddiesTravelerCard).last);
+      await tester.pump();
+      expect(pushed, ['user-profile/8']);
+
+      tester.state<NavigatorState>(find.byType(Navigator)).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(BuddiesLandingView), findsOneWidget);
+      expect(tester.state<ScrollableState>(scrollable).position.pixels, offset);
+      expect(api.calls, 1);
+      await tester.pumpWidget(const SizedBox());
+      await tester.pump(const Duration(seconds: 1));
+    },
+  );
+}
+
+class _PushObserver extends NavigatorObserver {
+  _PushObserver(this.names);
+  final List<String?> names;
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) =>
+      names.add(route.settings.name);
 }

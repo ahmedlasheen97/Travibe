@@ -597,7 +597,7 @@ void main() {
       expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
       (backend.result as Completer<dynamic>).complete(
-        home.home(users: [home.buddy()]),
+        home.home(city: true, users: [home.buddy()]),
       );
       await tester.pumpAndSettle();
       final card = find.byType(BuddiesTravelerCard).first;
@@ -640,7 +640,10 @@ void main() {
       addTearDown(tester.view.resetPadding);
       addTearDown(tester.view.resetViewPadding);
       final backend = home.FakeApi(
-        home.home(users: [for (var id = 1; id <= 8; id++) home.buddy(id: id)]),
+        home.home(
+          city: true,
+          users: [for (var id = 1; id <= 8; id++) home.buddy(id: id)],
+        ),
       );
       await tester.pumpWidget(
         MaterialApp(
@@ -694,7 +697,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final backend = home.FakeApi(home.home());
+      final backend = home.FakeApi(home.home(city: true));
       final account = feeds.AccountRepo();
       await tester.pumpWidget(
         ScreenUtilInit(
@@ -728,7 +731,7 @@ void main() {
       // Refreshing an empty Buddies home shows skeletons, not a spinner.
       expect(find.byType(BuddiesSectionSkeleton), findsNWidgets(2));
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
-      (backend.result as Completer<dynamic>).complete(home.home());
+      (backend.result as Completer<dynamic>).complete(home.home(city: true));
       await tester.pumpAndSettle();
       tester
           .widget<BottomNavigationBar>(find.byType(BottomNavigationBar))

@@ -23,7 +23,7 @@ class GeolocatorDeviceLocationService implements DeviceLocationService {
   Future<DeviceCoordinates> locate() async {
     if (!await Geolocator.isLocationServiceEnabled()) {
       throw const DeviceLocationException(
-        'Location services are off. Enable them in Settings, or choose a city manually.',
+        'Location services are off. Enable them in Settings.',
         openSettings: true,
       );
     }
@@ -33,7 +33,7 @@ class GeolocatorDeviceLocationService implements DeviceLocationService {
     }
     if (permission == LocationPermission.deniedForever) {
       throw const DeviceLocationException(
-        'Location permission is disabled. Open Settings to allow access, or choose a city manually.',
+        'Location permission is disabled. Open Settings to allow access.',
         openSettings: true,
       );
     }
@@ -53,7 +53,7 @@ class GeolocatorDeviceLocationService implements DeviceLocationService {
       return DeviceCoordinates(position.latitude, position.longitude);
     } on TimeoutException {
       throw const DeviceLocationException(
-        'Finding your location timed out. Try again, or choose a city manually.',
+        'Finding your location timed out. Try again.',
       );
     }
   }
