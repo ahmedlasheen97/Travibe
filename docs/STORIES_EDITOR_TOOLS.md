@@ -5,21 +5,28 @@ The right-side tool column is now **Aa, @, ☺, ✏️** (same 44px translucent
 `0xCC45433B` circles; the @ uses `assets/images/icons/mention_glyph.svg`).
 Location was removed on purpose.
 
-## API contract (no backend change needed)
+## API contract (docs/backend/STORY_MENTION_IDS.md)
 
-`POST /stories` stores `elements` verbatim and parses `@username` from `text`
-/ `content` of `type: text` elements. Mentioned users get the "mentioned you in
-a story" notification under the normal visibility rules. The server stores up
-to 10 distinct mentions per story. `StoryDetailResource.mentions` returns
-`[{handle, user: {id, username}}]`, with blocked users left out. The API takes
-no separate user ids.
+`POST /stories` stores `elements` verbatim. Text comes back exactly as sent,
+including spaces and empty strings. The API parses `@username` from the
+`text`/`content` of `type: text` elements, and also takes
+`mention_user_ids`: distinct user ids, at most 10. If any id is invalid or
+duplicated, the request fails with 422. Mentioned users get the "mentioned
+you in a story" notification under the normal visibility rules.
+
+A private account can be mentioned only by its accepted followers. The
+server silently drops anyone else (no error), and mention suggestions
+(`GET /mentions/suggestions`) already leave them out.
+`StoryDetailResource.mentions` returns `[{handle, user: {id, username}}]` for
+the mentions that were kept, without blocked users.
 
 ## Two kinds of mention
 
 1. **@ tool: hidden mention.** The Mention sheet (Figma `mention_sheet.png`)
    picks people. Nothing is drawn on the story. The people picked
-   (`StoryEditorDraft.mentions`, at most 10) are sent so they are mentioned
-   and notified. The @ button shows an orange count badge, and its tooltip
+   (`StoryEditorDraft.mentions`, at most 10, deduped by id) are sent as
+   `mention_user_ids` (`CreateStoryRequest.mentionIds`). No element is
+   created for them. The @ button shows an orange count badge, and its tooltip
    lists the usernames. Reopening the sheet shows them checked; anyone picked
    who isn't in the suggestions is listed at the top.
 2. **Aa text.** Typing `@` in a text opens suggestions (Figma
@@ -47,7 +54,8 @@ returns 422 for `true` on any other story.
   the header. A tap opens that user's profile. `reshared_from.story_id` may be
   null (the original expired), so it never links to the source story.
 - A reshare's `mentions` is empty: `@names` in its text are plain white,
-  not tappable. The hidden-mention element is still skipped by `decode`.
+  not tappable. The legacy hidden-mention element is still skipped by
+  `decode`.
 - Notification `story_reshared` ("X reshared your story.", portrait
   thumbnail) opens the reshare from `target_id`. A story that is gone shows
   "This story is no longer available."
@@ -57,21 +65,18 @@ returns 422 for `true` on any other story.
 - **Text**: a v1 text element. Its look is the Figma text bubble: white text in
   a dark translucent rounded bubble (the header pill's glass), with
   `@username` in orange. Editor and viewer render it the same way.
-- **Hidden mentions**: one extra v1 text element with the **identical** v1
-  `style`:
-
-```json
-{ "version": 1, "id": "story-mentions", "type": "text",
-  "text": "\u200B", "content": "@sara @omar",
-  "position": {"x": 0.5, "y": 0.5}, "scale": 1, "style": { …v1… },
-  "mentions": [{"user_id": 5, "username": "sara"},
-               {"user_id": 7, "username": "omar"}] }
-```
-
-  The API reads `content`, so these users are mentioned. `text` is a
-  zero-width space (U+200B). It is not whitespace to `String.trim`, so older
-  app builds accept the element, and they draw nothing for it. They ignore
-  `content` and `mentions`. This build's `decode` skips the element.
+- **Legacy hidden mentions** (stories from builds before
+  `mention_user_ids`): one extra v1 text element with id `story-mentions`,
+  `text: "\u200B"`, and `content: "@sara @omar"`. The API now returns its
+  `text` exactly as sent (`"\u200B"`; stories saved earlier may have
+  `null`). `decode` skips it by id, whatever its text, so no `@username` is
+  ever drawn. This build never sends it.
+- **Exact text**: element text is drawn as sent. A text that is empty or
+  only whitespace or zero-width characters draws no bubble. Leading and
+  trailing spaces are drawn where they are. `StoryTextGeometry` swaps
+  line-end spaces for no-break spaces at render time (same length, so
+  mention offsets still line up), because text layout would otherwise
+  "hang" them.
 - **Stickers from earlier builds** (`text: "@sara"` with `mention` metadata)
   decode as ordinary text, so they show as a text bubble with an orange
   `@sara`. Rotation is dropped.
@@ -112,6 +117,21 @@ returns 422 for `true` on any other story.
 - Users only ever see plain wording. The "upload result is uncertain…" text
   never reaches the story UI.
 
+## Mention results
+
+- **Dropped mentions**: after posting, `StoryUploadCubit` compares the
+  `mention_user_ids` it sent with the returned `mentions` ids. If any are
+  missing (e.g. a private account the author doesn't follow), Root shows the
+  info toast "Some people couldn't be mentioned" instead of the green
+  success toast. Typed Aa `@handles` aren't compared, because they can be
+  any text.
+- **422 on `mention_user_ids`** (any `mention_user_ids` / `mention_user_ids.N`
+  field error): the story isn't created and the photo is already uploaded.
+  The red toast reads "Couldn't mention some people" and offers
+  **Post anyway**, which POSTs the same `media_ids` without
+  `mention_user_ids` (no re-export or re-upload), and X, which discards.
+  Other 422s keep the normal Retry.
+
 ## Interaction
 
 - Emoji stickers can be dragged, pinched to scale and twisted to rotate. Text
@@ -120,8 +140,8 @@ returns 422 for `true` on any other story.
 - Draw mode hides the tools, audience and Post. It shows Undo and Done, a
   7-colour palette and a 2–24px brush slider. The stroke in progress stays local
   until the finger lifts.
-- Caps: 50 elements (text, plus one for hidden mentions), 30 emojis, 10
-  people in the Mention sheet.
+- Caps: 50 text elements, 30 emojis, 10 people in the Mention sheet
+  (hidden mentions don't count as elements).
 - In the viewer, tapping an `@username` inside a text bubble that resolves
   through `detail.mentions` pauses the story. It then shows the "View profile"
   card (Figma `mention_view_profile.png`) under the bubble, with a small
