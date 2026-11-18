@@ -76,6 +76,67 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
     return true;
   }
 
+  /// Mention sheet "Add": keeps stickers for users still selected (with
+  /// their position and style), removes unchecked ones and places new ones
+  /// near the centre, stacked so they don't cover each other. Returns how
+  /// many selected users could not be added (no id/username or the cap).
+  int syncMentions(List<PublicUserModel> users) {
+    if (isClosed) return users.length;
+    final wanted = <int, String>{};
+    var rejected = 0;
+    for (final user in users) {
+      final userId = int.tryParse(user.id);
+      final username = user.username?.trim() ?? '';
+      if (userId == null || userId <= 0 || username.isEmpty) {
+        rejected++;
+      } else {
+        wanted.putIfAbsent(userId, () => username);
+      }
+    }
+    final kept = <StoryEditorLayer>[];
+    final present = <int>{};
+    for (final layer in state.layers) {
+      if (layer is StoryMentionLayer) {
+        if (!wanted.containsKey(layer.userId) || !present.add(layer.userId)) {
+          continue;
+        }
+      }
+      kept.add(layer);
+    }
+    var elements = kept.where((layer) => layer is! StoryEmojiLayer).length;
+    var placed = 0;
+    for (final entry in wanted.entries) {
+      if (present.contains(entry.key)) continue;
+      if (elements >= maxElements) {
+        rejected++;
+        continue;
+      }
+      kept.add(
+        StoryMentionLayer(
+          id: _newId('mention'),
+          userId: entry.key,
+          username: entry.value,
+          center: Offset(0.5, (0.5 + placed * 0.08).clamp(0.1, 0.9)),
+        ),
+      );
+      elements++;
+      placed++;
+    }
+    emit(state.withLayers(kept));
+    return rejected;
+  }
+
+  /// Users with a sticker on the story, in sticker order.
+  List<({int id, String username})> get mentionedUsers => [
+    for (final layer in state.layers.whereType<StoryMentionLayer>())
+      (id: layer.userId, username: layer.username),
+  ];
+
+  void setAllowReshare(bool allow) {
+    if (isClosed || state.allowReshare == allow) return;
+    emit(state.withAllowReshare(allow));
+  }
+
   bool addEmoji(String emoji) {
     if (isClosed || emoji.trim().isEmpty || emojiCount >= maxEmojis) {
       return false;
@@ -87,19 +148,6 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
       ]),
     );
     return true;
-  }
-
-  void cycleMentionStyle(String id) {
-    if (isClosed) return;
-    emit(
-      state.withLayers([
-        for (final layer in state.layers)
-          if (layer is StoryMentionLayer && layer.id == id)
-            layer.copyWith(style: layer.style.next)
-          else
-            layer,
-      ]),
-    );
   }
 
   /// Called only when a gesture finishes, never for pointer-move previews.

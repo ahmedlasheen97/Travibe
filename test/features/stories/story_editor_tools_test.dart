@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../helpers/screen_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/models/public_user_model.dart';
-import 'package:travibe/features/search/data/search_repo.dart';
-import 'package:travibe/features/search/data/users_page_model.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/features/stories/data/mentions_repo.dart';
 import 'package:travibe/features/stories/cubit/story_editor_cubit.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/data/story_elements.dart';
@@ -27,18 +27,27 @@ PublicUserModel user(int id, String? username) => PublicUserModel(
   followingCount: 0,
 );
 
-class FakeSearchRepo extends SearchRepo {
-  final queries = <String>[];
-  List<PublicUserModel> users = [user(5, 'sara'), user(6, null)];
+/// `/mentions/suggestions` fake: no query lists [followed]; a query is a
+/// case-insensitive prefix match over [everyone].
+class FakeMentionsRepo extends MentionsRepo {
+  final queries = <String?>[];
+  List<PublicUserModel> followed = [user(5, 'sara'), user(7, 'omar')];
+  List<PublicUserModel> everyone = [
+    user(5, 'sara'),
+    user(7, 'omar'),
+    user(8, 'sarah.k'),
+  ];
   @override
-  Future<UsersPageModel> searchUsers(String query, {int page = 1}) async {
-    queries.add(query);
-    return UsersPageModel(
-      users: users,
-      currentPage: 1,
-      lastPage: 1,
-      total: users.length,
-    );
+  Future<List<PublicUserModel>> suggestions({
+    String? q,
+    int perPage = 20,
+  }) async {
+    final term = (q ?? '').replaceFirst('@', '').toLowerCase();
+    queries.add(term.isEmpty ? null : term);
+    if (term.isEmpty) return followed;
+    return everyone
+        .where((u) => u.username!.toLowerCase().startsWith(term))
+        .toList();
   }
 }
 
@@ -80,7 +89,7 @@ void main() {
       expect(cubit.elementCount, 1);
     });
 
-    test('mention requires a username and a numeric id; tap cycles style', () {
+    test('mention requires a username and a numeric id', () {
       final cubit = StoryEditorCubit(draft());
       addTearDown(cubit.close);
       expect(cubit.addMention(user(6, null)), isFalse);
@@ -89,14 +98,69 @@ void main() {
       expect(mention.text, '@sara');
       expect(mention.userId, 5);
       expect(mention.style, StoryMentionStyle.light);
-      cubit.cycleMentionStyle(mention.id);
-      expect(
-        (cubit.state.layers.single as StoryMentionLayer).style,
-        StoryMentionStyle.dark,
-      );
       // Mentions are elements, not flattened content.
       expect(cubit.state.hasFlattenedContent, isFalse);
     });
+
+    test('syncMentions keeps, removes and adds stickers to match', () {
+      final cubit = StoryEditorCubit(draft());
+      addTearDown(cubit.close);
+      expect(cubit.syncMentions([user(5, 'sara'), user(7, 'omar')]), 0);
+      final sara = cubit.state.layers.whereType<StoryMentionLayer>().first;
+      expect(
+        cubit.state.layers.whereType<StoryMentionLayer>().map((l) => l.text),
+        ['@sara', '@omar'],
+      );
+      // New stickers are stacked, not on top of each other.
+      final centers = cubit.state.layers.map((l) => l.center).toSet();
+      expect(centers, hasLength(2));
+      cubit.commitTransform(sara.id, const Offset(.2, .3), 2);
+      // Uncheck omar, keep sara (with her move and scale), add one without a
+      // username (rejected) and a new one.
+      expect(
+        cubit.syncMentions([user(5, 'sara'), user(6, null), user(8, 'nour')]),
+        1,
+      );
+      final layers = cubit.state.layers.cast<StoryMentionLayer>();
+      expect(layers.map((l) => l.text), ['@sara', '@nour']);
+      expect(layers.first.id, sara.id);
+      expect(layers.first.center, const Offset(.2, .3));
+      expect(layers.first.scale, 2);
+      expect(cubit.mentionedUsers.map((u) => u.id), [5, 8]);
+      expect(cubit.state.allowReshare, isTrue);
+      cubit.setAllowReshare(false);
+      expect(cubit.state.allowReshare, isFalse);
+    });
+
+    test(
+      'allow_reshare and reshare_of_story_id are sent only behind the flag',
+      () {
+        final off = draft().withAllowReshare(false);
+        expect(
+          CreateStoryRequest(mediaId: 3, draft: off).toJson().keys,
+          isNot(contains('allow_reshare')),
+        );
+        final on = CreateStoryRequest(
+          mediaId: 3,
+          draft: off,
+          includeReshare: true,
+        ).toJson();
+        expect(on['allow_reshare'], isFalse);
+        expect(on.containsKey('reshare_of_story_id'), isFalse);
+        final reshare = StoryEditorDraft(
+          image: draft().image,
+          reshareOfStoryId: 9,
+        );
+        expect(
+          CreateStoryRequest(
+            mediaId: 3,
+            draft: reshare,
+            includeReshare: true,
+          ).toJson()['reshare_of_story_id'],
+          9,
+        );
+      },
+    );
 
     test('text keeps rotation 0 even if a rotation is committed', () {
       final cubit = StoryEditorCubit(draft());
@@ -154,7 +218,6 @@ void main() {
         1.5,
         rotation: .25,
       );
-      cubit.cycleMentionStyle(mention.id);
       final state = cubit.state;
       cubit.close();
       return state;
@@ -174,7 +237,7 @@ void main() {
       expect(mention['mention'], {
         'user_id': 5,
         'username': 'sara',
-        'style': 'dark',
+        'style': 'light',
       });
       // Identical v1 style keeps older app builds able to render it.
       expect(mention['style'], StoryElements.style);
@@ -191,7 +254,7 @@ void main() {
       final mention = restored[1] as StoryMentionLayer;
       expect(mention.userId, 5);
       expect(mention.username, 'sara');
-      expect(mention.style, StoryMentionStyle.dark);
+      expect(mention.style, StoryMentionStyle.light);
       expect(mention.rotation, .25);
       expect(mention.center, const Offset(.3, .6));
     });
@@ -223,7 +286,11 @@ void main() {
   });
 
   group('editor screen', () {
-    Future<void> show(WidgetTester tester, {SearchRepo? search}) async {
+    Future<void> show(
+      WidgetTester tester, {
+      MentionsRepo? search,
+      bool enableReshare = false,
+    }) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -232,7 +299,11 @@ void main() {
         withScreenUtil(
           MaterialApp(
             theme: ThemeData.dark(useMaterial3: true),
-            home: StoryEditorScreen(draft: draft(), searchRepo: search),
+            home: StoryEditorScreen(
+              draft: draft(),
+              mentionsRepo: search ?? FakeMentionsRepo(),
+              enableReshare: enableReshare,
+            ),
           ),
         ),
       );
@@ -319,45 +390,144 @@ void main() {
       expect(current(tester).layers.whereType<StoryEmojiLayer>(), hasLength(2));
     });
 
-    testWidgets('mention sheet searches and adds a tappable @username', (
+    Finder check(int id) => find.byKey(ValueKey('story-mention-check-$id'));
+    Finder row(int id) => find.byKey(ValueKey('story-mention-user-$id'));
+    bool addEnabled(WidgetTester tester) => tester
+        .widget<FilledButton>(find.byKey(const ValueKey('story-mention-add')))
+        .enabled;
+
+    testWidgets('mention sheet: followed people, search, multi-select, Add', (
       tester,
     ) async {
-      final search = FakeSearchRepo();
+      final search = FakeMentionsRepo();
       await show(tester, search: search);
       await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byKey(const ValueKey('story-mention-search')),
-        'sa',
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(search.queries, isEmpty);
+      expect(find.text('Mention'), findsOneWidget);
+      expect(find.text('Search people'), findsOneWidget);
+      // Opening lists the people you follow (no query).
+      expect(search.queries, [null]);
+      expect(row(5), findsOneWidget);
+      expect(row(7), findsOneWidget);
+      expect(find.text('@sara'), findsOneWidget);
+      // Reshare toggle is behind the flag.
+      expect(find.byKey(const ValueKey('story-reshare-toggle')), findsNothing);
+      expect(addEnabled(tester), isFalse);
+
       await tester.enterText(
         find.byKey(const ValueKey('story-mention-search')),
         '@sar',
       );
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(search.queries.last, 'sar');
+      expect(row(7), findsNothing);
+      await tester.tap(row(5));
+      await tester.tap(row(8));
       await tester.pump();
+      expect(addEnabled(tester), isTrue);
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.pumpAndSettle();
+      final mentions = current(tester).layers.cast<StoryMentionLayer>();
+      expect(mentions.map((m) => m.text), ['@sara', '@sarah.k']);
+      // Figma glass bubble with an orange, full @username.
       expect(
-        find.byKey(const ValueKey('story-mention-loading')),
+        find.byKey(const ValueKey('story-mention-sticker')),
+        findsNWidgets(2),
+      );
+      final label = tester.widget<Text>(find.text('@sarah.k'));
+      expect(label.style!.color, DarkColors.primaryColor);
+      expect(label.maxLines, isNull);
+      expect(label.overflow, isNull);
+      // Tapping a sticker in the editor no longer restyles it.
+      final first = mentions.first;
+      await tester.tap(find.byKey(ValueKey('story-layer-${first.id}')));
+      await tester.pumpAndSettle();
+      final after = current(tester).layers.first as StoryMentionLayer;
+      expect(after.id, first.id);
+      expect(after.style, first.style);
+      expect(after.center, first.center);
+      expect(after.scale, first.scale);
+    });
+
+    test('sticker bubble grows to fit the username and wraps long ones', () {
+      const canvas = Size(390, 844);
+      StoryMentionGeometry geometry(String username) => StoryMentionGeometry(
+        StoryMentionLayer(id: 'm', userId: 1, username: username),
+        canvas,
+      );
+      final short = geometry('sara');
+      final longer = geometry('sarakhaled12');
+      expect(short.lines, 1);
+      expect(longer.lines, 1);
+      expect(longer.size.width, greaterThan(short.size.width));
+      // One line: a pill.
+      expect(short.radius, short.size.height / 2);
+      final huge = geometry('a_very_long_username_that_keeps_going_and_going');
+      expect(huge.lines, greaterThan(1));
+      expect(huge.size.height, greaterThan(short.size.height));
+      expect(huge.size.width, lessThanOrEqualTo(canvas.width * 0.8));
+      expect(short.style.color, DarkColors.primaryColor);
+    });
+
+    testWidgets('reopening shows the selection checked; uncheck removes it', (
+      tester,
+    ) async {
+      await show(tester);
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      await tester.tap(row(5));
+      await tester.tap(row(7));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.pumpAndSettle();
+      expect(current(tester).layers, hasLength(2));
+
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      Color? fill(int id) =>
+          ((tester
+                      .widget<AnimatedContainer>(
+                        find.descendant(
+                          of: check(id),
+                          matching: find.byType(AnimatedContainer),
+                        ),
+                      )
+                      .decoration
+                  as BoxDecoration)
+              .color);
+      expect(fill(5), DarkColors.primaryColor);
+      expect(fill(7), DarkColors.primaryColor);
+      expect(addEnabled(tester), isTrue);
+      await tester.tap(row(7));
+      await tester.pump();
+      expect(fill(7), Colors.transparent);
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.pumpAndSettle();
+      expect(
+        current(tester).layers.cast<StoryMentionLayer>().map((m) => m.text),
+        ['@sara'],
+      );
+    });
+
+    testWidgets('with the flag on, the sheet toggle sets allowReshare', (
+      tester,
+    ) async {
+      await show(tester, enableReshare: true);
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('People you mention can reshare this story'),
         findsOneWidget,
       );
-      await tester.pump(const Duration(milliseconds: 400));
+      final toggle = find.byKey(const ValueKey('story-reshare-toggle'));
+      expect(tester.widget<Switch>(toggle).value, isTrue);
+      await tester.tap(toggle);
+      await tester.tap(row(5));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
       await tester.pumpAndSettle();
-      expect(search.queries, ['sar']);
-      // A user with no username cannot be mentioned and is not listed.
-      expect(find.byKey(const ValueKey('story-mention-user-6')), findsNothing);
-      await tester.tap(find.byKey(const ValueKey('story-mention-user-5')));
-      await tester.pumpAndSettle();
-      final mention = current(tester).layers.single as StoryMentionLayer;
-      expect(mention.text, '@sara');
-      expect(find.text('@sara'), findsOneWidget);
-      await tester.tap(find.byKey(ValueKey('story-layer-${mention.id}')));
-      await tester.pumpAndSettle();
-      expect(
-        (current(tester).layers.single as StoryMentionLayer).style,
-        StoryMentionStyle.dark,
-      );
-      expect(find.byKey(const ValueKey('story-mention-dark')), findsOneWidget);
+      expect(current(tester).allowReshare, isFalse);
     });
 
     testWidgets('draw mode hides tools, records strokes, undo and done', (

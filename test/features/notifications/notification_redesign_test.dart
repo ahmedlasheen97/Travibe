@@ -33,6 +33,7 @@ class VerifiedFixturePresentation extends NotificationPresentationResolver {
           'fixture.follow': NotificationKind.follow,
           'fixture.message': NotificationKind.messageRequest,
           'fixture.nearby': NotificationKind.nearby,
+          'fixture.mention': NotificationKind.mention,
         },
       );
   @override

@@ -20,6 +20,14 @@ import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/widgets/story_viewer_canvas.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:travibe/core/constants/feature_flags.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/features/stories/data/story_editor_draft.dart';
+import 'package:travibe/features/stories/widgets/start_add_story.dart';
+import 'package:travibe/features/stories/widgets/story_mention_popover.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   const StoryViewerScreen({
@@ -35,6 +43,9 @@ class StoryViewerScreen extends StatefulWidget {
     this.onDeleted,
     this.imageProvider,
     this.onOpenProfile,
+    this.loadMentionProfile,
+    this.onReshare,
+    this.enableReshare = kEnableStoryReshare,
     this.duration = const Duration(seconds: 5),
   });
   final List<StoryGroup> groups;
@@ -50,6 +61,17 @@ class StoryViewerScreen extends StatefulWidget {
 
   /// Opens a mentioned user's profile. Defaults to [ProfileScreen.open].
   final Future<void> Function(BuildContext context, int userId)? onOpenProfile;
+
+  /// Name/avatar for the mention popover; defaults to the public profile.
+  final StoryMentionProfileLoader? loadMentionProfile;
+
+  /// Opens the editor for a reshare. Defaults to loading the original photo
+  /// and pushing the story editor with it as the background.
+  final Future<void> Function(BuildContext context, StoryDetail story)?
+  onReshare;
+
+  /// Reshare button and "reshared from mention" header.
+  final bool enableReshare;
   final Duration duration;
   @override
   State<StoryViewerScreen> createState() => _StoryViewerScreenState();
@@ -84,21 +106,57 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
 
   bool _openingMention = false;
 
-  /// A tap on a resolved mention sticker opens that profile; unresolved
-  /// (blocked/unknown) mentions fall through to normal tap navigation.
+  /// The open mention popover, if any.
+  ({int userId, String username, Rect rect, int request})? _popover;
+  final _mentionProfiles = <int, StoryMentionProfile>{};
+
+  /// A tap on a resolved mention (sticker or `@handle` in text) pauses the
+  /// story and shows the View profile card; unresolved (blocked/unknown)
+  /// mentions fall through to normal tap navigation.
   bool _tapMention(Offset point, Size size) {
     final state = _viewer.state;
     final detail = state.detail;
     if (state.status != StoryViewerStatus.ready || detail == null) {
       return false;
     }
-    final mention = StoryViewerCanvas.mentionAt(state.layers, point, size);
-    final userId = mention == null
-        ? null
-        : detail.mentionedUserId(mention.username);
-    if (userId == null) return false;
-    _openMention(userId);
+    final hit = StoryViewerCanvas.mentionHitAt(state.layers, point, size);
+    final userId = hit == null ? null : detail.mentionedUserId(hit.username);
+    if (hit == null || userId == null) return false;
+    _showPopover(userId, hit);
     return true;
+  }
+
+  void _showPopover(int userId, StoryMentionHit hit) {
+    if (_closing) return;
+    _viewer.pause(true, reason: 'mention-popover');
+    setState(
+      () => _popover = (
+        userId: userId,
+        username: hit.username,
+        rect: hit.rect,
+        request: _viewer.state.request,
+      ),
+    );
+    if (_mentionProfiles.containsKey(userId)) return;
+    final load = widget.loadMentionProfile ?? loadStoryMentionProfile;
+    load(userId).then((profile) {
+      if (!mounted || profile == null) return;
+      setState(() => _mentionProfiles[userId] = profile);
+    }, onError: (_) {});
+  }
+
+  void _hidePopover() {
+    if (_popover == null) return;
+    if (mounted) setState(() => _popover = null);
+    _viewer.pause(false, reason: 'mention-popover');
+  }
+
+  void _viewMentionProfile() {
+    final popover = _popover;
+    if (popover == null) return;
+    // Pause for the profile before releasing the popover's pause.
+    _openMention(popover.userId);
+    _hidePopover();
   }
 
   Future<void> _openMention(int userId) async {
@@ -112,6 +170,74 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       _openingMention = false;
       if (mounted) _viewer.pause(false, reason: 'mention-profile');
     }
+  }
+
+  bool _resharing = false;
+  Future<void> _reshare(StoryDetail detail) async {
+    if (_resharing || _closing) return;
+    FocusScope.of(context).unfocus();
+    setState(() => _resharing = true);
+    _viewer.pause(true, reason: 'reshare');
+    try {
+      await (widget.onReshare ?? _openReshareEditor)(context, detail);
+    } catch (_) {
+      if (mounted && !_closing) {
+        TravibeToast.show(
+          context,
+          const TravibeToastData.error(
+            'Unable to reshare this story. Please try again.',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _resharing = false);
+      _viewer.pause(false, reason: 'reshare');
+    }
+  }
+
+  /// Uses the photo already shown (cached) as the new story's background.
+  Future<void> _openReshareEditor(
+    BuildContext context,
+    StoryDetail detail,
+  ) async {
+    final image = await _decode(_imageFor(_viewer.state));
+    try {
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (data == null) throw StateError('No image data');
+      final source = StorySourceImage(
+        path: '',
+        name: 'reshare-${detail.id}.png',
+        width: image.width,
+        height: image.height,
+        bytes: data.buffer.asUint8List(),
+      );
+      if (!context.mounted) return;
+      await openStoryEditor(
+        context,
+        StoryEditorDraft(image: source, reshareOfStoryId: detail.id),
+      );
+    } finally {
+      image.dispose();
+    }
+  }
+
+  static Future<ui.Image> _decode(ImageProvider provider) {
+    final completer = Completer<ui.Image>();
+    final stream = provider.resolve(ImageConfiguration.empty);
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (info, _) {
+        stream.removeListener(listener);
+        completer.complete(info.image.clone());
+        info.dispose();
+      },
+      onError: (error, stack) {
+        stream.removeListener(listener);
+        completer.completeError(error, stack);
+      },
+    );
+    stream.addListener(listener);
+    return completer.future;
   }
 
   bool _ownerSheetOpen = false;
@@ -305,6 +431,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   ) => BlocConsumer<StoryViewerCubit, StoryViewerState>(
     bloc: _viewer,
     listener: (context, state) {
+      if (_popover != null && _popover!.request != state.request) {
+        _hidePopover();
+      }
       if (_replyStory != state.detail?.id) {
         _replyStory = state.detail?.id;
         if (_replyActive) _replyFocus(false);
@@ -410,45 +539,64 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       bottom: MediaQuery.viewInsetsOf(context).bottom + 16,
                       child: SafeArea(
                         top: false,
-                        child: Row(
-                          key: const ValueKey('story-other-controls'),
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Expanded(
-                              child: StoryReplyComposer(
-                                key: ValueKey(state.detail!.id),
-                                storyId: state.detail!.id,
-                                onActiveChanged: _replyFocus,
+                            if (widget.enableReshare &&
+                                state.detail!.canReshare &&
+                                !_replyActive) ...[
+                              _ReshareButton(
+                                busy: _resharing,
+                                onPressed: () => _reshare(state.detail!),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            StoryLikeButton(
-                              detail: state.detail!,
-                              likes: _likes,
-                              onError: (error) {
-                                if (mounted &&
-                                    !_closing &&
-                                    _viewer.state.request == state.request) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(error.message)),
-                                  );
-                                }
-                              },
-                            ),
-                            const SizedBox(width: 8),
-                            StoryGlass(
-                              child: SizedBox.square(
-                                dimension: 48,
-                                child: IconButton(
-                                  key: const ValueKey('story-other-options'),
-                                  tooltip: 'Story options',
-                                  icon: const Icon(
-                                    Icons.more_vert,
-                                    color: Colors.white,
+                              const SizedBox(height: 16),
+                            ],
+                            Row(
+                              key: const ValueKey('story-other-controls'),
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: StoryReplyComposer(
+                                    key: ValueKey(state.detail!.id),
+                                    storyId: state.detail!.id,
+                                    onActiveChanged: _replyFocus,
                                   ),
-                                  onPressed: _otherOptions,
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                StoryLikeButton(
+                                  detail: state.detail!,
+                                  likes: _likes,
+                                  onError: (error) {
+                                    if (mounted &&
+                                        !_closing &&
+                                        _viewer.state.request ==
+                                            state.request) {
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(content: Text(error.message)),
+                                      );
+                                    }
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                StoryGlass(
+                                  child: SizedBox.square(
+                                    dimension: 48,
+                                    child: IconButton(
+                                      key: const ValueKey(
+                                        'story-other-options',
+                                      ),
+                                      tooltip: 'Story options',
+                                      icon: const Icon(
+                                        Icons.more_vert,
+                                        color: Colors.white,
+                                      ),
+                                      onPressed: _otherOptions,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -629,23 +777,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                                 ),
                                                 if (state.detail!.createdAt !=
                                                     null)
-                                                  Text(
-                                                    timeAgo(
-                                                      state.detail!.createdAt,
-                                                    ),
-                                                    key: const ValueKey(
-                                                      'story-posting-time',
-                                                    ),
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontFamily:
-                                                          'Plus Jakarta Sans',
-                                                      color: Colors.white70,
-                                                      fontSize: 12,
-                                                    ),
-                                                  ),
+                                                  _postingTime(state.detail!),
                                               ],
                                             ),
                                           ),
@@ -672,6 +804,18 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       ],
                     ),
                   ),
+                  if (_popover != null &&
+                      state.status == StoryViewerStatus.ready)
+                    Positioned.fill(
+                      child: StoryMentionPopover(
+                        anchor: _popover!.rect,
+                        canvas: constraints.biggest,
+                        username: _popover!.username,
+                        profile: _mentionProfiles[_popover!.userId],
+                        onViewProfile: _viewMentionProfile,
+                        onDismiss: _hidePopover,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -679,5 +823,74 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         ),
       ),
     ),
+  );
+
+  static const _timeStyle = TextStyle(
+    fontFamily: 'Plus Jakarta Sans',
+    color: Colors.white70,
+    fontSize: 12,
+  );
+
+  /// "12h", or "12h • reshared from mention" (tap: the original author).
+  Widget _postingTime(StoryDetail detail) {
+    final time = timeAgo(detail.createdAt);
+    final from = widget.enableReshare ? detail.resharedFrom : null;
+    final label = Text(
+      from == null ? time : '$time • reshared from mention',
+      key: const ValueKey('story-posting-time'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: _timeStyle,
+    );
+    if (from == null) return label;
+    return Semantics(
+      button: true,
+      label: 'Reshared from ${from.user.name}. Open profile',
+      excludeSemantics: true,
+      child: GestureDetector(
+        key: const ValueKey('story-reshared-from'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _openMention(from.user.id),
+        child: label,
+      ),
+    );
+  }
+}
+
+/// Orange "Reshare" pill above the reply bar (Figma
+/// `mentioned_viewer_reshare.png`).
+class _ReshareButton extends StatelessWidget {
+  const _ReshareButton({required this.busy, required this.onPressed});
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => FilledButton.icon(
+    key: const ValueKey('story-reshare'),
+    onPressed: busy ? null : onPressed,
+    style: FilledButton.styleFrom(
+      backgroundColor: DarkColors.primaryColor,
+      foregroundColor: Colors.white,
+      disabledBackgroundColor: DarkColors.primaryColor,
+      disabledForegroundColor: Colors.white,
+      minimumSize: const Size(0, 48),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      shape: const StadiumBorder(),
+      textStyle: const TextStyle(
+        fontFamily: 'Plus Jakarta Sans',
+        fontSize: 18,
+        fontWeight: FontWeight.w500,
+      ),
+    ),
+    icon: busy
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
+            ),
+          )
+        : const Icon(Icons.repeat_rounded, size: 22),
+    label: const Text('Reshare'),
   );
 }

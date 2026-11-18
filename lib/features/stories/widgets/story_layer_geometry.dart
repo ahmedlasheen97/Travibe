@@ -1,8 +1,10 @@
+import 'dart:ui' show ImageFilter;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
+import 'package:travibe/features/stories/widgets/story_mention_text.dart';
 
 /// Shared layer geometry keeps editor hit testing, viewer rendering and the
 /// flattened export aligned. Sizes are unscaled; [StoryEditorLayer.scale] and
@@ -59,15 +61,61 @@ class StoryTextGeometry extends StoryLayerGeometry {
       color: Colors.white,
       shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
     );
-    final painter = TextPainter(
-      text: TextSpan(text: layer.text, style: style),
-      textDirection: TextDirection.ltr,
-    );
-    painter.layout(maxWidth: math.max(1, canvas.width * 0.8 - 16));
+    _maxTextWidth = math.max(1, canvas.width * 0.8 - 16);
+    final painter = _painter();
     size = painter.size + const Offset(16, 16);
     painter.dispose();
     maxScale = _maxScale(canvas, 4);
   }
+
+  static const _padding = 8.0;
+  late final double _maxTextWidth;
+
+  /// Same span, alignment and width as [content], so offsets line up.
+  TextPainter _painter() => TextPainter(
+    text: storyMentionTextSpan(layer.text, style),
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+  )..layout(maxWidth: _maxTextWidth);
+
+  /// The `@handle` under [point] (unscaled, relative to this layer's
+  /// top-left) and its rect in the same space, or null.
+  (String, Rect)? mentionAt(Offset point) {
+    final ranges = storyMentionRanges(layer.text);
+    if (ranges.isEmpty) return null;
+    final painter = _painter();
+    try {
+      final local = point - const Offset(_padding, _padding);
+      if (local.dx < 0 ||
+          local.dy < 0 ||
+          local.dx > painter.width ||
+          local.dy > painter.height) {
+        return null;
+      }
+      final offset = painter.getPositionForOffset(local).offset;
+      for (final range in ranges) {
+        if (offset < range.start || offset > range.end) continue;
+        final boxes = painter.getBoxesForSelection(
+          TextSelection(baseOffset: range.start, extentOffset: range.end),
+        );
+        if (boxes.isEmpty) continue;
+        var rect = boxes.first.toRect();
+        for (final box in boxes.skip(1)) {
+          rect = rect.expandToInclude(box.toRect());
+        }
+        // A caret position at a word edge must still land inside the handle.
+        if (!rect.inflate(2).contains(local)) continue;
+        return (
+          layer.text.substring(range.start + 1, range.end),
+          rect.shift(const Offset(_padding, _padding)),
+        );
+      }
+      return null;
+    } finally {
+      painter.dispose();
+    }
+  }
+
   final StoryTextLayer layer;
   late final TextStyle style;
   @override
@@ -80,57 +128,58 @@ class StoryTextGeometry extends StoryLayerGeometry {
 
   @override
   Widget content() => Padding(
-    padding: const EdgeInsets.all(8),
+    padding: const EdgeInsets.all(_padding),
     child: RichText(
       textDirection: TextDirection.ltr,
-      text: TextSpan(text: layer.text, style: style),
+      text: storyMentionTextSpan(layer.text, style),
       textAlign: TextAlign.center,
     ),
   );
 }
 
+/// Figma `mention_view_profile.png`: an orange `@username` in the same dark
+/// glass bubble as the story header pill. The bubble grows to fit the whole
+/// username and wraps very long ones; it is never truncated. Editor and
+/// viewer share this, so both look the same. The stored `style` is kept for
+/// older stories but no longer changes the look.
 class StoryMentionGeometry extends StoryLayerGeometry {
   StoryMentionGeometry(this.layer, Size canvas) {
     final unit = canvas.width / 390;
-    final (background, foreground) = colors(layer.style);
-    this.background = background;
     style = TextStyle(
       fontFamily: 'Plus Jakarta Sans',
       fontSize: 20 * unit,
-      fontWeight: FontWeight.w700,
-      color: foreground,
-      shadows: layer.style == StoryMentionStyle.plain
-          ? const [Shadow(color: Colors.black87, blurRadius: 3)]
-          : null,
+      fontWeight: FontWeight.w600,
+      color: DarkColors.primaryColor,
     );
-    padding = EdgeInsets.symmetric(horizontal: 12 * unit, vertical: 6 * unit);
-    radius = 8 * unit;
+    padding = EdgeInsets.symmetric(horizontal: 16 * unit, vertical: 8 * unit);
     final painter = TextPainter(
       text: TextSpan(text: layer.text, style: style),
       textDirection: TextDirection.ltr,
-      maxLines: 1,
+      textAlign: TextAlign.center,
     );
-    painter.layout(maxWidth: math.max(1, canvas.width * 0.8));
+    painter.layout(
+      maxWidth: math.max(1, canvas.width * 0.8 - padding.horizontal),
+    );
+    lines = painter.computeLineMetrics().length;
     size = Size(
       painter.width + padding.horizontal,
       painter.height + padding.vertical,
     );
     painter.dispose();
+    // A pill on one line, a rounded bubble once it wraps.
+    radius = lines <= 1 ? size.height / 2 : 20 * unit;
     maxScale = _maxScale(canvas, 4);
   }
 
-  static (Color?, Color) colors(StoryMentionStyle style) => switch (style) {
-    StoryMentionStyle.light => (Colors.white, Colors.black),
-    StoryMentionStyle.dark => (const Color(0xCC000000), Colors.white),
-    StoryMentionStyle.brand => (DarkColors.primaryColor, Colors.white),
-    StoryMentionStyle.plain => (null, Colors.white),
-  };
+  static final _blur = ImageFilter.blur(sigmaX: 10, sigmaY: 10);
 
   final StoryMentionLayer layer;
   late final TextStyle style;
-  late final Color? background;
   late final EdgeInsets padding;
   late final double radius;
+
+  /// Lines the username takes (more than one only for very long names).
+  late final int lines;
   @override
   late final Size size;
   @override
@@ -140,23 +189,34 @@ class StoryMentionGeometry extends StoryLayerGeometry {
   String get semanticLabel => 'Mention ${layer.text}';
 
   @override
-  Widget content() => DecoratedBox(
-    key: ValueKey('story-mention-${layer.style.name}'),
-    decoration: BoxDecoration(
-      color: background,
-      borderRadius: BorderRadius.circular(radius),
-    ),
-    child: Padding(
-      padding: padding,
-      child: Text(
-        layer.text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textDirection: TextDirection.ltr,
-        style: style,
+  Widget content() {
+    final shape = BorderRadius.circular(radius);
+    return ClipRRect(
+      key: const ValueKey('story-mention-sticker'),
+      borderRadius: shape,
+      child: BackdropFilter(
+        filter: _blur,
+        child: DecoratedBox(
+          // Same treatment as StoryGlass (the header pill).
+          decoration: BoxDecoration(
+            color: DarkColors.darkgreyColor.withValues(alpha: .6),
+            borderRadius: shape,
+            border: Border.all(color: Colors.white.withValues(alpha: .12)),
+          ),
+          child: Padding(
+            padding: padding,
+            child: Text(
+              layer.text,
+              softWrap: true,
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: style,
+            ),
+          ),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class StoryEmojiGeometry extends StoryLayerGeometry {

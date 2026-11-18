@@ -238,3 +238,76 @@ from it (e.g. attempts made on another device, or after the app restarts).
 `otp_too_many_attempts` code, ideally with `attempts_remaining`) directly and
 drop the device counter. With `otp_expired` the app can show "Code expired.
 Tap Resend OTP" again.
+
+## Stories: reshare from mention
+
+Figma (`docs/figma/stories/mention_sheet.png`, `mention_typing.png`,
+`mentioned_viewer_reshare.png`, `reshared_story.png`) lets a story's author
+allow the people they mention to reshare it. A mentioned viewer sees a
+**Reshare** button; the reshared story shows "12h • reshared from mention" and
+links to the original author. `docs/openapi.json` already covers mentions
+(`GET /mentions/suggestions`, `StoryDetailResource.mentions`, the
+`user_mentioned` notification) but has none of the following.
+
+### 1. `allow_reshare` on `POST /stories` and the story detail
+
+- `StoreStoryRequest.allow_reshare`: boolean, optional, default `true`.
+- `StoryDetailResource.allow_reshare`: boolean, always present.
+- Only the author sees or changes it. No update endpoint is needed (stories
+  are not editable).
+
+### 2. `can_reshare` on `StoryDetailResource`
+
+Boolean for the **current viewer**, `true` only when all of these hold:
+
+- the viewer is in the story's `mentions` (resolved, not just a handle in the text);
+- the story's `allow_reshare` is `true`;
+- the story hasn't expired;
+- there is no block between the viewer and the author, in either direction;
+- the viewer isn't the author;
+- the story is not itself a reshare (to avoid reshare chains), unless you prefer to allow them.
+
+The client shows the button only from this flag, so the rules stay on the server.
+
+### 3. `reshare_of_story_id` on `POST /stories`
+
+- `StoreStoryRequest.reshare_of_story_id`: integer, nullable.
+- The server re-checks the `can_reshare` rules for the caller against that
+  story and returns `422` with a `reshare_of_story_id` validation error when
+  they fail (expired, not mentioned, resharing turned off, blocked, deleted).
+- The reshare is an ordinary story otherwise: it carries its own
+  `media_ids` (the client renders the original photo into the new upload),
+  `elements`, `visibility` and 24-hour expiry. Deleting the original does not
+  delete the reshare.
+
+### 4. `reshared_from` on `StoryDetailResource`
+
+```json
+"reshared_from": {
+  "story_id": 123,
+  "user": { "...": "PublicUserResource of the original author" }
+}
+```
+
+- `null` when the story isn't a reshare.
+- If the viewer and the original author are in a block relationship, return
+  `null` (the header then reads as a normal story).
+- It is still returned after the original expires or is deleted. The header
+  only needs the author.
+
+### 5. Optional: `story_reshared` notification
+
+Notify the original author when someone reshares their story. Use
+`target_type: story` with `target_id` set to the reshare, and include
+`preview.thumbnail_url`.
+
+**Client today:** everything above is built behind `kEnableStoryReshare`
+(`lib/core/constants/feature_flags.dart`), which is `false`. The Mention sheet
+and inline `@` suggestions work without it (they use only documented
+endpoints). The reshare toggle, the Reshare button, the "reshared from
+mention" header and the extra `POST /stories` fields stay hidden or unsent.
+`StoryDetail` already parses `allow_reshare`, `can_reshare` and
+`reshared_from` when present.
+
+**Client after:** flip `kEnableStoryReshare` to `true`. No other client
+change is needed if the field names above are kept.

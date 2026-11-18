@@ -71,14 +71,20 @@ the sticker position.
 - Stickers (mention and emoji) can be dragged, pinched to scale and twisted to
   rotate. Drop one on the trash target to delete it. Text stays unrotated, as
   before.
-- Tapping a mention cycles its style. Tapping text edits it. Tapping an emoji
-  does nothing.
+- Mention stickers match Figma `mention_view_profile.png`: an orange full
+  `@username` in the dark glass bubble used by the story header pill. The
+  bubble grows to fit and wraps very long usernames; it is never truncated.
+  The editor and viewer render it the same way. The stored `mention.style`
+  is still written (`light`) and read for older stories, but it no longer
+  changes the look. Tapping text edits it; tapping a sticker does nothing.
 - Draw mode hides the tools, audience and Post. It shows Undo and Done, a
   7-colour palette and a 2–24px brush slider. The stroke in progress stays local
   until the finger lifts.
 - Caps: 50 elements (text and mentions), 30 emojis.
-- In the viewer, a tap on a mention that resolves through `detail.mentions`
-  opens `ProfileScreen.open`. A tap on an unresolved mention works as a normal
+- In the viewer, a tap on a mention (sticker or `@handle` in text) that
+  resolves through `detail.mentions` pauses the story and shows the "View
+  profile" card, which opens `ProfileScreen.open`. A tap elsewhere closes the
+  card and resumes. A tap on an unresolved mention works as a normal
   previous/next tap.
 
 ## Known limitation

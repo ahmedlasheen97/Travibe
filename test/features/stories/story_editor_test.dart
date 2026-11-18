@@ -158,7 +158,7 @@ void main() {
     await tester.tap(overlay(tester));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Unsaved');
-    await tester.tap(find.text('Cancel'));
+    await tester.tap(find.byKey(const ValueKey('story-text-cancel')));
     await tester.pumpAndSettle();
     expect(textLayer(tester), same(before));
   });
