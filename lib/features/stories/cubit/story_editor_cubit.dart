@@ -4,17 +4,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
+import 'package:travibe/features/stories/data/story_elements.dart';
 
 class StoryEditorCubit extends Cubit<StoryEditorDraft> {
   StoryEditorCubit(super.initialState);
   int _nextId = 0;
 
-  /// Text + mention layers are API elements (max 50).
+  /// Text layers (and the hidden mentions element) are API elements (max 50).
   static const maxElements = 50;
   static const maxEmojis = 30;
 
+  /// Text layers, plus one element for hidden mentions when there are any.
   int get elementCount =>
-      state.layers.where((layer) => layer is! StoryEmojiLayer).length;
+      state.layers.whereType<StoryTextLayer>().length +
+      (state.mentions.isEmpty ? 0 : 1);
   int get emojiCount => state.layers.whereType<StoryEmojiLayer>().length;
 
   String _newId(String prefix) {
@@ -52,85 +55,35 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
     );
   }
 
-  /// Returns false when the user has no username/id or the cap is reached.
-  bool addMention(PublicUserModel user) {
-    final userId = int.tryParse(user.id);
-    final username = user.username?.trim() ?? '';
-    if (isClosed ||
-        userId == null ||
-        userId <= 0 ||
-        username.isEmpty ||
-        elementCount >= maxElements) {
-      return false;
-    }
-    emit(
-      state.withLayers([
-        ...state.layers,
-        StoryMentionLayer(
-          id: _newId('mention'),
-          userId: userId,
-          username: username,
-        ),
-      ]),
-    );
-    return true;
-  }
-
-  /// Mention sheet "Add": keeps stickers for users still selected (with
-  /// their position and style), removes unchecked ones and places new ones
-  /// near the centre, stacked so they don't cover each other. Returns how
-  /// many selected users could not be added (no id/username or the cap).
-  int syncMentions(List<PublicUserModel> users) {
+  /// Mention sheet "Add": the people picked with the @ tool. Nothing is drawn
+  /// on the story; they are sent as hidden mentions. Returns how many could
+  /// not be kept (no id/username, or over [StoryElements.maxMentions]).
+  int setMentions(List<PublicUserModel> users) {
     if (isClosed) return users.length;
-    final wanted = <int, String>{};
+    final mentions = <int, StoryMentionedUser>{};
     var rejected = 0;
     for (final user in users) {
-      final userId = int.tryParse(user.id);
+      final id = int.tryParse(user.id);
       final username = user.username?.trim() ?? '';
-      if (userId == null || userId <= 0 || username.isEmpty) {
+      if (id == null || id <= 0 || username.isEmpty) {
         rejected++;
-      } else {
-        wanted.putIfAbsent(userId, () => username);
-      }
-    }
-    final kept = <StoryEditorLayer>[];
-    final present = <int>{};
-    for (final layer in state.layers) {
-      if (layer is StoryMentionLayer) {
-        if (!wanted.containsKey(layer.userId) || !present.add(layer.userId)) {
-          continue;
+      } else if (!mentions.containsKey(id)) {
+        if (mentions.length >= StoryElements.maxMentions) {
+          rejected++;
+        } else {
+          mentions[id] = StoryMentionedUser(id: id, username: username);
         }
       }
-      kept.add(layer);
     }
-    var elements = kept.where((layer) => layer is! StoryEmojiLayer).length;
-    var placed = 0;
-    for (final entry in wanted.entries) {
-      if (present.contains(entry.key)) continue;
-      if (elements >= maxElements) {
-        rejected++;
-        continue;
-      }
-      kept.add(
-        StoryMentionLayer(
-          id: _newId('mention'),
-          userId: entry.key,
-          username: entry.value,
-          center: Offset(0.5, (0.5 + placed * 0.08).clamp(0.1, 0.9)),
-        ),
-      );
-      elements++;
-      placed++;
+    // The hidden element counts towards the 50-element cap.
+    if (mentions.isNotEmpty &&
+        state.mentions.isEmpty &&
+        elementCount >= maxElements) {
+      return users.length;
     }
-    emit(state.withLayers(kept));
+    emit(state.withMentions(mentions.values.toList()));
     return rejected;
   }
-
-  /// Users with a sticker on the story, in sticker order.
-  List<({int id, String username})> get mentionedUsers => [
-    for (final layer in state.layers.whereType<StoryMentionLayer>())
-      (id: layer.userId, username: layer.username),
-  ];
 
   void setAllowReshare(bool allow) {
     if (isClosed || state.allowReshare == allow) return;

@@ -74,59 +74,12 @@ class StoryTextLayer extends StoryEditorLayer {
   }) => copyWith(center: center, scale: scale);
 }
 
-/// Tapping a mention sticker cycles through these.
-enum StoryMentionStyle {
-  light,
-  dark,
-  brand,
-  plain;
-
-  StoryMentionStyle get next => values[(index + 1) % values.length];
-
-  static StoryMentionStyle parse(Object? name) => values.firstWhere(
-    (style) => style.name == name,
-    orElse: () => StoryMentionStyle.light,
-  );
-}
-
-class StoryMentionLayer extends StoryEditorLayer {
-  const StoryMentionLayer({
-    required super.id,
-    required this.userId,
-    required this.username,
-    this.style = StoryMentionStyle.light,
-    super.center,
-    super.scale,
-    super.rotation,
-  });
-
-  final int userId;
+/// Someone mentioned with the @ tool. Nothing is drawn on the story; the
+/// API still reads them as mentions and notifies them.
+class StoryMentionedUser {
+  const StoryMentionedUser({required this.id, required this.username});
+  final int id;
   final String username;
-  final StoryMentionStyle style;
-
-  String get text => '@$username';
-
-  StoryMentionLayer copyWith({
-    StoryMentionStyle? style,
-    Offset? center,
-    double? scale,
-    double? rotation,
-  }) => StoryMentionLayer(
-    id: id,
-    userId: userId,
-    username: username,
-    style: style ?? this.style,
-    center: center ?? this.center,
-    scale: scale ?? this.scale,
-    rotation: rotation ?? this.rotation,
-  );
-
-  @override
-  StoryMentionLayer transformed({
-    required Offset center,
-    required double scale,
-    required double rotation,
-  }) => copyWith(center: center, scale: scale, rotation: rotation);
 }
 
 /// Flattened into the uploaded photo; never sent as an element.
@@ -175,15 +128,20 @@ class StoryEditorDraft {
     List<StoryEditorLayer> layers = const [],
     List<StoryStroke> strokes = const [],
     this.audience = StoryAudience.public,
+    List<StoryMentionedUser> mentions = const [],
     this.allowReshare = true,
     this.reshareOfStoryId,
   }) : layers = List.unmodifiable(layers),
-       strokes = List.unmodifiable(strokes);
+       strokes = List.unmodifiable(strokes),
+       mentions = List.unmodifiable(mentions);
 
   final StorySourceImage image;
   final List<StoryEditorLayer> layers;
   final List<StoryStroke> strokes;
   final StoryAudience audience;
+
+  /// People picked with the @ tool (hidden mentions).
+  final List<StoryMentionedUser> mentions;
 
   /// "People you mention can reshare this story". Sent only while
   /// `kEnableStoryReshare` is on.
@@ -200,12 +158,14 @@ class StoryEditorDraft {
     List<StoryEditorLayer>? layers,
     List<StoryStroke>? strokes,
     StoryAudience? audience,
+    List<StoryMentionedUser>? mentions,
     bool? allowReshare,
   }) => StoryEditorDraft(
     image: image,
     layers: layers ?? this.layers,
     strokes: strokes ?? this.strokes,
     audience: audience ?? this.audience,
+    mentions: mentions ?? this.mentions,
     allowReshare: allowReshare ?? this.allowReshare,
     reshareOfStoryId: reshareOfStoryId,
   );
@@ -218,6 +178,9 @@ class StoryEditorDraft {
 
   StoryEditorDraft withAudience(StoryAudience audience) =>
       _copy(audience: audience);
+
+  StoryEditorDraft withMentions(List<StoryMentionedUser> mentions) =>
+      _copy(mentions: mentions);
 
   StoryEditorDraft withAllowReshare(bool allowReshare) =>
       _copy(allowReshare: allowReshare);

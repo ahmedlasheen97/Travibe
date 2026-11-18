@@ -23,6 +23,7 @@ class StoryMentionPopover extends StatelessWidget {
   const StoryMentionPopover({
     super.key,
     required this.anchor,
+    required this.target,
     required this.canvas,
     required this.username,
     required this.profile,
@@ -30,8 +31,12 @@ class StoryMentionPopover extends StatelessWidget {
     required this.onDismiss,
   });
 
-  /// The mention's bounds, canvas-local.
+  /// The text bubble the card sits under (or above, near the bottom),
+  /// canvas-local.
   final Rect anchor;
+
+  /// The tapped `@username`; the pointer aims at its centre.
+  final Rect target;
   final Size canvas;
   final String username;
   final StoryMentionProfile? profile;
@@ -49,14 +54,14 @@ class StoryMentionPopover extends StatelessWidget {
         anchor.bottom + _gap + _pointer + _height <= canvas.height - 96 ||
         anchor.top - _gap - _pointer - _height < 0;
     final maxLeft = canvas.width - width - _margin;
-    final left = (anchor.center.dx - width / 2).clamp(
+    final left = (target.center.dx - width / 2).clamp(
       _margin,
       maxLeft < _margin ? _margin : maxLeft,
     );
     final top = below
         ? anchor.bottom + _gap
         : anchor.top - _gap - _pointer - _height;
-    final pointerX = (anchor.center.dx - left).clamp(20.0, width - 20.0);
+    final pointerX = (target.center.dx - left).clamp(20.0, width - 20.0);
     final card = Material(
       color: DarkColors.darkgreyColor.withValues(alpha: 0.92),
       borderRadius: BorderRadius.circular(16),

@@ -89,47 +89,40 @@ void main() {
       expect(cubit.elementCount, 1);
     });
 
-    test('mention requires a username and a numeric id', () {
+    test('setMentions keeps picked people hidden: nothing is drawn', () {
       final cubit = StoryEditorCubit(draft());
       addTearDown(cubit.close);
-      expect(cubit.addMention(user(6, null)), isFalse);
-      expect(cubit.addMention(user(5, 'sara')), isTrue);
-      final mention = cubit.state.layers.single as StoryMentionLayer;
-      expect(mention.text, '@sara');
-      expect(mention.userId, 5);
-      expect(mention.style, StoryMentionStyle.light);
-      // Mentions are elements, not flattened content.
-      expect(cubit.state.hasFlattenedContent, isFalse);
-    });
-
-    test('syncMentions keeps, removes and adds stickers to match', () {
-      final cubit = StoryEditorCubit(draft());
-      addTearDown(cubit.close);
-      expect(cubit.syncMentions([user(5, 'sara'), user(7, 'omar')]), 0);
-      final sara = cubit.state.layers.whereType<StoryMentionLayer>().first;
+      expect(cubit.setMentions([user(5, 'sara'), user(7, 'omar')]), 0);
+      expect(cubit.state.layers, isEmpty);
+      expect(cubit.state.mentions.map((m) => m.username), ['sara', 'omar']);
+      // One hidden element carries them all.
+      expect(cubit.elementCount, 1);
+      // No username (rejected), duplicates collapse, unchecked are dropped.
       expect(
-        cubit.state.layers.whereType<StoryMentionLayer>().map((l) => l.text),
-        ['@sara', '@omar'],
-      );
-      // New stickers are stacked, not on top of each other.
-      final centers = cubit.state.layers.map((l) => l.center).toSet();
-      expect(centers, hasLength(2));
-      cubit.commitTransform(sara.id, const Offset(.2, .3), 2);
-      // Uncheck omar, keep sara (with her move and scale), add one without a
-      // username (rejected) and a new one.
-      expect(
-        cubit.syncMentions([user(5, 'sara'), user(6, null), user(8, 'nour')]),
+        cubit.setMentions([
+          user(5, 'sara'),
+          user(6, null),
+          user(5, 'sara'),
+          user(8, 'nour'),
+        ]),
         1,
       );
-      final layers = cubit.state.layers.cast<StoryMentionLayer>();
-      expect(layers.map((l) => l.text), ['@sara', '@nour']);
-      expect(layers.first.id, sara.id);
-      expect(layers.first.center, const Offset(.2, .3));
-      expect(layers.first.scale, 2);
-      expect(cubit.mentionedUsers.map((u) => u.id), [5, 8]);
+      expect(cubit.state.mentions.map((m) => m.id), [5, 8]);
+      expect(cubit.state.hasFlattenedContent, isFalse);
+      expect(cubit.setMentions(const []), 0);
+      expect(cubit.state.mentions, isEmpty);
+      expect(cubit.elementCount, 0);
       expect(cubit.state.allowReshare, isTrue);
       cubit.setAllowReshare(false);
       expect(cubit.state.allowReshare, isFalse);
+    });
+
+    test('at most 10 mentions are kept (the API stores 10)', () {
+      final cubit = StoryEditorCubit(draft());
+      addTearDown(cubit.close);
+      final many = [for (var i = 1; i <= 12; i++) user(i, 'user$i')];
+      expect(cubit.setMentions(many), 2);
+      expect(cubit.state.mentions, hasLength(StoryElements.maxMentions));
     });
 
     test(
@@ -201,8 +194,8 @@ void main() {
   group('mention payload', () {
     StoryEditorDraft composed() {
       final cubit = StoryEditorCubit(draft());
-      cubit.saveText('Paris');
-      cubit.addMention(user(5, 'sara'));
+      cubit.saveText('Paris with @omar');
+      cubit.setMentions([user(5, 'sara'), user(8, 'sarah.k')]);
       cubit.addEmoji('🌍');
       cubit.addStroke(
         StoryStroke(
@@ -211,60 +204,62 @@ void main() {
           width: .02,
         ),
       );
-      final mention = cubit.state.layers[1];
-      cubit.commitTransform(
-        mention.id,
-        const Offset(.3, .6),
-        1.5,
-        rotation: .25,
-      );
       final state = cubit.state;
       cubit.close();
       return state;
     }
 
-    test('mention is a v1 text element; emojis and strokes are not sent', () {
+    test('hidden mentions ride on one invisible v1 text element', () {
       final json = CreateStoryRequest(mediaId: 19, draft: composed()).toJson();
       final elements = json['elements'] as List;
       expect(elements, hasLength(2));
-      final mention = elements[1] as Map<String, dynamic>;
-      expect(mention['type'], 'text');
-      // The API parses @username out of text elements and notifies the user.
-      expect(mention['text'], '@sara');
-      expect(mention['position'], {'x': .3, 'y': .6});
-      expect(mention['scale'], 1.5);
-      expect(mention['rotation'], .25);
-      expect(mention['mention'], {
-        'user_id': 5,
-        'username': 'sara',
-        'style': 'light',
-      });
-      // Identical v1 style keeps older app builds able to render it.
-      expect(mention['style'], StoryElements.style);
-      expect(elements.first['text'], 'Paris');
-      expect((elements.first as Map).containsKey('mention'), isFalse);
+      // Aa text keeps its @username; the API parses it from `text`.
+      expect(elements.first['text'], 'Paris with @omar');
+      final hidden = elements[1] as Map<String, dynamic>;
+      expect(hidden['id'], StoryElements.mentionsId);
+      expect(hidden['type'], 'text');
+      // The API also reads `content`, so these users are mentioned/notified.
+      expect(hidden['content'], '@sara @sarah.k');
+      expect(hidden['text'], '\u200B');
+      expect(hidden['mentions'], [
+        {'user_id': 5, 'username': 'sara'},
+        {'user_id': 8, 'username': 'sarah.k'},
+      ]);
+      // Identical v1 style keeps older app builds able to read it, and the
+      // zero-width text isn't "empty" to them, so they draw nothing.
+      expect(hidden['style'], StoryElements.style);
+      expect('\u200B'.trim(), isNotEmpty);
       expect(jsonEncode(json), isNot(contains('🌍')));
     });
 
-    test('decode round-trips mentions and keeps plain text decoding', () {
-      final encoded = StoryElements.encode(composed().layers);
+    test('decode hides the mentions element and keeps text', () {
+      final encoded = StoryElements.encode(
+        composed().layers,
+        mentions: composed().mentions,
+      );
       final restored = StoryElements.decode(jsonDecode(jsonEncode(encoded)));
-      expect(restored, hasLength(2));
-      expect((restored.first as StoryTextLayer).text, 'Paris');
-      final mention = restored[1] as StoryMentionLayer;
-      expect(mention.userId, 5);
-      expect(mention.username, 'sara');
-      expect(mention.style, StoryMentionStyle.light);
-      expect(mention.rotation, .25);
-      expect(mention.center, const Offset(.3, .6));
+      expect(restored, hasLength(1));
+      expect((restored.single as StoryTextLayer).text, 'Paris with @omar');
     });
 
-    test('mismatched mention metadata degrades to plain text', () {
-      final encoded = StoryElements.encode(composed().layers);
-      encoded[1]['text'] = '@someone_else';
-      final restored = StoryElements.decode(jsonDecode(jsonEncode(encoded)));
-      expect(restored[1], isA<StoryTextLayer>());
-      expect((restored[1] as StoryTextLayer).text, '@someone_else');
+    test('stickers from earlier builds show as text with the @username', () {
+      final legacy = [
+        {
+          'version': 1,
+          'id': 'story-mention-1',
+          'type': 'text',
+          'text': '@sara',
+          'position': {'x': .3, 'y': .6},
+          'scale': 1.5,
+          'style': StoryElements.style,
+          'rotation': .25,
+          'mention': {'user_id': 5, 'username': 'sara', 'style': 'dark'},
+        },
+      ];
+      final restored = StoryElements.decode(legacy).single as StoryTextLayer;
+      expect(restored.text, '@sara');
+      expect(restored.center, const Offset(.3, .6));
+      expect(restored.scale, 1.5);
     });
 
     test(
@@ -286,11 +281,7 @@ void main() {
   });
 
   group('editor screen', () {
-    Future<void> show(
-      WidgetTester tester, {
-      MentionsRepo? search,
-      bool enableReshare = false,
-    }) async {
+    Future<void> show(WidgetTester tester, {MentionsRepo? search}) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -302,7 +293,6 @@ void main() {
             home: StoryEditorScreen(
               draft: draft(),
               mentionsRepo: search ?? FakeMentionsRepo(),
-              enableReshare: enableReshare,
             ),
           ),
         ),
@@ -396,11 +386,15 @@ void main() {
         .widget<FilledButton>(find.byKey(const ValueKey('story-mention-add')))
         .enabled;
 
-    testWidgets('mention sheet: followed people, search, multi-select, Add', (
+    Finder badge() => find.byKey(const ValueKey('story-mention-count'));
+    Finder toggle() => find.byKey(const ValueKey('story-reshare-toggle'));
+
+    testWidgets('@ = hidden mention: picked people, no sticker, count badge', (
       tester,
     ) async {
       final search = FakeMentionsRepo();
       await show(tester, search: search);
+      expect(badge(), findsNothing);
       await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
       await tester.pumpAndSettle();
       expect(find.text('Mention'), findsOneWidget);
@@ -410,8 +404,6 @@ void main() {
       expect(row(5), findsOneWidget);
       expect(row(7), findsOneWidget);
       expect(find.text('@sara'), findsOneWidget);
-      // Reshare toggle is behind the flag.
-      expect(find.byKey(const ValueKey('story-reshare-toggle')), findsNothing);
       expect(addEnabled(tester), isFalse);
 
       await tester.enterText(
@@ -428,46 +420,19 @@ void main() {
       expect(addEnabled(tester), isTrue);
       await tester.tap(find.byKey(const ValueKey('story-mention-add')));
       await tester.pumpAndSettle();
-      final mentions = current(tester).layers.cast<StoryMentionLayer>();
-      expect(mentions.map((m) => m.text), ['@sara', '@sarah.k']);
-      // Figma glass bubble with an orange, full @username.
-      expect(
-        find.byKey(const ValueKey('story-mention-sticker')),
-        findsNWidgets(2),
-      );
-      final label = tester.widget<Text>(find.text('@sarah.k'));
-      expect(label.style!.color, DarkColors.primaryColor);
-      expect(label.maxLines, isNull);
-      expect(label.overflow, isNull);
-      // Tapping a sticker in the editor no longer restyles it.
-      final first = mentions.first;
-      await tester.tap(find.byKey(ValueKey('story-layer-${first.id}')));
-      await tester.pumpAndSettle();
-      final after = current(tester).layers.first as StoryMentionLayer;
-      expect(after.id, first.id);
-      expect(after.style, first.style);
-      expect(after.center, first.center);
-      expect(after.scale, first.scale);
-    });
 
-    test('sticker bubble grows to fit the username and wraps long ones', () {
-      const canvas = Size(390, 844);
-      StoryMentionGeometry geometry(String username) => StoryMentionGeometry(
-        StoryMentionLayer(id: 'm', userId: 1, username: username),
-        canvas,
+      // Nothing is placed on the story; the users are kept as mentions.
+      expect(current(tester).layers, isEmpty);
+      expect(find.text('@sara'), findsNothing);
+      expect(current(tester).mentions.map((m) => m.username), [
+        'sara',
+        'sarah.k',
+      ]);
+      expect(
+        find.descendant(of: badge(), matching: find.text('2')),
+        findsOneWidget,
       );
-      final short = geometry('sara');
-      final longer = geometry('sarakhaled12');
-      expect(short.lines, 1);
-      expect(longer.lines, 1);
-      expect(longer.size.width, greaterThan(short.size.width));
-      // One line: a pill.
-      expect(short.radius, short.size.height / 2);
-      final huge = geometry('a_very_long_username_that_keeps_going_and_going');
-      expect(huge.lines, greaterThan(1));
-      expect(huge.size.height, greaterThan(short.size.height));
-      expect(huge.size.width, lessThanOrEqualTo(canvas.width * 0.8));
-      expect(short.style.color, DarkColors.primaryColor);
+      expect(find.byTooltip('Mentioned: @sara, @sarah.k'), findsOneWidget);
     });
 
     testWidgets('reopening shows the selection checked; uncheck removes it', (
@@ -481,7 +446,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const ValueKey('story-mention-add')));
       await tester.pumpAndSettle();
-      expect(current(tester).layers, hasLength(2));
+      expect(current(tester).mentions, hasLength(2));
 
       await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
       await tester.pumpAndSettle();
@@ -504,30 +469,128 @@ void main() {
       expect(fill(7), Colors.transparent);
       await tester.tap(find.byKey(const ValueKey('story-mention-add')));
       await tester.pumpAndSettle();
+      expect(current(tester).mentions.map((m) => m.username), ['sara']);
       expect(
-        current(tester).layers.cast<StoryMentionLayer>().map((m) => m.text),
-        ['@sara'],
+        find.descendant(of: badge(), matching: find.text('1')),
+        findsOneWidget,
       );
     });
 
-    testWidgets('with the flag on, the sheet toggle sets allowReshare', (
+    testWidgets('a picked user missing from suggestions still shows checked', (
       tester,
     ) async {
-      await show(tester, enableReshare: true);
+      final search = FakeMentionsRepo();
+      await show(tester, search: search);
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('story-mention-search')),
+        'sarah',
+      );
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      await tester.tap(row(8));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.pumpAndSettle();
+      // Not followed, so not in the no-query list; it is listed on top.
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      expect(row(8), findsOneWidget);
+      expect(
+        tester.getTopLeft(row(8)).dy,
+        lessThan(tester.getTopLeft(row(5)).dy),
+      );
+    });
+
+    testWidgets('reshare toggle sits right above Add and is stored', (
+      tester,
+    ) async {
+      await show(tester);
       await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
       await tester.pumpAndSettle();
       expect(
         find.text('People you mention can reshare this story'),
         findsOneWidget,
       );
-      final toggle = find.byKey(const ValueKey('story-reshare-toggle'));
-      expect(tester.widget<Switch>(toggle).value, isTrue);
-      await tester.tap(toggle);
+      final add = find.byKey(const ValueKey('story-mention-add'));
+      expect(
+        tester.getBottomLeft(toggle()).dy,
+        lessThan(tester.getTopLeft(add).dy),
+      );
+      expect(
+        tester.getTopLeft(add).dy - tester.getBottomLeft(toggle()).dy,
+        lessThan(32),
+      );
+      expect(tester.widget<Switch>(toggle()).value, isTrue);
+      await tester.tap(toggle());
       await tester.tap(row(5));
       await tester.pump();
-      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.tap(add);
       await tester.pumpAndSettle();
       expect(current(tester).allowReshare, isFalse);
+      // Reopening keeps the stored value.
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Switch>(toggle()).value, isFalse);
+    });
+
+    testWidgets('no more than 10 people can be checked', (tester) async {
+      final search = FakeMentionsRepo()
+        ..followed = [for (var i = 1; i <= 11; i++) user(i, 'user$i')];
+      await show(tester, search: search);
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      for (var i = 1; i <= 11; i++) {
+        await tester.ensureVisible(row(i));
+        await tester.tap(row(i));
+        await tester.pump();
+      }
+      expect(find.text('You can mention up to 10 people.'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('story-mention-add')));
+      await tester.pumpAndSettle();
+      expect(current(tester).mentions, hasLength(10));
+      expect(current(tester).mentions.map((m) => m.id), isNot(contains(11)));
+    });
+
+    testWidgets('Aa text is a glass bubble with the @username in orange', (
+      tester,
+    ) async {
+      await show(tester);
+      await tester.tap(find.byKey(const ValueKey('story-text-tool')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('story-text-input')),
+        'Best coffee with my best friend @sarakhaled12',
+      );
+      await tester.tap(find.byKey(const ValueKey('story-text-done')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('story-text-bubble')), findsOneWidget);
+      final text = tester.widget<RichText>(
+        find.descendant(
+          of: find.byKey(const ValueKey('story-text-bubble')),
+          matching: find.byType(RichText),
+        ),
+      );
+      final parts = (text.text as TextSpan).children!.cast<TextSpan>();
+      expect(parts.first.style?.color, isNull); // inherits white
+      expect((text.text as TextSpan).style!.color, Colors.white);
+      expect(parts.last.text, '@sarakhaled12');
+      expect(parts.last.style!.color, DarkColors.primaryColor);
+    });
+
+    test('text bubble: dark glass, rounded, never wider than 80%', () {
+      const canvas = Size(390, 844);
+      StoryTextGeometry geometry(String text) =>
+          StoryTextGeometry(StoryTextLayer(id: 't', text: text), canvas);
+      final short = geometry('Hi');
+      expect(short.lines, 1);
+      expect(short.radius, short.size.height / 2);
+      final long = geometry('Best coffee with my best friend @sarakhaled12');
+      expect(long.lines, greaterThan(1));
+      expect(long.size.width, lessThanOrEqualTo(canvas.width * 0.8));
+      expect(long.radius, lessThan(long.size.height / 2));
+      expect(long.style.color, Colors.white);
     });
 
     testWidgets('draw mode hides tools, records strokes, undo and done', (

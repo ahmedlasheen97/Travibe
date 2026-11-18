@@ -8,6 +8,7 @@ import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/models/public_user_model.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -21,7 +22,6 @@ import 'package:travibe/features/stories/widgets/story_text_entry.dart';
 import 'package:travibe/features/stories/widgets/story_audience_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_emoji_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_mention_sheet.dart';
-import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/stories/data/mentions_repo.dart';
 
 /// Draw-mode palette: white, black, orange, red, yellow, green, blue.
@@ -48,7 +48,6 @@ class StoryEditorScreen extends StatefulWidget {
     this.onPublished,
     this.onSubmit,
     this.exporter,
-    this.enableReshare = kEnableStoryReshare,
   });
 
   final StoryEditorDraft draft;
@@ -60,8 +59,6 @@ class StoryEditorScreen extends StatefulWidget {
   /// `GET /mentions/suggestions`.
   final MentionsRepo? mentionsRepo;
 
-  /// Shows "People you mention can reshare this story".
-  final bool enableReshare;
   final Future<void> Function()? onPublished;
 
   /// Background publishing (Home): Post hands the Story over and the editor
@@ -100,7 +97,10 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       return;
     }
     try {
-      StoryElements.encode(_editor.state.layers);
+      StoryElements.encode(
+        _editor.state.layers,
+        mentions: _editor.state.mentions,
+      );
     } on FormatException catch (e) {
       TravibeToast.show(context, TravibeToastData.error(e.message));
       return;
@@ -152,18 +152,23 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
         context,
         repo: _mentions,
         selected: [
-          for (final user in _editor.mentionedUsers)
-            storyMentionUser(user.id, user.username),
+          for (final user in _editor.state.mentions)
+            _picked[user.id] ?? storyMentionUser(user.id, user.username),
         ],
         allowReshare: _editor.state.allowReshare,
-        enableReshare: widget.enableReshare,
       );
       if (!mounted || selection == null) return;
       _editor.setAllowReshare(selection.allowReshare);
-      final rejected = _editor.syncMentions(selection.users);
+      for (final user in selection.users) {
+        final id = int.tryParse(user.id);
+        if (id != null) _picked[id] = user;
+      }
+      // Hidden mentions: nothing is drawn; the @ button shows the count.
+      final rejected = _editor.setMentions(selection.users);
       if (rejected > 0) {
         _snack(
-          _editor.elementCount >= StoryEditorCubit.maxElements
+          _editor.state.mentions.isEmpty &&
+                  _editor.elementCount >= StoryEditorCubit.maxElements
               ? 'A Story can contain at most 50 text elements.'
               : 'Some people can\'t be mentioned.',
         );
@@ -174,6 +179,9 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
   }
 
   late final _mentions = widget.mentionsRepo ?? MentionsRepo();
+
+  /// Names and avatars of people picked in the sheet, for reopening it.
+  final _picked = <int, PublicUserModel>{};
 
   Future<void> _addEmoji() async {
     if (_sheetOpen || _drawing || _publisher.state.busy) return;
@@ -215,7 +223,6 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
         text: layer?.text,
         mentionsRepo: _mentions,
         allowReshare: _editor.state.allowReshare,
-        enableReshare: widget.enableReshare,
       );
       if (mounted && result != null) {
         _editor.setAllowReshare(result.allowReshare);
@@ -430,12 +437,15 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                                           text: 'Aa',
                                           onPressed: _editText,
                                         ),
-                                        _tool(
-                                          'story-mention-tool',
-                                          'Mention someone',
-                                          svg:
-                                              'assets/images/icons/mention_glyph.svg',
-                                          onPressed: _addMention,
+                                        BlocSelector<
+                                          StoryEditorCubit,
+                                          StoryEditorDraft,
+                                          List<StoryMentionedUser>
+                                        >(
+                                          bloc: _editor,
+                                          selector: (draft) => draft.mentions,
+                                          builder: (context, mentioned) =>
+                                              _mentionTool(mentioned),
                                         ),
                                         _tool(
                                           'story-emoji-tool',
@@ -511,6 +521,52 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
           : Icon(icon, size: 24),
     ),
   );
+
+  /// The @ tool, with a count badge for hidden mentions.
+  Widget _mentionTool(List<StoryMentionedUser> mentioned) {
+    final tool = _tool(
+      'story-mention-tool',
+      mentioned.isEmpty
+          ? 'Mention someone'
+          : 'Mentioned: ${mentioned.map((m) => '@${m.username}').join(', ')}',
+      svg: 'assets/images/icons/mention_glyph.svg',
+      onPressed: _addMention,
+    );
+    if (mentioned.isEmpty) return tool;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        tool,
+        Positioned(
+          top: -4,
+          right: -4,
+          child: IgnorePointer(
+            child: Container(
+              key: const ValueKey('story-mention-count'),
+              constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: DarkColors.primaryColor,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.black, width: 1.5),
+              ),
+              child: Text(
+                '${mentioned.length}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontFamily: 'Plus Jakarta Sans',
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  height: 1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   static const _drawLabel = TextStyle(
     fontFamily: 'Plus Jakarta Sans',

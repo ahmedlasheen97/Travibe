@@ -60,10 +60,7 @@ void main() {
   });
 
   group('typing @ in story text', () {
-    Future<FakeMentionsRepo> show(
-      WidgetTester tester, {
-      bool enableReshare = false,
-    }) async {
+    Future<FakeMentionsRepo> show(WidgetTester tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -73,11 +70,7 @@ void main() {
         withScreenUtil(
           MaterialApp(
             theme: ThemeData.dark(useMaterial3: true),
-            home: StoryEditorScreen(
-              draft: draft(),
-              mentionsRepo: repo,
-              enableReshare: enableReshare,
-            ),
+            home: StoryEditorScreen(draft: draft(), mentionsRepo: repo),
           ),
         ),
       );
@@ -128,10 +121,10 @@ void main() {
           find.byKey(const ValueKey('story-mention-suggestion-7')),
           findsNothing,
         );
-        // Flag off: no reshare toggle in the panel.
+        // Figma: the reshare toggle sits under the suggestions.
         expect(
           find.byKey(const ValueKey('story-reshare-toggle')),
-          findsNothing,
+          findsOneWidget,
         );
 
         await type(tester, 'Best coffee with @sarah');
@@ -171,7 +164,7 @@ void main() {
     testWidgets(
       'with the flag on, the same reshare toggle shows while typing',
       (tester) async {
-        await show(tester, enableReshare: true);
+        await show(tester);
         await type(tester, '@om');
         final toggle = find.byKey(const ValueKey('story-reshare-toggle'));
         expect(toggle, findsOneWidget);
