@@ -186,7 +186,7 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
       return;
     }
     try {
-      StoryElements.encode(draft.layers);
+      StoryElements.encode(draft.layers, mentions: draft.mentions);
     } on FormatException catch (e) {
       emit(
         StoryPublishState(

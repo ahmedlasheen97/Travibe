@@ -2,12 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/features/stories/data/story_elements.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/stories/data/mentions_repo.dart';
 
@@ -22,13 +23,13 @@ class StoryMentionSelection {
 }
 
 /// The @ tool's multi-select sheet (Figma `mention_sheet.png`). [selected]
-/// are the users already mentioned; they start checked.
+/// are the users already mentioned; they start checked. Picked people are
+/// mentioned without anything drawn on the story.
 Future<StoryMentionSelection?> showStoryMentionSheet(
   BuildContext context, {
   MentionsRepo? repo,
   List<PublicUserModel> selected = const [],
   bool allowReshare = true,
-  bool enableReshare = kEnableStoryReshare,
 }) => showModalBottomSheet<StoryMentionSelection>(
   context: context,
   isScrollControlled: true,
@@ -41,7 +42,6 @@ Future<StoryMentionSelection?> showStoryMentionSheet(
     repo: repo ?? MentionsRepo(),
     selected: selected,
     allowReshare: allowReshare,
-    enableReshare: enableReshare,
   ),
 );
 
@@ -64,12 +64,10 @@ class StoryMentionSheet extends StatefulWidget {
     required this.repo,
     this.selected = const [],
     this.allowReshare = true,
-    this.enableReshare = kEnableStoryReshare,
   });
   final MentionsRepo repo;
   final List<PublicUserModel> selected;
   final bool allowReshare;
-  final bool enableReshare;
 
   @override
   State<StoryMentionSheet> createState() => _StoryMentionSheetState();
@@ -145,9 +143,21 @@ class _StoryMentionSheetState extends State<StoryMentionSheet> {
     ];
   }
 
-  void _toggle(PublicUserModel user) => setState(() {
-    if (_checked.remove(user.id) == null) _checked[user.id] = user;
-  });
+  void _toggle(PublicUserModel user) {
+    if (!_checked.containsKey(user.id) &&
+        _checked.length >= StoryElements.maxMentions) {
+      TravibeToast.show(
+        context,
+        const TravibeToastData.info(
+          'You can mention up to ${StoryElements.maxMentions} people.',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      if (_checked.remove(user.id) == null) _checked[user.id] = user;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -211,13 +221,12 @@ class _StoryMentionSheetState extends State<StoryMentionSheet> {
                 const SizedBox(height: 16),
                 _searchField(),
                 Expanded(child: body),
-                if (widget.enableReshare) ...[
-                  const SizedBox(height: 8),
-                  StoryReshareToggle(
-                    value: _allowReshare,
-                    onChanged: (value) => setState(() => _allowReshare = value),
-                  ),
-                ],
+                // Stored on the draft; sent once the API has allow_reshare.
+                const SizedBox(height: 8),
+                StoryReshareToggle(
+                  value: _allowReshare,
+                  onChanged: (value) => setState(() => _allowReshare = value),
+                ),
                 const SizedBox(height: 12),
                 FilledButton(
                   key: const ValueKey('story-mention-add'),

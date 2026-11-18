@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
@@ -24,7 +23,6 @@ Future<StoryTextEntryResult?> showStoryTextEntry(
   String? text,
   MentionsRepo? mentionsRepo,
   bool allowReshare = true,
-  bool enableReshare = kEnableStoryReshare,
 }) => Navigator.of(context).push<StoryTextEntryResult>(
   PageRouteBuilder(
     opaque: false,
@@ -35,7 +33,6 @@ Future<StoryTextEntryResult?> showStoryTextEntry(
       text: text,
       repo: mentionsRepo ?? MentionsRepo(),
       allowReshare: allowReshare,
-      enableReshare: enableReshare,
     ),
     transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
@@ -50,12 +47,10 @@ class StoryTextEntry extends StatefulWidget {
     this.text,
     required this.repo,
     this.allowReshare = true,
-    this.enableReshare = kEnableStoryReshare,
   });
   final String? text;
   final MentionsRepo repo;
   final bool allowReshare;
-  final bool enableReshare;
   @override
   State<StoryTextEntry> createState() => _StoryTextEntryState();
 }
@@ -238,11 +233,10 @@ class _StoryTextEntryState extends State<StoryTextEntry> {
             },
           ),
         ),
-        if (widget.enableReshare)
-          StoryReshareToggle(
-            value: _allowReshare,
-            onChanged: (value) => setState(() => _allowReshare = value),
-          ),
+        StoryReshareToggle(
+          value: _allowReshare,
+          onChanged: (value) => setState(() => _allowReshare = value),
+        ),
       ],
     ),
   );

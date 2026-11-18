@@ -2,33 +2,59 @@
 
 Branch `story-editor-tools`. Figma: `docs/figma/stories/story_editor_figma.png`.
 The right-side tool column is now **Aa, @, ☺, ✏️** (same 44px translucent
-`0xCC45433B` circles). Location was removed on purpose.
+`0xCC45433B` circles; the @ uses `assets/images/icons/mention_glyph.svg`).
+Location was removed on purpose.
 
 ## API contract (no backend change needed)
 
 `POST /stories` stores `elements` verbatim and parses `@username` from `text`
-/ `content` of `type: text` elements. Mentioned users are notified under the
-normal visibility rules. `StoryDetailResource.mentions` returns
-`[{handle, user: {id, username}}]`, with blocked users left out. The API does not
-take separate user ids or mention positions. The element's own `position` is
-the sticker position.
+/ `content` of `type: text` elements. Mentioned users get the "mentioned you in
+a story" notification under the normal visibility rules. The server stores up
+to 10 distinct mentions per story. `StoryDetailResource.mentions` returns
+`[{handle, user: {id, username}}]`, with blocked users left out. The API takes
+no separate user ids.
+
+## Two kinds of mention
+
+1. **@ tool: hidden mention.** The Mention sheet (Figma `mention_sheet.png`)
+   picks people. Nothing is drawn on the story. The people picked
+   (`StoryEditorDraft.mentions`, at most 10) are sent so they are mentioned
+   and notified. The @ button shows an orange count badge, and its tooltip
+   lists the usernames. Reopening the sheet shows them checked; anyone picked
+   who isn't in the suggestions is listed at the top.
+2. **Aa text.** Typing `@` in a text opens suggestions (Figma
+   `mention_typing.png`). The chosen `@username` is inserted and drawn in
+   orange inside the text bubble. The API reads it from the element's `text`.
+
+The Mention sheet shows "People you mention can reshare this story" (default
+on) right above Add, and the inline suggestions show it under the list. Both
+set the same `StoryEditorDraft.allowReshare`. It is only sent as
+`allow_reshare` once `kEnableStoryReshare` is on (the API doesn't support it
+yet; see `docs/BACKEND_REQUESTS.md`).
 
 ## Element shapes
 
-- **Text**: unchanged v1 element.
-- **Mention**: a v1 text element with the **identical** v1 `style` plus extra keys:
+- **Text**: a v1 text element. Its look is the Figma text bubble: white text in
+  a dark translucent rounded bubble (the header pill's glass), with
+  `@username` in orange. Editor and viewer render it the same way.
+- **Hidden mentions**: one extra v1 text element with the **identical** v1
+  `style`:
 
 ```json
-{ "version": 1, "id": "story-mention-1", "type": "text", "text": "@sara",
-  "position": {"x": 0.3, "y": 0.6}, "scale": 1.5, "style": { …v1… },
-  "rotation": 0.25,
-  "mention": {"user_id": 5, "username": "sara", "style": "light|dark|brand|plain"} }
+{ "version": 1, "id": "story-mentions", "type": "text",
+  "text": "\u200B", "content": "@sara @omar",
+  "position": {"x": 0.5, "y": 0.5}, "scale": 1, "style": { …v1… },
+  "mentions": [{"user_id": 5, "username": "sara"},
+               {"user_id": 7, "username": "omar"}] }
 ```
 
-  Older app builds ignore the extra keys and render a plain white `@sara`. They
-  do not reject the whole Story, because `decode` still requires the exact v1
-  style. If the mention metadata doesn't match the text, the element decodes as
-  plain text.
+  The API reads `content`, so these users are mentioned. `text` is a
+  zero-width space (U+200B). It is not whitespace to `String.trim`, so older
+  app builds accept the element, and they draw nothing for it. They ignore
+  `content` and `mentions`. This build's `decode` skips the element.
+- **Stickers from earlier builds** (`text: "@sara"` with `mention` metadata)
+  decode as ordinary text, so they show as a text bubble with an orange
+  `@sara`. Rotation is dropped.
 - **Emoji and drawings** are never sent as elements. They are flattened into
   the photo.
 
@@ -68,24 +94,22 @@ the sticker position.
 
 ## Interaction
 
-- Stickers (mention and emoji) can be dragged, pinched to scale and twisted to
-  rotate. Drop one on the trash target to delete it. Text stays unrotated, as
-  before.
-- Mention stickers match Figma `mention_view_profile.png`: an orange full
-  `@username` in the dark glass bubble used by the story header pill. The
-  bubble grows to fit and wraps very long usernames; it is never truncated.
-  The editor and viewer render it the same way. The stored `mention.style`
-  is still written (`light`) and read for older stories, but it no longer
-  changes the look. Tapping text edits it; tapping a sticker does nothing.
+- Emoji stickers can be dragged, pinched to scale and twisted to rotate. Text
+  bubbles drag and scale but stay unrotated. Drop one on the trash target to
+  delete it. Tapping text edits it.
 - Draw mode hides the tools, audience and Post. It shows Undo and Done, a
   7-colour palette and a 2–24px brush slider. The stroke in progress stays local
   until the finger lifts.
-- Caps: 50 elements (text and mentions), 30 emojis.
-- In the viewer, a tap on a mention (sticker or `@handle` in text) that
-  resolves through `detail.mentions` pauses the story and shows the "View
-  profile" card, which opens `ProfileScreen.open`. A tap elsewhere closes the
-  card and resumes. A tap on an unresolved mention works as a normal
-  previous/next tap.
+- Caps: 50 elements (text, plus one for hidden mentions), 30 emojis, 10
+  people in the Mention sheet.
+- In the viewer, tapping an `@username` inside a text bubble that resolves
+  through `detail.mentions` pauses the story. It then shows the "View profile"
+  card (Figma `mention_view_profile.png`) under the bubble, with a small
+  pointer at the username; "View profile" opens `ProfileScreen.open`. If the
+  bubble is too close to the bottom, the card goes above it instead. A tap
+  elsewhere closes the card and resumes. A tap on an unresolved mention, or on
+  ordinary words, works as a normal previous/next tap. Hidden mentions show
+  nothing in the viewer.
 
 ## Known limitation
 

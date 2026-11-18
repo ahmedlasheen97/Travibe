@@ -301,13 +301,27 @@ Notify the original author when someone reshares their story. Use
 `target_type: story` with `target_id` set to the reshare, and include
 `preview.thumbnail_url`.
 
-**Client today:** everything above is built behind `kEnableStoryReshare`
-(`lib/core/constants/feature_flags.dart`), which is `false`. The Mention sheet
-and inline `@` suggestions work without it (they use only documented
-endpoints). The reshare toggle, the Reshare button, the "reshared from
-mention" header and the extra `POST /stories` fields stay hidden or unsent.
-`StoryDetail` already parses `allow_reshare`, `can_reshare` and
-`reshared_from` when present.
+**Client today:** the Mention sheet and inline `@` suggestions work now (they
+use only documented endpoints). The "People you mention can reshare this
+story" toggle is shown and its value is kept on the draft, but
+`allow_reshare` is not sent. The Reshare button, the "reshared from mention"
+header and the extra `POST /stories` fields are behind `kEnableStoryReshare`
+(`lib/core/constants/feature_flags.dart`), which is `false`. `StoryDetail`
+already parses `allow_reshare`, `can_reshare` and `reshared_from` when
+present.
+
+People picked with the @ tool are "hidden" mentions: nothing is drawn on the
+story. The client sends them as `@a @b` in the `content` of one extra
+`type: text` element whose `text` is a zero-width space
+(`docs/STORIES_EDITOR_TOOLS.md`). They come back in `mentions` like any
+other mention, so `can_reshare` should treat them the same.
+
+### 6. Optional: explicit hidden mentions
+
+The workaround above works today. A first-class field would be cleaner:
+`StoreStoryRequest.mention_user_ids` (integer array, at most 10), merged with
+mentions parsed from text under the same rules (visibility, blocks,
+notifications). If it ships, the client drops the extra element.
 
 **Client after:** flip `kEnableStoryReshare` to `true`. No other client
 change is needed if the field names above are kept.

@@ -321,7 +321,7 @@ class CreateStoryRequest {
       'media_ids': [mediaId],
       'visibility': draft.audience.visibility,
       'location_name': null,
-      'elements': StoryElements.encode(draft.layers),
+      'elements': StoryElements.encode(draft.layers, mentions: draft.mentions),
       if (includeReshare) 'allow_reshare': draft.allowReshare,
       if (includeReshare && reshareOf != null)
         'reshare_of_story_id': storyId(reshareOf),

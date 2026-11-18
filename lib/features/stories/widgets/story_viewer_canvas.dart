@@ -1,10 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/widgets/story_canvas.dart';
 
-/// Read-only photo and v1 text/mention elements. Geometry, font, bounds, padding and cover crop
+/// Read-only photo and v1 text elements. Geometry, font, bounds, padding and cover crop
 /// match StoryCanvas, without installing any editor gesture/delete controls.
 class StoryViewerCanvas extends StatelessWidget {
   const StoryViewerCanvas({
@@ -51,76 +49,33 @@ class StoryViewerCanvas extends StatelessWidget {
     },
   );
 
-  /// The mention sticker under [point] (canvas-local), topmost first.
-  static StoryMentionLayer? mentionAt(
-    List<StoryEditorLayer> layers,
-    Offset point,
-    Size size,
-  ) {
-    for (final layer in layers.reversed.whereType<StoryMentionLayer>()) {
-      final geometry = StoryMentionGeometry(layer, size);
-      final scale = geometry.fitScale(layer.scale);
-      final center = geometry.bound(layer.center, scale, size);
-      final rect = geometry.rect(center, scale, size);
-      // Undo the sticker rotation around its center before testing.
-      final local = point - rect.center;
-      final cos = math.cos(-layer.rotation), sin = math.sin(-layer.rotation);
-      final unrotated =
-          rect.center +
-          Offset(
-            local.dx * cos - local.dy * sin,
-            local.dx * sin + local.dy * cos,
-          );
-      if (rect.contains(unrotated)) return layer;
-    }
-    return null;
-  }
-
-  /// The mention (sticker or `@handle` inside text) under [point], topmost
-  /// first, with its on-screen bounds for anchoring a popover.
+  /// The `@username` inside a text bubble under [point] (canvas-local),
+  /// topmost first, with the handle's and the whole bubble's on-screen bounds
+  /// so the View profile card can sit under the bubble, pointing at the name.
   static StoryMentionHit? mentionHitAt(
     List<StoryEditorLayer> layers,
     Offset point,
     Size size,
   ) {
-    for (final layer in layers.reversed) {
-      if (layer is StoryMentionLayer) {
-        if (mentionAt([layer], point, size) == null) continue;
-        final geometry = StoryMentionGeometry(layer, size);
-        final scale = geometry.fitScale(layer.scale);
-        final center = geometry.bound(layer.center, scale, size);
-        final rect = geometry.rect(center, scale, size);
-        // Bounds of the rotated sticker.
-        final cos = math.cos(layer.rotation).abs();
-        final sin = math.sin(layer.rotation).abs();
-        return StoryMentionHit(
-          username: layer.username,
-          rect: Rect.fromCenter(
-            center: rect.center,
-            width: rect.width * cos + rect.height * sin,
-            height: rect.width * sin + rect.height * cos,
-          ),
-        );
-      }
-      if (layer is StoryTextLayer) {
-        final geometry = StoryTextGeometry(layer, size);
-        final scale = geometry.fitScale(layer.scale);
-        final center = geometry.bound(layer.center, scale, size);
-        final rect = geometry.rect(center, scale, size);
-        if (!rect.contains(point)) continue;
-        // Text layers never rotate; undo the scale around the center.
-        final half = geometry.size.center(Offset.zero);
-        final hit = geometry.mentionAt((point - rect.center) / scale + half);
-        if (hit == null) continue;
-        final (username, local) = hit;
-        return StoryMentionHit(
-          username: username,
-          rect: Rect.fromPoints(
-            rect.center + (local.topLeft - half) * scale,
-            rect.center + (local.bottomRight - half) * scale,
-          ),
-        );
-      }
+    for (final layer in layers.reversed.whereType<StoryTextLayer>()) {
+      final geometry = StoryTextGeometry(layer, size);
+      final scale = geometry.fitScale(layer.scale);
+      final center = geometry.bound(layer.center, scale, size);
+      final bubble = geometry.rect(center, scale, size);
+      if (!bubble.contains(point)) continue;
+      // Text layers never rotate; undo the scale around the center.
+      final half = geometry.size.center(Offset.zero);
+      final hit = geometry.mentionAt((point - bubble.center) / scale + half);
+      if (hit == null) continue;
+      final (username, local) = hit;
+      return StoryMentionHit(
+        username: username,
+        rect: Rect.fromPoints(
+          bubble.center + (local.topLeft - half) * scale,
+          bubble.center + (local.bottomRight - half) * scale,
+        ),
+        bubble: bubble,
+      );
     }
     return null;
   }
@@ -145,7 +100,16 @@ class StoryViewerCanvas extends StatelessWidget {
 
 /// A tapped mention: who, and where it is drawn (canvas-local).
 class StoryMentionHit {
-  const StoryMentionHit({required this.username, required this.rect});
+  const StoryMentionHit({
+    required this.username,
+    required this.rect,
+    required this.bubble,
+  });
   final String username;
+
+  /// The `@username` itself.
   final Rect rect;
+
+  /// The whole text bubble it is in.
+  final Rect bubble;
 }

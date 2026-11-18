@@ -107,11 +107,12 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   bool _openingMention = false;
 
   /// The open mention popover, if any.
-  ({int userId, String username, Rect rect, int request})? _popover;
+  ({int userId, String username, Rect rect, Rect bubble, int request})?
+  _popover;
   final _mentionProfiles = <int, StoryMentionProfile>{};
 
-  /// A tap on a resolved mention (sticker or `@handle` in text) pauses the
-  /// story and shows the View profile card; unresolved (blocked/unknown)
+  /// A tap on a resolved `@username` in a text bubble pauses the story and
+  /// shows the View profile card under the bubble; unresolved (blocked/unknown)
   /// mentions fall through to normal tap navigation.
   bool _tapMention(Offset point, Size size) {
     final state = _viewer.state;
@@ -134,6 +135,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         userId: userId,
         username: hit.username,
         rect: hit.rect,
+        bubble: hit.bubble,
         request: _viewer.state.request,
       ),
     );
@@ -808,7 +810,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       state.status == StoryViewerStatus.ready)
                     Positioned.fill(
                       child: StoryMentionPopover(
-                        anchor: _popover!.rect,
+                        anchor: _popover!.bubble,
+                        target: _popover!.rect,
                         canvas: constraints.biggest,
                         username: _popover!.username,
                         profile: _mentionProfiles[_popover!.userId],

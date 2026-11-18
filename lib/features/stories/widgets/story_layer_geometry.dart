@@ -15,7 +15,6 @@ abstract class StoryLayerGeometry {
   static StoryLayerGeometry of(StoryEditorLayer layer, Size canvas) =>
       switch (layer) {
         StoryTextLayer() => StoryTextGeometry(layer, canvas),
-        StoryMentionLayer() => StoryMentionGeometry(layer, canvas),
         StoryEmojiLayer() => StoryEmojiGeometry(layer, canvas),
         _ => throw ArgumentError.value(layer, 'layer', 'Unknown Story layer'),
       };
@@ -52,23 +51,33 @@ abstract class StoryLayerGeometry {
   );
 }
 
+/// Figma text bubble (`mention_view_profile.png`): white text in a dark
+/// translucent rounded bubble (the story header pill's glass), with any
+/// `@username` in orange. Editor and viewer share this.
 class StoryTextGeometry extends StoryLayerGeometry {
   StoryTextGeometry(this.layer, Size canvas) {
+    final unit = canvas.width / 390;
     style = TextStyle(
       fontFamily: 'Plus Jakarta Sans',
-      fontSize: 24 * canvas.width / 390,
+      fontSize: 24 * unit,
       fontWeight: FontWeight.w600,
       color: Colors.white,
-      shadows: const [Shadow(color: Colors.black87, blurRadius: 3)],
     );
-    _maxTextWidth = math.max(1, canvas.width * 0.8 - 16);
+    padding = EdgeInsets.symmetric(horizontal: 16 * unit, vertical: 10 * unit);
+    _maxTextWidth = math.max(1, canvas.width * 0.8 - padding.horizontal);
     final painter = _painter();
-    size = painter.size + const Offset(16, 16);
+    lines = painter.computeLineMetrics().length;
+    size = Size(
+      painter.width + padding.horizontal,
+      painter.height + padding.vertical,
+    );
     painter.dispose();
+    radius = math.min(size.height / 2, 24 * unit);
     maxScale = _maxScale(canvas, 4);
   }
 
-  static const _padding = 8.0;
+  static final _blur = ImageFilter.blur(sigmaX: 10, sigmaY: 10);
+
   late final double _maxTextWidth;
 
   /// Same span, alignment and width as [content], so offsets line up.
@@ -85,7 +94,7 @@ class StoryTextGeometry extends StoryLayerGeometry {
     if (ranges.isEmpty) return null;
     final painter = _painter();
     try {
-      final local = point - const Offset(_padding, _padding);
+      final local = point - padding.topLeft;
       if (local.dx < 0 ||
           local.dy < 0 ||
           local.dx > painter.width ||
@@ -107,7 +116,7 @@ class StoryTextGeometry extends StoryLayerGeometry {
         if (!rect.inflate(2).contains(local)) continue;
         return (
           layer.text.substring(range.start + 1, range.end),
-          rect.shift(const Offset(_padding, _padding)),
+          rect.shift(padding.topLeft),
         );
       }
       return null;
@@ -118,6 +127,11 @@ class StoryTextGeometry extends StoryLayerGeometry {
 
   final StoryTextLayer layer;
   late final TextStyle style;
+  late final EdgeInsets padding;
+  late final double radius;
+
+  /// Lines the text wraps onto.
+  late final int lines;
   @override
   late final Size size;
   @override
@@ -127,72 +141,10 @@ class StoryTextGeometry extends StoryLayerGeometry {
   String get semanticLabel => 'Edit text: ${layer.text}';
 
   @override
-  Widget content() => Padding(
-    padding: const EdgeInsets.all(_padding),
-    child: RichText(
-      textDirection: TextDirection.ltr,
-      text: storyMentionTextSpan(layer.text, style),
-      textAlign: TextAlign.center,
-    ),
-  );
-}
-
-/// Figma `mention_view_profile.png`: an orange `@username` in the same dark
-/// glass bubble as the story header pill. The bubble grows to fit the whole
-/// username and wraps very long ones; it is never truncated. Editor and
-/// viewer share this, so both look the same. The stored `style` is kept for
-/// older stories but no longer changes the look.
-class StoryMentionGeometry extends StoryLayerGeometry {
-  StoryMentionGeometry(this.layer, Size canvas) {
-    final unit = canvas.width / 390;
-    style = TextStyle(
-      fontFamily: 'Plus Jakarta Sans',
-      fontSize: 20 * unit,
-      fontWeight: FontWeight.w600,
-      color: DarkColors.primaryColor,
-    );
-    padding = EdgeInsets.symmetric(horizontal: 16 * unit, vertical: 8 * unit);
-    final painter = TextPainter(
-      text: TextSpan(text: layer.text, style: style),
-      textDirection: TextDirection.ltr,
-      textAlign: TextAlign.center,
-    );
-    painter.layout(
-      maxWidth: math.max(1, canvas.width * 0.8 - padding.horizontal),
-    );
-    lines = painter.computeLineMetrics().length;
-    size = Size(
-      painter.width + padding.horizontal,
-      painter.height + padding.vertical,
-    );
-    painter.dispose();
-    // A pill on one line, a rounded bubble once it wraps.
-    radius = lines <= 1 ? size.height / 2 : 20 * unit;
-    maxScale = _maxScale(canvas, 4);
-  }
-
-  static final _blur = ImageFilter.blur(sigmaX: 10, sigmaY: 10);
-
-  final StoryMentionLayer layer;
-  late final TextStyle style;
-  late final EdgeInsets padding;
-  late final double radius;
-
-  /// Lines the username takes (more than one only for very long names).
-  late final int lines;
-  @override
-  late final Size size;
-  @override
-  late final double maxScale;
-
-  @override
-  String get semanticLabel => 'Mention ${layer.text}';
-
-  @override
   Widget content() {
     final shape = BorderRadius.circular(radius);
     return ClipRRect(
-      key: const ValueKey('story-mention-sticker'),
+      key: const ValueKey('story-text-bubble'),
       borderRadius: shape,
       child: BackdropFilter(
         filter: _blur,
@@ -205,12 +157,10 @@ class StoryMentionGeometry extends StoryLayerGeometry {
           ),
           child: Padding(
             padding: padding,
-            child: Text(
-              layer.text,
-              softWrap: true,
-              textAlign: TextAlign.center,
+            child: RichText(
               textDirection: TextDirection.ltr,
-              style: style,
+              text: storyMentionTextSpan(layer.text, style),
+              textAlign: TextAlign.center,
             ),
           ),
         ),
