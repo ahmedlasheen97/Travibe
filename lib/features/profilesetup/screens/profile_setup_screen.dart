@@ -1,4 +1,6 @@
 import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/core/widgets/upload_progress_ring.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:flutter/material.dart';
@@ -79,7 +81,9 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
     }
     Navigator.pushAndRemoveUntil(
       context,
-      MaterialPageRoute(builder: (context) => Root()),
+      MaterialPageRoute(
+        builder: (context) => const Root(afterProfileSetup: true),
+      ),
       (route) => false,
     );
   }
@@ -96,8 +100,16 @@ class _ProfileSetupScreenState extends State<ProfileSetupScreen> {
             ..restore()
             ..loadCatalogs(),
       child: BlocListener<ProfileSetupCubit, ProfileSetupState>(
-        listenWhen: _avatarUploadChanged,
-        listener: _onAvatarUpload,
+        listenWhen: (a, b) =>
+            _avatarUploadChanged(a, b) ||
+            (!a.avatarPermissionDenied && b.avatarPermissionDenied),
+        listener: (context, state) {
+          if (state.avatarPermissionDenied) {
+            PermissionFlow.showSettings(context, AppPermission.photos);
+          } else {
+            _onAvatarUpload(context, state);
+          }
+        },
         child: BlocConsumer<ProfileSetupCubit, ProfileSetupState>(
           listenWhen: (previous, current) => previous.status != current.status,
           listener: (context, state) {

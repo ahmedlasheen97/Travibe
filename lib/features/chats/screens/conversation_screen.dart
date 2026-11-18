@@ -1,5 +1,7 @@
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/notifications/notification_soft_ask.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import '../data/chat_history_cache.dart';
 import '../widgets/chat_request_controls.dart';
@@ -477,6 +479,12 @@ class _ConversationScreenState extends State<ConversationScreen>
   });
   Future<void> _receivedSentMessage(ChatMessage message) async {
     if (!mounted || !_valid) return;
+    unawaited(
+      NotificationSoftAsk.maybeShow(
+        context,
+        NotificationPromptTrigger.firstChatMessage,
+      ),
+    );
     final followLatest = !_scroll.hasClients || _scroll.offset < 100;
     _list.appendConfirmed(message, session: _session);
     if (followLatest) _bottom();
@@ -1418,7 +1426,9 @@ class _ConversationScreenState extends State<ConversationScreen>
       }
       _selections.addAll(selected);
       setState(() => _mediaError = null);
-    } catch (_) {
+    } catch (error) {
+      if (!mounted) return;
+      if (await PermissionFlow.handleError(context, error)) return;
       _notice('Unable to select this media. Please try again.');
     } finally {
       _picking = false;

@@ -46,6 +46,7 @@ import 'package:travibe/features/stories/widgets/discard_story_dialog.dart';
 import 'package:travibe/core/navigation/my_profile_tab.dart';
 import 'package:travibe/features/onboarding/cubit/session_revalidator.dart';
 import 'package:travibe/features/profile/screens/session_exit.dart';
+import 'package:travibe/core/notifications/notification_soft_ask.dart';
 
 class Root extends StatefulWidget {
   const Root({
@@ -62,6 +63,7 @@ class Root extends StatefulWidget {
     this.followRequestsRepo,
     this.revalidateSession = false,
     this.sessionRevalidator,
+    this.afterProfileSetup = false,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
@@ -77,6 +79,10 @@ class Root extends StatefulWidget {
   /// Startup entered Home offline; confirm the session once reachable.
   final bool revalidateSession;
   final SessionRevalidator? sessionRevalidator;
+
+  /// Opened right after Profile Setup finished or was skipped: offer the
+  /// notifications soft ask once.
+  final bool afterProfileSetup;
 
   @override
   State<Root> createState() => _RootState();
@@ -163,6 +169,15 @@ class _RootState extends State<Root> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && identical(next, _push)) {
         next?.attach(this, context, follow: _followCubit, incoming: _incoming);
+        if (next != null && widget.afterProfileSetup) {
+          unawaited(
+            NotificationSoftAsk.maybeShow(
+              context,
+              NotificationPromptTrigger.afterSetup,
+              push: next.service,
+            ),
+          );
+        }
       }
     });
   }

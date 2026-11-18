@@ -1,3 +1,4 @@
+import 'package:travibe/core/permissions/device_settings.dart';
 import 'package:travibe/core/notifications/firebase_messaging_client.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -900,50 +901,66 @@ void main() {
       return (push, client);
     }
 
-    testWidgets('blocked permission shows a muted hint with an orange Check', (
-      tester,
-    ) async {
-      final (_, client) = await pumpSettings(
-        tester,
-        status: PushPermission.denied,
-      );
-      final hint = find.byKey(const ValueKey('push-permission-hint'));
-      expect(hint, findsOneWidget);
-      // Sits inside the Push Notifications row, under its subtitle.
-      expect(
-        tester.getTopLeft(hint).dy,
-        greaterThanOrEqualTo(
-          tester
-              .getBottomLeft(find.text('Receive notifications on your phone'))
-              .dy,
-        ),
-      );
-      final message = tester.widget<Text>(
-        find.textContaining('blocked on this device'),
-      );
-      expect(message.style!.fontSize, AppSizes.sp12);
-      expect(message.style!.color, Colors.white54);
-      final action = find.byKey(const ValueKey('push-permission-action'));
-      expect(
-        find.descendant(of: action, matching: find.text('Check')),
-        findsOneWidget,
-      );
-      expect(
-        tester.widget<TextButton>(action).style!.foregroundColor!.resolve({}),
-        DarkColors.primaryColor,
-      );
-      // Still blocked: Check re-reads permission without prompting.
-      await tester.tap(action);
-      await tester.pumpAndSettle();
-      expect(client.prompts, 0);
-      expect(hint, findsOneWidget);
-      // Allowed in device Settings, then Check: the hint goes away.
-      client.status = PushPermission.authorized;
-      await tester.tap(action);
-      await tester.pumpAndSettle();
-      expect(hint, findsNothing);
-      await tester.pumpWidget(const SizedBox());
-    });
+    testWidgets(
+      'blocked permission shows a muted hint with an orange Open Settings',
+      (tester) async {
+        final (push, client) = await pumpSettings(
+          tester,
+          status: PushPermission.denied,
+        );
+        final hint = find.byKey(const ValueKey('push-permission-hint'));
+        expect(hint, findsOneWidget);
+        // Sits inside the Push Notifications row, under its subtitle.
+        expect(
+          tester.getTopLeft(hint).dy,
+          greaterThanOrEqualTo(
+            tester
+                .getBottomLeft(find.text('Receive notifications on your phone'))
+                .dy,
+          ),
+        );
+        final message = tester.widget<Text>(
+          find.textContaining('blocked on this device'),
+        );
+        expect(message.style!.fontSize, AppSizes.sp12);
+        expect(message.style!.color, Colors.white54);
+        final action = find.byKey(const ValueKey('push-permission-action'));
+        expect(
+          find.descendant(of: action, matching: find.text('Open Settings')),
+          findsOneWidget,
+        );
+        expect(
+          tester.widget<TextButton>(action).style!.foregroundColor!.resolve({}),
+          DarkColors.primaryColor,
+        );
+        final calls = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          DeviceSettings.channel,
+          (call) async {
+            calls.add(call.method);
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            DeviceSettings.channel,
+            null,
+          ),
+        );
+        // Blocked: only device Settings can change it, so it never prompts.
+        await tester.tap(action);
+        await tester.pumpAndSettle();
+        expect(calls, ['openSettings']);
+        expect(client.prompts, 0);
+        expect(hint, findsOneWidget);
+        // Allowed in device Settings, then back in the app: the hint goes away.
+        client.status = PushPermission.authorized;
+        await push.resume();
+        await tester.pumpAndSettle();
+        expect(hint, findsNothing);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
 
     testWidgets('undecided permission offers Enable, which prompts', (
       tester,

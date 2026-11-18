@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:travibe/core/media/upload_diagnostics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/profile/cubit/profile_cubit.dart';
@@ -17,6 +18,7 @@ class EditProfileState {
     this.error,
     this.selectingAvatar = false,
     this.avatarError,
+    this.avatarPermissionDenied = false,
     this.sessionChanged = false,
   });
   final bool saving;
@@ -26,6 +28,9 @@ class EditProfileState {
 
   /// Photo picker problems only; upload progress/failure is a toast.
   final String? avatarError;
+
+  /// The photo picker was denied; the screen offers Settings.
+  final bool avatarPermissionDenied;
   final bool sessionChanged;
 }
 
@@ -93,14 +98,14 @@ class EditProfileCubit extends Cubit<EditProfileState> {
         emit(const EditProfileState(sessionChanged: true));
         return;
       }
+      if (PermissionFlow.fromError(error) != null) {
+        emit(const EditProfileState(avatarPermissionDenied: true));
+        return;
+      }
       final message = switch (error) {
         InvalidProfileAvatar() => 'Choose a valid image from your gallery.',
         MissingPluginException() =>
           'Photo selection is unavailable on this device.',
-        PlatformException(
-          code: 'photo_access_denied' || 'photo_access_restricted',
-        ) =>
-          'Allow photo access in device settings, then try again.',
         _ => 'Unable to select a photo. Please try again.',
       };
       emit(EditProfileState(avatarError: message));

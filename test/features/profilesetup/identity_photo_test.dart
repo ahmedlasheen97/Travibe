@@ -474,7 +474,10 @@ void main() {
     final cubit = make(api, photos: photos);
     await cubit.restore();
     await cubit.pickAvatar();
-    expect(cubit.state.avatarError, contains('settings'));
+    // The screen shows the shared Settings sheet instead of an inline error.
+    expect(cubit.state.avatarPermissionDenied, isTrue);
+    expect(cubit.state.avatarError, isNull);
+    expect(cubit.state.selectingAvatar, isFalse);
     expect(api.patches, isEmpty);
   });
   test(

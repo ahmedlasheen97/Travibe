@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/create_post/cubit/create_post_cubit.dart';
@@ -140,47 +141,11 @@ class _ComposerState extends State<_Composer> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _permissionDenied({required bool camera}) async {
-    final open = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1F1F1F),
-        title: Text(
-          camera ? 'Camera access is off' : 'Photo access is off',
-          style: createPostTextStyle.copyWith(
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        content: Text(
-          camera
-              ? 'Allow camera access in Settings to take photos for your post.'
-              : 'Allow photo access in Settings to add photos to your post.',
-          style: createPostTextStyle.copyWith(
-            fontSize: 14,
-            color: Colors.white70,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Not now', style: createPostTextStyle),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Open Settings',
-              style: createPostTextStyle.copyWith(
-                color: DarkColors.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (open == true) await Geolocator.openAppSettings();
-  }
+  Future<void> _permissionDenied({required bool camera}) =>
+      PermissionFlow.showSettings(
+        context,
+        camera ? AppPermission.camera : AppPermission.photos,
+      );
 
   void _toggleEmoji() {
     setState(() => _showEmoji = !_showEmoji);

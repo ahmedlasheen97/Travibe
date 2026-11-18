@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/stories/cubit/story_picker_cubit.dart';
@@ -28,8 +29,13 @@ class PostStorySheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<StoryPickerCubit, StoryPickerState>(
+    return BlocConsumer<StoryPickerCubit, StoryPickerState>(
       bloc: picker,
+      listenWhen: (previous, current) =>
+          current.permissionDenied != null &&
+          previous.permissionDenied != current.permissionDenied,
+      listener: (context, state) =>
+          PermissionFlow.showSettings(context, state.permissionDenied!),
       builder: (context, state) => SafeArea(
         top: false,
         child: SingleChildScrollView(

@@ -1,15 +1,14 @@
 import 'package:travibe/core/widgets/app_loaders.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:flutter/material.dart';
 import '../data/chat_models.dart';
 import '../widgets/chat_video_message.dart';
-import 'package:flutter/services.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:dio/dio.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/core/widgets/swipe_down_dismiss.dart';
 import '../data/chat_image_saver.dart';
-import '../data/chat_device_media.dart';
 
 class ChatImageViewer extends StatefulWidget {
   const ChatImageViewer({
@@ -136,28 +135,16 @@ class _ChatImageViewerState extends State<ChatImageViewer> {
         );
       }
     } catch (error) {
-      if (mounted && _active) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              error is PlatformException && error.code == 'permission_denied'
-                  ? 'Allow adding photos in Settings to save this image.'
-                  : 'Unable to save image. Check your connection and available storage, then try again.',
-            ),
-            action:
-                error is PlatformException && error.code == 'permission_denied'
-                ? SnackBarAction(
-                    label: 'Open Settings',
-                    onPressed: () {
-                      const ChatDeviceMedia().openSettings().catchError(
-                        (Object _) {},
-                      );
-                    },
-                  )
-                : null,
+      if (!mounted || !_active) return;
+      if (await PermissionFlow.handleError(context, error)) return;
+      if (!mounted || !_active) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Unable to save image. Check your connection and available storage, then try again.',
           ),
-        );
-      }
+        ),
+      );
     } finally {
       if (mounted) setState(() => _saving = false);
     }

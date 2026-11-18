@@ -3,8 +3,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Allow Travibe to find your current city so you can choose to be discovered by nearby buddies.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -30,9 +28,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Take photos to add to your Travibe posts and stories.</string>
+	<string>Travibe uses your camera to take photos for your posts, stories and chat messages.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Choose photos to add to your Travibe posts and stories.</string>
+	<string>Travibe accesses your photos so you can choose pictures and videos for your posts, stories, profile picture and chat messages.</string>
 
 	<!-- Google Sign-In URL Scheme -->
 	<key>CFBundleURLTypes</key>
@@ -102,8 +100,8 @@
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
 <key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Save images and videos you choose from conversations to your photo library.</string>
+	<string>Travibe saves photos and videos you choose from conversations to your photo library.</string>
 <key>NSMicrophoneUsageDescription</key>
-	<string>Record voice messages to send in your conversations.</string>
+	<string>Travibe uses your microphone to record voice messages you send in chats.</string>
 </dict>
 </plist>

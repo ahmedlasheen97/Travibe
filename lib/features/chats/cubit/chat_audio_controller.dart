@@ -31,6 +31,10 @@ class ChatAudioController extends ChangeNotifier {
   final ChatDeviceMedia _deviceMedia;
   late final bool? _recordingSupported;
   ChatMicrophonePermission? permission;
+
+  /// The last [startRecording] showed the system microphone prompt, so a
+  /// denial there needs no further explanation until the next tap.
+  bool promptedForPermission = false;
   bool get needsSettings =>
       permission == ChatMicrophonePermission.permanentlyDenied ||
       permission == ChatMicrophonePermission.restricted;
@@ -191,10 +195,12 @@ class ChatAudioController extends ChangeNotifier {
       await _player?.stop();
       if (!_active || !_foreground || capture != _captureEpoch) return;
       final recorder = _recorder ??= AudioRecorder();
+      promptedForPermission = false;
       permission = await _deviceMedia.microphone();
       if (!_active || !_foreground || capture != _captureEpoch) return;
       if (permission == ChatMicrophonePermission.notDetermined ||
           permission == ChatMicrophonePermission.denied) {
+        promptedForPermission = true;
         permission = await _deviceMedia.microphone(request: true);
       }
       if (permission != ChatMicrophonePermission.granted) {
