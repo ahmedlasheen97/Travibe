@@ -130,7 +130,7 @@ class StoryEditorDraft {
     this.audience = StoryAudience.public,
     List<StoryMentionedUser> mentions = const [],
     this.allowReshare = true,
-    this.reshareOfStoryId,
+    this.accountIsPublic = false,
   }) : layers = List.unmodifiable(layers),
        strokes = List.unmodifiable(strokes),
        mentions = List.unmodifiable(mentions);
@@ -143,12 +143,20 @@ class StoryEditorDraft {
   /// People picked with the @ tool (hidden mentions).
   final List<StoryMentionedUser> mentions;
 
-  /// "People you mention can reshare this story". Sent only while
-  /// `kEnableStoryReshare` is on.
+  /// "People you mention can reshare this story" (the user's choice).
   final bool allowReshare;
 
-  /// Set when this draft reshares a story the user was mentioned in.
-  final int? reshareOfStoryId;
+  /// The author's account is known to be public. Captured from the current
+  /// profile when the story is posted; false when unknown.
+  final bool accountIsPublic;
+
+  /// The API only accepts `allow_mention_reshare: true` for a public story by
+  /// a public account (otherwise 422), so the toggle shows only then.
+  bool get canAllowMentionReshare =>
+      accountIsPublic && audience == StoryAudience.public;
+
+  /// Whether `allow_mention_reshare: true` is sent.
+  bool get sendsMentionReshare => allowReshare && canAllowMentionReshare;
 
   /// Drawings and emojis are baked into the photo before upload.
   bool get hasFlattenedContent =>
@@ -160,6 +168,7 @@ class StoryEditorDraft {
     StoryAudience? audience,
     List<StoryMentionedUser>? mentions,
     bool? allowReshare,
+    bool? accountIsPublic,
   }) => StoryEditorDraft(
     image: image,
     layers: layers ?? this.layers,
@@ -167,7 +176,7 @@ class StoryEditorDraft {
     audience: audience ?? this.audience,
     mentions: mentions ?? this.mentions,
     allowReshare: allowReshare ?? this.allowReshare,
-    reshareOfStoryId: reshareOfStoryId,
+    accountIsPublic: accountIsPublic ?? this.accountIsPublic,
   );
 
   StoryEditorDraft withLayers(List<StoryEditorLayer> layers) =>
@@ -184,4 +193,7 @@ class StoryEditorDraft {
 
   StoryEditorDraft withAllowReshare(bool allowReshare) =>
       _copy(allowReshare: allowReshare);
+
+  StoryEditorDraft withAccountIsPublic(bool accountIsPublic) =>
+      _copy(accountIsPublic: accountIsPublic);
 }

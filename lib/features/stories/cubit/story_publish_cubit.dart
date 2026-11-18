@@ -278,7 +278,11 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
     _progress(StoryPublishStatus.publishing, .95);
     try {
       final story = await repo.create(
-        CreateStoryRequest(mediaId: mediaId, draft: draft),
+        CreateStoryRequest(
+          mediaId: mediaId,
+          draft: draft,
+          allowMentionReshare: draft.sendsMentionReshare,
+        ),
         cancelToken: cancel,
       );
       if (!_active()) return;

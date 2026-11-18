@@ -8,6 +8,7 @@ enum NotificationKind {
   messageRequest,
   nearby,
   mention,
+  reshare,
   unknown,
 }
 
@@ -44,6 +45,7 @@ class NotificationPresentationResolver {
     'message_request_accepted': NotificationKind.messageRequest,
     'buddy_nearby': NotificationKind.nearby,
     'user_mentioned': NotificationKind.mention,
+    'story_reshared': NotificationKind.reshare,
   };
   static const _descriptions = <String, String>{
     'post_liked': 'liked your post',
@@ -59,6 +61,7 @@ class NotificationPresentationResolver {
     'buddy_nearby':
         'Someone is currently in your city. discover your new buddy.',
     'user_mentioned': 'mentioned you',
+    'story_reshared': 'reshared your story',
   };
   static const _excerptTypes = {
     'post_commented': 'commented',
@@ -98,6 +101,7 @@ class NotificationPresentationResolver {
     if (url == null) return null;
     final story =
         item.type == 'story_liked' ||
+        item.type == 'story_reshared' ||
         normalizedTargetKind(item.targetType) == NotificationTargetKind.story;
     final thumbnail = NotificationThumbnail(
       url: url,
@@ -128,6 +132,7 @@ class NotificationPresentationResolver {
     NotificationKind.nearby =>
       'assets/images/notification/someone in yourcity.svg',
     NotificationKind.mention => 'assets/images/icons/mention.svg',
+    NotificationKind.reshare => 'assets/images/icons/reshare.svg',
     NotificationKind.unknown => null,
   };
 }

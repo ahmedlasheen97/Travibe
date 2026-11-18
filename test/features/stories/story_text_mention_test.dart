@@ -9,7 +9,10 @@ import 'package:travibe/features/stories/widgets/story_mention_text.dart';
 
 import '../../helpers/screen_util.dart';
 import 'fixtures.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'story_editor_tools_test.dart' show FakeMentionsRepo;
+import 'story_reshare_test.dart' show currentUser;
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -60,17 +63,25 @@ void main() {
   });
 
   group('typing @ in story text', () {
-    Future<FakeMentionsRepo> show(WidgetTester tester) async {
+    Future<FakeMentionsRepo> show(
+      WidgetTester tester, {
+      bool private = false,
+    }) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final repo = FakeMentionsRepo();
+      final user = await currentUser(private: private);
+      addTearDown(user.close);
       await tester.pumpWidget(
         withScreenUtil(
           MaterialApp(
             theme: ThemeData.dark(useMaterial3: true),
-            home: StoryEditorScreen(draft: draft(), mentionsRepo: repo),
+            home: BlocProvider<CurrentUserCubit>.value(
+              value: user,
+              child: StoryEditorScreen(draft: draft(), mentionsRepo: repo),
+            ),
           ),
         ),
       );
@@ -161,31 +172,40 @@ void main() {
       },
     );
 
-    testWidgets(
-      'with the flag on, the same reshare toggle shows while typing',
-      (tester) async {
-        await show(tester);
-        await type(tester, '@om');
-        final toggle = find.byKey(const ValueKey('story-reshare-toggle'));
-        expect(toggle, findsOneWidget);
-        expect(tester.widget<Switch>(toggle).value, isTrue);
-        await tester.tap(toggle);
-        await tester.pump();
-        await tester.tap(find.byKey(const ValueKey('story-text-done')));
-        await tester.pumpAndSettle();
-        expect(current(tester).allowReshare, isFalse);
-        // The Mention sheet opens with the same setting.
-        await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
-        await tester.pumpAndSettle();
-        expect(
-          tester
-              .widget<Switch>(
-                find.byKey(const ValueKey('story-reshare-toggle')),
-              )
-              .value,
-          isFalse,
-        );
-      },
-    );
+    testWidgets('the same reshare toggle shows while typing (public account)', (
+      tester,
+    ) async {
+      await show(tester);
+      await type(tester, '@om');
+      final toggle = find.byKey(const ValueKey('story-reshare-toggle'));
+      expect(toggle, findsOneWidget);
+      expect(tester.widget<Switch>(toggle).value, isTrue);
+      await tester.tap(toggle);
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('story-text-done')));
+      await tester.pumpAndSettle();
+      expect(current(tester).allowReshare, isFalse);
+      // The Mention sheet opens with the same setting.
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<Switch>(find.byKey(const ValueKey('story-reshare-toggle')))
+            .value,
+        isFalse,
+      );
+    });
+
+    testWidgets('a private account sees suggestions but no reshare toggle', (
+      tester,
+    ) async {
+      await show(tester, private: true);
+      await type(tester, '@om');
+      expect(
+        find.byKey(const ValueKey('story-mention-suggestions')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('story-reshare-toggle')), findsNothing);
+    });
   });
 }

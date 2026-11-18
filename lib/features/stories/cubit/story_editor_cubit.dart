@@ -90,6 +90,11 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
     emit(state.withAllowReshare(allow));
   }
 
+  void setAccountIsPublic(bool isPublic) {
+    if (isClosed || state.accountIsPublic == isPublic) return;
+    emit(state.withAccountIsPublic(isPublic));
+  }
+
   bool addEmoji(String emoji) {
     if (isClosed || emoji.trim().isEmpty || emojiCount >= maxEmojis) {
       return false;

@@ -18,11 +18,10 @@ const bool kEnableSocialAuthentication = false;
 /// intact.
 const bool kShowSavedHotels = false;
 
-/// Stories: the viewer's Reshare button, the "reshared from mention" header
-/// and sending `allow_reshare` / `reshare_of_story_id` on `POST /stories`.
-/// Off until the backend ships `allow_reshare`, `can_reshare`,
-/// `reshare_of_story_id` and `reshared_from` (docs/BACKEND_REQUESTS.md). The
-/// "People you mention can reshare this story" toggle is always shown and its
-/// value is kept on the draft. The viewer takes an `enableReshare` parameter
-/// defaulting to this so tests can turn it on.
-const bool kEnableStoryReshare = false;
+/// Stories: the viewer's Reshare button (`can_reshare` →
+/// `POST /stories/{id}/reshare`) and the "reshared from @user" header
+/// (`reshared_from`); see docs/backend/STORY_RESHARE.md. The editor's
+/// "People you mention can reshare this story" toggle shows only for a public
+/// story from a public account and is sent as `allow_mention_reshare`. The
+/// viewer takes an `enableReshare` parameter defaulting to this.
+const bool kEnableStoryReshare = true;

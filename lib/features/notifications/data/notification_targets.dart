@@ -73,7 +73,8 @@ class NotificationTarget {
             );
     }
     if (id == null) return null;
-    if (item.type == 'story_liked' &&
+    // story_reshared targets the reshare (a story of the actor's).
+    if ((item.type == 'story_liked' || item.type == 'story_reshared') &&
         (morph == NotificationTargetKind.story || item.targetType == null)) {
       return NotificationTarget(NotificationTargetKind.story, id);
     }

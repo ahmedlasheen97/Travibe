@@ -30,6 +30,7 @@ Future<StoryMentionSelection?> showStoryMentionSheet(
   MentionsRepo? repo,
   List<PublicUserModel> selected = const [],
   bool allowReshare = true,
+  bool showReshareToggle = false,
 }) => showModalBottomSheet<StoryMentionSelection>(
   context: context,
   isScrollControlled: true,
@@ -42,6 +43,7 @@ Future<StoryMentionSelection?> showStoryMentionSheet(
     repo: repo ?? MentionsRepo(),
     selected: selected,
     allowReshare: allowReshare,
+    showReshareToggle: showReshareToggle,
   ),
 );
 
@@ -64,10 +66,15 @@ class StoryMentionSheet extends StatefulWidget {
     required this.repo,
     this.selected = const [],
     this.allowReshare = true,
+    this.showReshareToggle = false,
   });
   final MentionsRepo repo;
   final List<PublicUserModel> selected;
   final bool allowReshare;
+
+  /// Only for a public story from a public account (the API rejects
+  /// `allow_mention_reshare` otherwise).
+  final bool showReshareToggle;
 
   @override
   State<StoryMentionSheet> createState() => _StoryMentionSheetState();
@@ -221,12 +228,13 @@ class _StoryMentionSheetState extends State<StoryMentionSheet> {
                 const SizedBox(height: 16),
                 _searchField(),
                 Expanded(child: body),
-                // Stored on the draft; sent once the API has allow_reshare.
-                const SizedBox(height: 8),
-                StoryReshareToggle(
-                  value: _allowReshare,
-                  onChanged: (value) => setState(() => _allowReshare = value),
-                ),
+                if (widget.showReshareToggle) ...[
+                  const SizedBox(height: 8),
+                  StoryReshareToggle(
+                    value: _allowReshare,
+                    onChanged: (value) => setState(() => _allowReshare = value),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 FilledButton(
                   key: const ValueKey('story-mention-add'),

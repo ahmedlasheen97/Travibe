@@ -15,13 +15,16 @@ List<TextRange> storyMentionRanges(String text) => [
 
 /// [text] as one span whose `@handle` parts are orange. Sizes match the plain
 /// span exactly; only the colour changes. [underline] marks an IME composing
-/// range.
+/// range. With [highlightMentions] false, handles stay in the plain style.
 TextSpan storyMentionTextSpan(
   String text,
   TextStyle? style, {
   TextRange underline = TextRange.empty,
+  bool highlightMentions = true,
 }) {
-  final mentions = storyMentionRanges(text);
+  final mentions = highlightMentions
+      ? storyMentionRanges(text)
+      : const <TextRange>[];
   final hasUnderline =
       underline.isValid &&
       !underline.isCollapsed &&

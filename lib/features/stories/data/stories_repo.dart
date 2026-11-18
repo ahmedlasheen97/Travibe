@@ -3,6 +3,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
 import 'package:travibe/core/datasource/remotedata/dio_client.dart';
+import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 
 class StoryCreationUncertain extends ApiError {
@@ -11,6 +12,47 @@ class StoryCreationUncertain extends ApiError {
         message:
             'We couldn’t confirm your story was posted. We’ll check before trying again.',
       );
+}
+
+/// A failed `POST /stories/{id}/reshare`, with plain wording for the toast.
+class StoryReshareError extends ApiError {
+  StoryReshareError({
+    required super.message,
+    super.statusCode,
+    super.fieldErrors,
+    super.isConnectionError,
+    super.isTimeout,
+    this.reshareGone = false,
+  });
+
+  static const fallback = 'Unable to reshare this story. Please try again.';
+
+  factory StoryReshareError.from(ApiError error, Response<dynamic>? response) {
+    final fields = error.fieldErrors;
+    final already = error.statusCode == 422 && fields.containsKey('story');
+    final limit = error.statusCode == 422 && fields.containsKey('stories');
+    return StoryReshareError(
+      statusCode: error.statusCode,
+      fieldErrors: fields,
+      isConnectionError: error.isConnectionError,
+      isTimeout: error.isTimeout,
+      reshareGone:
+          already || error.statusCode == 403 || error.statusCode == 404,
+      message: already
+          ? 'You\'ve already reshared this story.'
+          : limit
+          ? fields['stories']!.first
+          : switch (error.statusCode) {
+              403 => 'You can\'t reshare this story.',
+              404 => 'This story has expired.',
+              _ => response == null ? error.message : fallback,
+            },
+    );
+  }
+
+  /// Resharing can't succeed later (already reshared, not allowed, or the
+  /// story expired), so the Reshare button should go away.
+  final bool reshareGone;
 }
 
 class StoriesRepo {
@@ -53,6 +95,31 @@ class StoriesRepo {
       throw ApiExceptions.handleError(e);
     } on FormatException {
       throw ApiError(message: 'Unable to read this Story. Please retry.');
+    }
+  }
+
+  /// `POST /stories/{id}/reshare`: reshares a story the caller is mentioned
+  /// in as a new story of theirs. [visibility] is omitted when null (the API
+  /// defaults to `public`). Errors become a [StoryReshareError] with a
+  /// user-facing message.
+  Future<void> reshare(int id, {StoryAudience? visibility}) async {
+    storyId(id);
+    try {
+      final response = await _dio.post(
+        'stories/$id/reshare',
+        data: {if (visibility != null) 'visibility': visibility.visibility},
+        // JSON, so a 422's `errors` (story / stories) can be told apart.
+        options: Options(receiveTimeout: const Duration(seconds: 15)),
+      );
+      final status = response.statusCode;
+      if (status == null || status < 200 || status >= 300) {
+        throw StoryReshareError(
+          message: StoryReshareError.fallback,
+          statusCode: status,
+        );
+      }
+    } on DioException catch (e) {
+      throw StoryReshareError.from(ApiExceptions.handleError(e), e.response);
     }
   }
 

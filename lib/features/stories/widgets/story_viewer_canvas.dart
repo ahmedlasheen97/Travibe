@@ -11,10 +11,14 @@ class StoryViewerCanvas extends StatelessWidget {
     required this.layers,
     required this.onReady,
     required this.onError,
+    this.highlightMentions = true,
   });
   final ImageProvider image;
   final List<StoryEditorLayer> layers;
   final VoidCallback onReady, onError;
+
+  /// Orange `@handle`s; off for a reshare (its mentions are plain text).
+  final bool highlightMentions;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
@@ -81,7 +85,11 @@ class StoryViewerCanvas extends StatelessWidget {
   }
 
   Widget _layer(StoryEditorLayer layer, Size size) {
-    final geometry = StoryLayerGeometry.of(layer, size);
+    final geometry = StoryLayerGeometry.of(
+      layer,
+      size,
+      highlightMentions: highlightMentions,
+    );
     final scale = geometry.fitScale(layer.scale);
     final center = geometry.bound(layer.center, scale, size);
     return Positioned(

@@ -239,89 +239,16 @@ from it (e.g. attempts made on another device, or after the app restarts).
 drop the device counter. With `otp_expired` the app can show "Code expired.
 Tap Resend OTP" again.
 
-## Stories: reshare from mention
-
-Figma (`docs/figma/stories/mention_sheet.png`, `mention_typing.png`,
-`mentioned_viewer_reshare.png`, `reshared_story.png`) lets a story's author
-allow the people they mention to reshare it. A mentioned viewer sees a
-**Reshare** button; the reshared story shows "12h • reshared from mention" and
-links to the original author. `docs/openapi.json` already covers mentions
-(`GET /mentions/suggestions`, `StoryDetailResource.mentions`, the
-`user_mentioned` notification) but has none of the following.
-
-### 1. `allow_reshare` on `POST /stories` and the story detail
-
-- `StoreStoryRequest.allow_reshare`: boolean, optional, default `true`.
-- `StoryDetailResource.allow_reshare`: boolean, always present.
-- Only the author sees or changes it. No update endpoint is needed (stories
-  are not editable).
-
-### 2. `can_reshare` on `StoryDetailResource`
-
-Boolean for the **current viewer**, `true` only when all of these hold:
-
-- the viewer is in the story's `mentions` (resolved, not just a handle in the text);
-- the story's `allow_reshare` is `true`;
-- the story hasn't expired;
-- there is no block between the viewer and the author, in either direction;
-- the viewer isn't the author;
-- the story is not itself a reshare (to avoid reshare chains), unless you prefer to allow them.
-
-The client shows the button only from this flag, so the rules stay on the server.
-
-### 3. `reshare_of_story_id` on `POST /stories`
-
-- `StoreStoryRequest.reshare_of_story_id`: integer, nullable.
-- The server re-checks the `can_reshare` rules for the caller against that
-  story and returns `422` with a `reshare_of_story_id` validation error when
-  they fail (expired, not mentioned, resharing turned off, blocked, deleted).
-- The reshare is an ordinary story otherwise: it carries its own
-  `media_ids` (the client renders the original photo into the new upload),
-  `elements`, `visibility` and 24-hour expiry. Deleting the original does not
-  delete the reshare.
-
-### 4. `reshared_from` on `StoryDetailResource`
-
-```json
-"reshared_from": {
-  "story_id": 123,
-  "user": { "...": "PublicUserResource of the original author" }
-}
-```
-
-- `null` when the story isn't a reshare.
-- If the viewer and the original author are in a block relationship, return
-  `null` (the header then reads as a normal story).
-- It is still returned after the original expires or is deleted. The header
-  only needs the author.
-
-### 5. Optional: `story_reshared` notification
-
-Notify the original author when someone reshares their story. Use
-`target_type: story` with `target_id` set to the reshare, and include
-`preview.thumbnail_url`.
-
-**Client today:** the Mention sheet and inline `@` suggestions work now (they
-use only documented endpoints). The "People you mention can reshare this
-story" toggle is shown and its value is kept on the draft, but
-`allow_reshare` is not sent. The Reshare button, the "reshared from mention"
-header and the extra `POST /stories` fields are behind `kEnableStoryReshare`
-(`lib/core/constants/feature_flags.dart`), which is `false`. `StoryDetail`
-already parses `allow_reshare`, `can_reshare` and `reshared_from` when
-present.
+## Stories: explicit hidden mentions (`mention_user_ids`)
 
 People picked with the @ tool are "hidden" mentions: nothing is drawn on the
 story. The client sends them as `@a @b` in the `content` of one extra
 `type: text` element whose `text` is a zero-width space
 (`docs/STORIES_EDITOR_TOOLS.md`). They come back in `mentions` like any
-other mention, so `can_reshare` should treat them the same.
+other mention.
 
-### 6. Optional: explicit hidden mentions
-
-The workaround above works today. A first-class field would be cleaner:
+This workaround works today. A first-class field would be cleaner:
 `StoreStoryRequest.mention_user_ids` (integer array, at most 10), merged with
 mentions parsed from text under the same rules (visibility, blocks,
-notifications). If it ships, the client drops the extra element.
-
-**Client after:** flip `kEnableStoryReshare` to `true`. No other client
-change is needed if the field names above are kept.
+notifications, and who can reshare). If it ships, the client drops the extra
+element.

@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 
 /// Client-owned v1 payload; the API stores elements verbatim. No API enums are
@@ -22,9 +24,11 @@ class StoryElements {
   /// The element that carries hidden (@ tool) mentions.
   static const mentionsId = 'story-mentions';
 
-  /// U+200B ZERO WIDTH SPACE: older builds draw nothing for it, and it is not
-  /// whitespace to `String.trim`, so they still accept the element.
-  static const invisibleText = '​';
+  /// U+200B ZERO WIDTH SPACE, sent as the hidden element's `text`. The API
+  /// trims strings (Laravel `TrimStrings` strips U+200B, then empty becomes
+  /// null), so it is read back as `"text": null`. [decode] skips the element
+  /// by its id either way; the mentions come from `content`.
+  static const invisibleText = '\u200B';
 
   /// Most distinct mentions the API stores per story.
   static const maxMentions = 10;
@@ -92,51 +96,87 @@ class StoryElements {
     return List.unmodifiable(encoded);
   }
 
-  /// Text layers to draw. The hidden mentions element is skipped. Stickers
-  /// from earlier builds (`mention` metadata) become ordinary text, so their
-  /// `@username` shows highlighted in a text bubble.
+  /// Text layers to draw. Never fails a Story because of one element: any
+  /// element this build can't render is skipped (and logged in debug).
+  ///
+  /// The hidden mentions element is always skipped, however the server
+  /// returns it. The API trims strings, so the [invisibleText] sent as its
+  /// `text` comes back as `null`. Text that is empty or only whitespace or
+  /// zero-width characters is skipped too. Stickers from earlier builds
+  /// (`mention` metadata) become ordinary text, so their `@username` shows
+  /// highlighted in a text bubble. Throws only when [json] isn't a list.
   static List<StoryEditorLayer> decode(dynamic json) {
-    if (json is! List || json.length > 50) {
-      throw const FormatException('Invalid Story elements');
-    }
+    if (json is! List) throw const FormatException('Invalid Story elements');
     final layers = <StoryEditorLayer>[];
-    for (final value in json) {
-      if (value is! Map ||
-          value['version'] is! int ||
-          value['version'] != 1 ||
-          value['type'] != 'text' ||
-          value['id'] is! String ||
-          value['text'] is! String ||
-          value['position'] is! Map ||
-          value['scale'] is! num ||
-          value['style'] is! Map) {
-        throw const FormatException('Unsupported Story element');
+    final ids = <String>{};
+    for (final (index, value) in json.indexed) {
+      if (value is Map && value['id'] == mentionsId) continue;
+      final reason = _unsupported(value);
+      if (reason != null) {
+        if (reason.isNotEmpty) _skip(index, reason);
+        continue;
       }
-      final appearance = value['style'] as Map;
-      if (appearance.length != style.length ||
-          !style.entries.every(
-            (entry) => appearance[entry.key] == entry.value,
-          )) {
-        throw const FormatException('Unsupported Story text style');
+      final element = value as Map;
+      if (layers.length >= 50) {
+        _skip(index, 'more than 50 text elements');
+        continue;
       }
-      if (value['text'] == invisibleText) continue;
-      final position = value['position'] as Map;
-      if (position['x'] is! num || position['y'] is! num) {
-        throw const FormatException('Invalid Story position');
+      if (!ids.add(element['id'] as String)) {
+        _skip(index, 'duplicate id');
+        continue;
       }
+      final position = element['position'] as Map;
       layers.add(
         StoryTextLayer(
-          id: value['id'],
-          text: value['text'],
+          id: element['id'],
+          text: element['text'],
           center: Offset(
             (position['x'] as num).toDouble(),
             (position['y'] as num).toDouble(),
           ),
-          scale: (value['scale'] as num).toDouble(),
+          scale: (element['scale'] as num).toDouble(),
         ),
       );
     }
-    encode(layers); // Same bounds, uniqueness and finite-number validation.
     return List.unmodifiable(layers);
+  }
+
+  /// Whitespace and the zero-width/format characters the API trims (or that
+  /// draw nothing): U+200B–U+200F, U+2060, U+FEFF.
+  static final _blank = RegExp(r'^[\s​-‏⁠﻿]*$');
+
+  /// Why [value] can't be drawn, `''` to skip it silently (nothing to draw),
+  /// or null when it is a renderable v1 text element.
+  static String? _unsupported(dynamic value) {
+    if (value is! Map) return 'not an object';
+    if (value['version'] != 1) return 'unsupported version ${value['version']}';
+    if (value['type'] != 'text') return 'unsupported type ${value['type']}';
+    final text = value['text'];
+    if (text == null || (text is String && _blank.hasMatch(text))) return '';
+    if (text is! String) return 'text is not a string';
+    final id = value['id'];
+    if (id is! String || id.isEmpty) return 'missing id';
+    final appearance = value['style'];
+    if (appearance is! Map ||
+        appearance.length != style.length ||
+        !style.entries.every((entry) => appearance[entry.key] == entry.value)) {
+      return 'unsupported text style';
+    }
+    final position = value['position'];
+    if (position is! Map) return 'missing position';
+    final x = position['x'], y = position['y'], scale = value['scale'];
+    if (x is! num || y is! num || !_unit(x) || !_unit(y)) {
+      return 'invalid position';
+    }
+    if (scale is! num || !scale.isFinite || scale <= 0) return 'invalid scale';
+    return null;
+  }
+
+  static bool _unit(num value) => value.isFinite && value >= 0 && value <= 1;
+
+  static void _skip(int index, String reason) {
+    if (kDebugMode) {
+      debugPrint('StoryElements: skipped element $index: $reason');
+    }
   }
 }
