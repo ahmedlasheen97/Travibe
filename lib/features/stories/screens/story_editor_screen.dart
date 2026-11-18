@@ -9,6 +9,7 @@ import 'package:travibe/core/media/media_upload_service.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
@@ -20,7 +21,8 @@ import 'package:travibe/features/stories/widgets/story_text_entry.dart';
 import 'package:travibe/features/stories/widgets/story_audience_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_emoji_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_mention_sheet.dart';
-import 'package:travibe/features/search/data/search_repo.dart';
+import 'package:travibe/core/constants/feature_flags.dart';
+import 'package:travibe/features/stories/data/mentions_repo.dart';
 
 /// Draw-mode palette: white, black, orange, red, yellow, green, blue.
 abstract final class StoryEditorScreenColors {
@@ -42,10 +44,11 @@ class StoryEditorScreen extends StatefulWidget {
     this.avatarUrl,
     this.storiesRepo,
     this.uploads,
-    this.searchRepo,
+    this.mentionsRepo,
     this.onPublished,
     this.onSubmit,
     this.exporter,
+    this.enableReshare = kEnableStoryReshare,
   });
 
   final StoryEditorDraft draft;
@@ -53,8 +56,12 @@ class StoryEditorScreen extends StatefulWidget {
   final StoriesRepo? storiesRepo;
   final MediaUploadService? uploads;
 
-  /// User search for the @ Mention sheet; defaults to the real API.
-  final SearchRepo? searchRepo;
+  /// People for the @ Mention sheet and inline `@` suggestions; defaults to
+  /// `GET /mentions/suggestions`.
+  final MentionsRepo? mentionsRepo;
+
+  /// Shows "People you mention can reshare this story".
+  final bool enableReshare;
   final Future<void> Function()? onPublished;
 
   /// Background publishing (Home): Post hands the Story over and the editor
@@ -139,23 +146,34 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
 
   Future<void> _addMention() async {
     if (_sheetOpen || _drawing || _publisher.state.busy) return;
-    if (_editor.elementCount >= StoryEditorCubit.maxElements) {
-      _snack('A Story can contain at most 50 text elements.');
-      return;
-    }
     _pickingSticker = true;
     try {
-      final user = await showStoryMentionSheet(
+      final selection = await showStoryMentionSheet(
         context,
-        repo: widget.searchRepo,
+        repo: _mentions,
+        selected: [
+          for (final user in _editor.mentionedUsers)
+            storyMentionUser(user.id, user.username),
+        ],
+        allowReshare: _editor.state.allowReshare,
+        enableReshare: widget.enableReshare,
       );
-      if (mounted && user != null && !_editor.addMention(user)) {
-        _snack('This person can\'t be mentioned.');
+      if (!mounted || selection == null) return;
+      _editor.setAllowReshare(selection.allowReshare);
+      final rejected = _editor.syncMentions(selection.users);
+      if (rejected > 0) {
+        _snack(
+          _editor.elementCount >= StoryEditorCubit.maxElements
+              ? 'A Story can contain at most 50 text elements.'
+              : 'Some people can\'t be mentioned.',
+        );
       }
     } finally {
       _pickingSticker = false;
     }
   }
+
+  late final _mentions = widget.mentionsRepo ?? MentionsRepo();
 
   Future<void> _addEmoji() async {
     if (_sheetOpen || _drawing || _publisher.state.busy) return;
@@ -192,8 +210,17 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
     }
     _enteringText = true;
     try {
-      final text = await showStoryTextEntry(context, text: layer?.text);
-      if (mounted && text != null) _editor.saveText(text, id: layer?.id);
+      final result = await showStoryTextEntry(
+        context,
+        text: layer?.text,
+        mentionsRepo: _mentions,
+        allowReshare: _editor.state.allowReshare,
+        enableReshare: widget.enableReshare,
+      );
+      if (mounted && result != null) {
+        _editor.setAllowReshare(result.allowReshare);
+        _editor.saveText(result.text, id: layer?.id);
+      }
     } finally {
       _enteringText = false;
     }
@@ -269,7 +296,6 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                     onTransform: _editor.commitTransform,
                     onTransformLayer: (id, center, scale, rotation) => _editor
                         .commitTransform(id, center, scale, rotation: rotation),
-                    onCycleMentionStyle: _editor.cycleMentionStyle,
                     onDelete: _editor.removeLayer,
                     drawing: _drawing,
                     brushColor: _brushColor,
@@ -407,7 +433,8 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                                         _tool(
                                           'story-mention-tool',
                                           'Mention someone',
-                                          icon: Icons.alternate_email,
+                                          svg:
+                                              'assets/images/icons/mention_glyph.svg',
                                           onPressed: _addMention,
                                         ),
                                         _tool(
@@ -458,6 +485,7 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
     String tooltip, {
     IconData? icon,
     String? text,
+    String? svg,
     required VoidCallback onPressed,
     bool last = false,
   }) => Padding(
@@ -478,6 +506,8 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                 letterSpacing: 0,
               ),
             )
+          : svg != null
+          ? SvgPicture.asset(svg, width: 24, height: 24)
           : Icon(icon, size: 24),
     ),
   );

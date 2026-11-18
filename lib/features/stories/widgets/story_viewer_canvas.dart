@@ -76,6 +76,55 @@ class StoryViewerCanvas extends StatelessWidget {
     return null;
   }
 
+  /// The mention (sticker or `@handle` inside text) under [point], topmost
+  /// first, with its on-screen bounds for anchoring a popover.
+  static StoryMentionHit? mentionHitAt(
+    List<StoryEditorLayer> layers,
+    Offset point,
+    Size size,
+  ) {
+    for (final layer in layers.reversed) {
+      if (layer is StoryMentionLayer) {
+        if (mentionAt([layer], point, size) == null) continue;
+        final geometry = StoryMentionGeometry(layer, size);
+        final scale = geometry.fitScale(layer.scale);
+        final center = geometry.bound(layer.center, scale, size);
+        final rect = geometry.rect(center, scale, size);
+        // Bounds of the rotated sticker.
+        final cos = math.cos(layer.rotation).abs();
+        final sin = math.sin(layer.rotation).abs();
+        return StoryMentionHit(
+          username: layer.username,
+          rect: Rect.fromCenter(
+            center: rect.center,
+            width: rect.width * cos + rect.height * sin,
+            height: rect.width * sin + rect.height * cos,
+          ),
+        );
+      }
+      if (layer is StoryTextLayer) {
+        final geometry = StoryTextGeometry(layer, size);
+        final scale = geometry.fitScale(layer.scale);
+        final center = geometry.bound(layer.center, scale, size);
+        final rect = geometry.rect(center, scale, size);
+        if (!rect.contains(point)) continue;
+        // Text layers never rotate; undo the scale around the center.
+        final half = geometry.size.center(Offset.zero);
+        final hit = geometry.mentionAt((point - rect.center) / scale + half);
+        if (hit == null) continue;
+        final (username, local) = hit;
+        return StoryMentionHit(
+          username: username,
+          rect: Rect.fromPoints(
+            rect.center + (local.topLeft - half) * scale,
+            rect.center + (local.bottomRight - half) * scale,
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
   Widget _layer(StoryEditorLayer layer, Size size) {
     final geometry = StoryLayerGeometry.of(layer, size);
     final scale = geometry.fitScale(layer.scale);
@@ -92,4 +141,11 @@ class StoryViewerCanvas extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A tapped mention: who, and where it is drawn (canvas-local).
+class StoryMentionHit {
+  const StoryMentionHit({required this.username, required this.rect});
+  final String username;
+  final Rect rect;
 }

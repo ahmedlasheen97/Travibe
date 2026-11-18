@@ -1,7 +1,15 @@
 import 'notification_model.dart';
 import 'notification_targets.dart';
 
-enum NotificationKind { comment, follow, like, messageRequest, nearby, unknown }
+enum NotificationKind {
+  comment,
+  follow,
+  like,
+  messageRequest,
+  nearby,
+  mention,
+  unknown,
+}
 
 enum NotificationMediaKind { post, story }
 
@@ -35,7 +43,7 @@ class NotificationPresentationResolver {
     'message_received': NotificationKind.messageRequest,
     'message_request_accepted': NotificationKind.messageRequest,
     'buddy_nearby': NotificationKind.nearby,
-    'user_mentioned': NotificationKind.unknown,
+    'user_mentioned': NotificationKind.mention,
   };
   static const _descriptions = <String, String>{
     'post_liked': 'liked your post',
@@ -60,6 +68,11 @@ class NotificationPresentationResolver {
 
   /// Text after the bold actor name; includes the comment excerpt when known.
   String description(InboxNotification item) {
+    // Figma: "X mentioned you in a story." (no excerpt for stories).
+    if (item.type == 'user_mentioned' &&
+        normalizedTargetKind(item.targetType) == NotificationTargetKind.story) {
+      return 'mentioned you in a story.';
+    }
     final excerpt = item.preview?.excerpt?.trim();
     final lead = _excerptTypes[item.type];
     if (lead != null && excerpt != null && excerpt.isNotEmpty) {
@@ -114,6 +127,7 @@ class NotificationPresentationResolver {
       'assets/images/notification/messagerequest.svg',
     NotificationKind.nearby =>
       'assets/images/notification/someone in yourcity.svg',
+    NotificationKind.mention => 'assets/images/icons/mention.svg',
     NotificationKind.unknown => null,
   };
 }

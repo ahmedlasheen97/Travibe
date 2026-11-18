@@ -25,7 +25,6 @@ class StoryCanvas extends StatelessWidget {
     required this.onDelete,
     this.exportController,
     this.onTransformLayer,
-    this.onCycleMentionStyle,
     this.drawing = false,
     this.brushColor = Colors.white,
     this.brushWidth = 6,
@@ -38,7 +37,6 @@ class StoryCanvas extends StatelessWidget {
 
   /// Preferred over [onTransform] when set; includes sticker rotation.
   final StoryLayerTransform? onTransformLayer;
-  final ValueChanged<String>? onCycleMentionStyle;
   final ValueChanged<String> onDelete;
 
   /// Drawing mode: finger input becomes strokes and stickers are inert.
@@ -63,7 +61,6 @@ class StoryCanvas extends StatelessWidget {
         onDelete: onDelete,
         exportController: exportController,
         onTransformLayer: onTransformLayer,
-        onCycleMentionStyle: onCycleMentionStyle,
         drawing: drawing,
         brushColor: brushColor,
         brushWidth: brushWidth,
@@ -83,7 +80,6 @@ class _GestureCanvas extends StatefulWidget {
     required this.onDelete,
     this.exportController,
     this.onTransformLayer,
-    this.onCycleMentionStyle,
     this.drawing = false,
     this.brushColor = Colors.white,
     this.brushWidth = 6,
@@ -95,7 +91,6 @@ class _GestureCanvas extends StatefulWidget {
   final ValueChanged<StoryTextLayer> onEditText;
   final void Function(String id, Offset center, double scale) onTransform;
   final StoryLayerTransform? onTransformLayer;
-  final ValueChanged<String>? onCycleMentionStyle;
   final ValueChanged<String> onDelete;
   final bool drawing;
   final Color brushColor;
@@ -403,8 +398,6 @@ class _GestureCanvasState extends State<_GestureCanvas> {
               behavior: HitTestBehavior.opaque,
               onTap: switch (layer) {
                 StoryTextLayer() => () => widget.onEditText(layer),
-                StoryMentionLayer() when widget.onCycleMentionStyle != null =>
-                  () => widget.onCycleMentionStyle!(layer.id),
                 _ => null,
               },
               onScaleStart: (details) => _start(layer, geometry, details),

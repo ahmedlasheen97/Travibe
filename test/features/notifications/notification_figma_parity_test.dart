@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -326,6 +327,47 @@ void main() {
       );
       expect(find.text('text only'), findsOneWidget);
       expect(adapter.calls, isEmpty);
+    });
+
+    testWidgets('story mention: text, @ badge and portrait thumbnail', (
+      tester,
+    ) async {
+      final opened = await pumpInbox(tester, [
+        _withPreview(
+          notice('user_mentioned', id: 'm', morph: 'story', target: 30),
+          thumbnail: _story,
+          excerpt: 'Best coffee with @me',
+        ),
+      ]);
+      expect(
+        find.textContaining(
+          'Fixture actor mentioned you in a story.',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      // The excerpt is not appended for stories.
+      expect(
+        find.textContaining('Best coffee', findRichText: true),
+        findsNothing,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SvgPicture &&
+              w.bytesLoader is SvgAssetLoader &&
+              (w.bytesLoader as SvgAssetLoader).assetName ==
+                  'assets/images/icons/mention.svg',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('notification-story-preview')),
+        ),
+        const Size(48, 72),
+      );
+      expect(opened, isEmpty);
     });
 
     testWidgets('avatar opens the actor profile for any type', (tester) async {

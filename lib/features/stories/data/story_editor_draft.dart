@@ -175,6 +175,8 @@ class StoryEditorDraft {
     List<StoryEditorLayer> layers = const [],
     List<StoryStroke> strokes = const [],
     this.audience = StoryAudience.public,
+    this.allowReshare = true,
+    this.reshareOfStoryId,
   }) : layers = List.unmodifiable(layers),
        strokes = List.unmodifiable(strokes);
 
@@ -183,29 +185,40 @@ class StoryEditorDraft {
   final List<StoryStroke> strokes;
   final StoryAudience audience;
 
+  /// "People you mention can reshare this story". Sent only while
+  /// `kEnableStoryReshare` is on.
+  final bool allowReshare;
+
+  /// Set when this draft reshares a story the user was mentioned in.
+  final int? reshareOfStoryId;
+
   /// Drawings and emojis are baked into the photo before upload.
   bool get hasFlattenedContent =>
       strokes.isNotEmpty || layers.any((layer) => layer is StoryEmojiLayer);
 
+  StoryEditorDraft _copy({
+    List<StoryEditorLayer>? layers,
+    List<StoryStroke>? strokes,
+    StoryAudience? audience,
+    bool? allowReshare,
+  }) => StoryEditorDraft(
+    image: image,
+    layers: layers ?? this.layers,
+    strokes: strokes ?? this.strokes,
+    audience: audience ?? this.audience,
+    allowReshare: allowReshare ?? this.allowReshare,
+    reshareOfStoryId: reshareOfStoryId,
+  );
+
   StoryEditorDraft withLayers(List<StoryEditorLayer> layers) =>
-      StoryEditorDraft(
-        image: image,
-        layers: layers,
-        strokes: strokes,
-        audience: audience,
-      );
+      _copy(layers: layers);
 
-  StoryEditorDraft withStrokes(List<StoryStroke> strokes) => StoryEditorDraft(
-    image: image,
-    layers: layers,
-    strokes: strokes,
-    audience: audience,
-  );
+  StoryEditorDraft withStrokes(List<StoryStroke> strokes) =>
+      _copy(strokes: strokes);
 
-  StoryEditorDraft withAudience(StoryAudience audience) => StoryEditorDraft(
-    image: image,
-    layers: layers,
-    strokes: strokes,
-    audience: audience,
-  );
+  StoryEditorDraft withAudience(StoryAudience audience) =>
+      _copy(audience: audience);
+
+  StoryEditorDraft withAllowReshare(bool allowReshare) =>
+      _copy(allowReshare: allowReshare);
 }

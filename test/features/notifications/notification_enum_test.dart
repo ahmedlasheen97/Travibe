@@ -45,7 +45,11 @@ const cases = <String, (NotificationKind, String?, String)>{
     'messagerequest.svg',
     'sent you a message',
   ),
-  'user_mentioned': (NotificationKind.unknown, null, 'mentioned you'),
+  'user_mentioned': (
+    NotificationKind.mention,
+    'assets/images/icons/mention.svg',
+    'mentioned you',
+  ),
   // Proposed backend types (not yet in docs/openapi.json).
   'message_request_accepted': (
     NotificationKind.messageRequest,
@@ -109,7 +113,9 @@ void main() {
                 w is SvgPicture &&
                 w.bytesLoader is SvgAssetLoader &&
                 (w.bytesLoader as SvgAssetLoader).assetName ==
-                    'assets/images/notification/$asset',
+                    (asset.startsWith('assets/')
+                        ? asset
+                        : 'assets/images/notification/$asset'),
           ),
           findsOneWidget,
         );
