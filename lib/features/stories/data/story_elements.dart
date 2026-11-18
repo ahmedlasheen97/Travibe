@@ -21,32 +21,20 @@ class StoryElements {
     'direction': 'ltr',
   };
 
-  /// The element that carries hidden (@ tool) mentions.
+  /// The legacy element that carried hidden (@ tool) mentions before
+  /// `mention_user_ids`. No longer sent; [decode] still skips it on old
+  /// stories (whose `text` now comes back as `"\u200B"`).
   static const mentionsId = 'story-mentions';
 
-  /// U+200B ZERO WIDTH SPACE, sent as the hidden element's `text`. The API
-  /// trims strings (Laravel `TrimStrings` strips U+200B, then empty becomes
-  /// null), so it is read back as `"text": null`. [decode] skips the element
-  /// by its id either way; the mentions come from `content`.
-  static const invisibleText = '\u200B';
-
-  /// Most distinct mentions the API stores per story.
+  /// Most distinct `mention_user_ids` the API accepts per story.
   static const maxMentions = 10;
 
   /// Text layers become v1 text elements. Emoji layers and strokes are
-  /// flattened into the uploaded photo and are skipped here.
-  ///
-  /// [mentions] (picked with the @ tool, not drawn on the story) become one
-  /// extra v1 text element: `text` is [invisibleText] and `content` is
-  /// `"@a @b"`. The API reads mentions from both `text` and `content` of text
-  /// elements, so these users are mentioned and notified, while older app
-  /// builds render an invisible character instead of rejecting the Story.
-  static List<Map<String, dynamic>> encode(
-    List<StoryEditorLayer> layers, {
-    List<StoryMentionedUser> mentions = const [],
-  }) {
+  /// flattened into the uploaded photo and are skipped here. Hidden (@ tool)
+  /// mentions are sent as `mention_user_ids`, not as an element.
+  static List<Map<String, dynamic>> encode(List<StoryEditorLayer> layers) {
     final elements = layers.whereType<StoryTextLayer>().toList();
-    if (elements.length + (mentions.isEmpty ? 0 : 1) > 50) {
+    if (elements.length > 50) {
       throw const FormatException('Maximum 50 text elements');
     }
     final ids = <String>{mentionsId};
@@ -74,35 +62,16 @@ class StoryElements {
         'style': Map<String, Object>.of(style),
       };
     }).toList();
-    if (mentions.isNotEmpty) {
-      if (mentions.length > maxMentions ||
-          mentions.any((m) => m.id <= 0 || m.username.trim().isEmpty)) {
-        throw const FormatException('Invalid Story mentions');
-      }
-      encoded.add({
-        'version': 1,
-        'id': mentionsId,
-        'type': 'text',
-        'text': invisibleText,
-        'content': mentions.map((m) => '@${m.username}').join(' '),
-        'position': {'x': 0.5, 'y': 0.5},
-        'scale': 1,
-        'style': Map<String, Object>.of(style),
-        'mentions': [
-          for (final m in mentions) {'user_id': m.id, 'username': m.username},
-        ],
-      });
-    }
     return List.unmodifiable(encoded);
   }
 
   /// Text layers to draw. Never fails a Story because of one element: any
   /// element this build can't render is skipped (and logged in debug).
   ///
-  /// The hidden mentions element is always skipped, however the server
-  /// returns it. The API trims strings, so the [invisibleText] sent as its
-  /// `text` comes back as `null`. Text that is empty or only whitespace or
-  /// zero-width characters is skipped too. Stickers from earlier builds
+  /// The legacy hidden mentions element is always skipped, whatever its
+  /// `text` (`"\u200B"` now, `null` on stories saved while the API trimmed
+  /// strings). Text comes back exactly as sent; text that is empty or only
+  /// whitespace or zero-width characters is skipped (no empty bubble). Stickers from earlier builds
   /// (`mention` metadata) become ordinary text, so their `@username` shows
   /// highlighted in a text bubble. Throws only when [json] isn't a list.
   static List<StoryEditorLayer> decode(dynamic json) {
@@ -141,8 +110,7 @@ class StoryElements {
     return List.unmodifiable(layers);
   }
 
-  /// Whitespace and the zero-width/format characters the API trims (or that
-  /// draw nothing): U+200B–U+200F, U+2060, U+FEFF.
+  /// Whitespace and the zero-width/format characters that draw nothing: U+200B–U+200F, U+2060, U+FEFF.
   static final _blank = RegExp(r'^[\s​-‏⁠﻿]*$');
 
   /// Why [value] can't be drawn, `''` to skip it silently (nothing to draw),

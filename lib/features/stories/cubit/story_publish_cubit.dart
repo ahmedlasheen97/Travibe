@@ -30,6 +30,7 @@ class StoryPublishState {
     this.uncertain = false,
     this.sessionEnded = false,
     this.fraction = 0,
+    this.mentionsRejected = false,
   });
   final StoryPublishStatus status;
   final ApiError? error;
@@ -41,6 +42,10 @@ class StoryPublishState {
 
   /// 0..1 across preparing, uploading, processing and publishing.
   final double fraction;
+
+  /// The API rejected `mention_user_ids` (422). The photo is uploaded and no
+  /// Story exists, so [StoryPublishCubit.publishWithoutMentions] can post it.
+  final bool mentionsRejected;
   bool get busy =>
       status == StoryPublishStatus.preparing ||
       status == StoryPublishStatus.uploading ||
@@ -89,6 +94,17 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
   StoryEditorDraft? _exportedDraft;
   StoryExportedImage? _export;
   int? _unverifiedMediaId;
+
+  /// Uploaded media whose POST failed with a mention 422 (not claimed).
+  int? _mentionsRejectedMediaId;
+
+  /// "Post anyway": hidden mentions are left out of every later POST.
+  bool _dropMentions = false;
+
+  /// Whether the Story was (or will be) posted without its hidden mentions.
+  bool get droppedMentions => _dropMentions;
+
+  static const mentionsRejectedMessage = "Couldn't mention some people";
 
   static const failureMessage =
       'Couldn’t publish your story. Check your connection and try again.';
@@ -141,6 +157,15 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
     );
   }
 
+  /// A 422 whose errors are about `mention_user_ids` (or one of its items).
+  static bool isMentionRejection(Object error) =>
+      error is ApiError &&
+      error.statusCode == 422 &&
+      error.fieldErrors.keys.any(
+        (key) =>
+            key == 'mention_user_ids' || key.startsWith('mention_user_ids.'),
+      );
+
   static int? _statusOf(Object error) =>
       error is ApiError ? error.statusCode : null;
 
@@ -186,7 +211,8 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
       return;
     }
     try {
-      StoryElements.encode(draft.layers, mentions: draft.mentions);
+      StoryElements.encode(draft.layers);
+      CreateStoryRequest.mentionIds(draft.mentions);
     } on FormatException catch (e) {
       emit(
         StoryPublishState(
@@ -270,6 +296,22 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
     }
   }
 
+  /// After a mention 422: posts the already-uploaded photo again with no
+  /// `mention_user_ids`. No re-export or re-upload.
+  Future<void> publishWithoutMentions(StoryEditorDraft draft) async {
+    final mediaId = _mentionsRejectedMediaId;
+    if (mediaId == null || !state.mentionsRejected || _confirmed) return;
+    if (!_active()) return;
+    _dropMentions = true;
+    _mentionsRejectedMediaId = null;
+    final cancel = _cancel = CancelToken();
+    try {
+      await _create(draft, mediaId, cancel);
+    } catch (error) {
+      _fail(error);
+    }
+  }
+
   Future<void> _create(
     StoryEditorDraft draft,
     int mediaId,
@@ -282,6 +324,7 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
           mediaId: mediaId,
           draft: draft,
           allowMentionReshare: draft.sendsMentionReshare,
+          includeMentions: !_dropMentions,
         ),
         cancelToken: cancel,
       );
@@ -299,6 +342,26 @@ class StoryPublishCubit extends Cubit<StoryPublishState> {
       }
       if (!_active()) return;
       if (existing != null) return await _succeed(existing);
+      rethrow;
+    } on ApiError catch (error) {
+      if (!_dropMentions && isMentionRejection(error) && _active()) {
+        // Validation failed before anything was stored: the media is free.
+        // An earlier uncertain POST sent the same ids, so it failed too.
+        _mentionsRejectedMediaId = mediaId;
+        _unverifiedMediaId = null;
+        emit(
+          StoryPublishState(
+            status: StoryPublishStatus.failure,
+            mentionsRejected: true,
+            error: ApiError(
+              message: mentionsRejectedMessage,
+              statusCode: 422,
+              fieldErrors: error.fieldErrors,
+            ),
+          ),
+        );
+        return;
+      }
       rethrow;
     }
   }

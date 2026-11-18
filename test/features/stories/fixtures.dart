@@ -105,3 +105,34 @@ class StubStoryPhotoRepo extends StoryPhotoRepo {
     return recovered;
   }
 }
+
+/// The hidden-mentions element older builds sent (before `mention_user_ids`).
+/// The API now returns its `text` exactly as sent: `"​"`.
+Map<String, dynamic> legacyMentionsElement(
+  List<StoryMentionedUser> mentions, {
+  Object? text = '​',
+}) => {
+  'version': 1,
+  'id': 'story-mentions',
+  'type': 'text',
+  'text': text,
+  'content': mentions.map((m) => '@${m.username}').join(' '),
+  'position': {'x': 0.5, 'y': 0.5},
+  'scale': 1,
+  'style': {
+    'font_family': 'Plus Jakarta Sans',
+    'font_size': 24,
+    'reference_width': 390,
+    'font_weight': 600,
+    'color_argb': 0xFFFFFFFF,
+    'shadow_color_argb': 0xDD000000,
+    'shadow_blur': 3,
+    'padding': 8,
+    'max_width_fraction': 0.8,
+    'alignment': 'center',
+    'direction': 'ltr',
+  },
+  'mentions': [
+    for (final m in mentions) {'user_id': m.id, 'username': m.username},
+  ],
+};

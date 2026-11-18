@@ -39,14 +39,26 @@ class StoryUploading extends StoryUploadState {
 }
 
 class StoryUploadFailed extends StoryUploadState {
-  const StoryUploadFailed({required this.message, this.queued = 0});
+  const StoryUploadFailed({
+    required this.message,
+    this.queued = 0,
+    this.mentionsRejected = false,
+  });
   final String message;
   final int queued;
+
+  /// The API rejected the hidden mentions; offer "Post anyway".
+  final bool mentionsRejected;
 }
 
 class StoryUploadDone extends StoryUploadState {
-  const StoryUploadDone(this.story);
+  const StoryUploadDone(this.story, {this.mentionsDropped = false});
   final StoryDetail? story;
+
+  /// Some people picked with the @ tool aren't in the Story's `mentions`
+  /// (e.g. a private account the author doesn't follow): the server drops
+  /// them silently.
+  final bool mentionsDropped;
 }
 
 typedef StoryPublisherFactory = StoryPublishCubit Function();
@@ -114,6 +126,23 @@ class StoryUploadCubit extends Cubit<StoryUploadState> {
     unawaited(publisher.publish(job.draft, viewport: job.viewport));
   }
 
+  /// After a mention 422: posts the same uploaded photo without the hidden
+  /// mentions.
+  void retryWithoutMentions() {
+    final publisher = _publisher;
+    final job = _job;
+    final state = this.state;
+    if (isClosed ||
+        state is! StoryUploadFailed ||
+        !state.mentionsRejected ||
+        publisher == null ||
+        job == null) {
+      return;
+    }
+    emit(StoryUploading(progress: .95, queued: _queue.length));
+    unawaited(publisher.publishWithoutMentions(job.draft));
+  }
+
   void discard() {
     if (isClosed || state is! StoryUploadFailed) return;
     _finishJob();
@@ -138,12 +167,32 @@ class StoryUploadCubit extends Cubit<StoryUploadState> {
       _reset();
       emit(const StoryUploadIdle());
     } else if (value.status == StoryPublishStatus.failure) {
-      emit(StoryUploadFailed(message: failureMessage, queued: _queue.length));
+      emit(
+        StoryUploadFailed(
+          message: value.mentionsRejected
+              ? StoryPublishCubit.mentionsRejectedMessage
+              : failureMessage,
+          queued: _queue.length,
+          mentionsRejected: value.mentionsRejected,
+        ),
+      );
     } else if (value.status == StoryPublishStatus.success) {
+      final dropped =
+          !(_publisher?.droppedMentions ?? false) &&
+          _job != null &&
+          mentionsDropped(_job!.draft, value.story);
       _finishJob();
-      emit(StoryUploadDone(value.story));
+      emit(StoryUploadDone(value.story, mentionsDropped: dropped));
       _next();
     }
+  }
+
+  /// Whether any hidden mention we sent is missing from [story]'s resolved
+  /// `mentions`. Only ids we sent count: typed `@handles` can be any text.
+  static bool mentionsDropped(StoryEditorDraft draft, StoryDetail? story) {
+    if (story == null || draft.mentions.isEmpty) return false;
+    final kept = {for (final m in story.mentions) m.userId};
+    return draft.mentions.any((m) => !kept.contains(m.id));
   }
 
   void _finishJob() {

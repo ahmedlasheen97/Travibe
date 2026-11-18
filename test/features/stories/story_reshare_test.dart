@@ -419,10 +419,12 @@ void main() {
           tester,
           canReshare: false,
           resharedFrom: {'story_id': 40, 'user': sara},
-          elements: StoryElements.encode(
-            [bubble],
-            mentions: const [StoryMentionedUser(id: 5, username: 'nour')],
-          ),
+          elements: [
+            ...StoryElements.encode([bubble]),
+            legacyMentionsElement(const [
+              StoryMentionedUser(id: 5, username: 'nour'),
+            ]),
+          ],
         );
         final bubbles = find.byKey(const ValueKey('story-text-bubble'));
         expect(bubbles, findsOneWidget);

@@ -325,9 +325,24 @@ class CreateStoryRequest {
     required this.mediaId,
     required this.draft,
     this.allowMentionReshare = false,
+    this.includeMentions = true,
   });
   final int mediaId;
   final StoryEditorDraft draft;
+
+  /// Send the draft's hidden mentions as `mention_user_ids`. False only for
+  /// "Post anyway" after the API rejected them (422).
+  final bool includeMentions;
+
+  /// Distinct ids of the people picked with the @ tool, in order. Throws when
+  /// any is invalid or there are more than [StoryElements.maxMentions].
+  static List<int> mentionIds(List<StoryMentionedUser> mentions) {
+    final ids = <int>{for (final m in mentions) m.id}.toList();
+    if (ids.length > StoryElements.maxMentions || ids.any((id) => id <= 0)) {
+      throw const FormatException('Invalid Story mentions');
+    }
+    return ids;
+  }
 
   /// Sent as `allow_mention_reshare: true` only when set. The caller must
   /// check eligibility (public story, public account): otherwise the API
@@ -335,11 +350,15 @@ class CreateStoryRequest {
   final bool allowMentionReshare;
   Map<String, dynamic> toJson() {
     storyId(mediaId);
+    final mentionIds = includeMentions
+        ? CreateStoryRequest.mentionIds(draft.mentions)
+        : const <int>[];
     return {
       'media_ids': [mediaId],
       'visibility': draft.audience.visibility,
       'location_name': null,
-      'elements': StoryElements.encode(draft.layers, mentions: draft.mentions),
+      'elements': StoryElements.encode(draft.layers),
+      if (mentionIds.isNotEmpty) 'mention_user_ids': mentionIds,
       if (allowMentionReshare && draft.audience == StoryAudience.public)
         'allow_mention_reshare': true,
     };

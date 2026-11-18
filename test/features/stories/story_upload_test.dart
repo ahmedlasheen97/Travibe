@@ -103,6 +103,7 @@ class FakeUploads extends MediaUploadService {
 
 class FakeRepo extends StoriesRepo {
   int posts = 0;
+  final requests = <Map<String, dynamic>>[];
   final createResults = <Object>[];
   final lookups = <StoryDetail?>[];
   int lookupCalls = 0;
@@ -113,6 +114,7 @@ class FakeRepo extends StoriesRepo {
     CancelToken? cancelToken,
   }) async {
     posts++;
+    requests.add(request.toJson());
     if (createResults.isNotEmpty) {
       final result = createResults.removeAt(0);
       if (result is! StoryDetail) throw result;
@@ -443,6 +445,107 @@ void main() {
       expect(cubit.state, isA<StoryUploadIdle>());
       expect(cubit.pending, 0);
     });
+
+    StoryEditorDraft mentioning() => draft().withMentions(const [
+      StoryMentionedUser(id: 5, username: 'sara'),
+      StoryMentionedUser(id: 7, username: 'omar'),
+    ]);
+
+    StoryDetail withMentions(List<int> ids) {
+      final json = storyDetail(mediaId: 19)
+        ..['mentions'] = [
+          for (final id in ids)
+            {
+              'handle': 'user$id',
+              'user': {'id': id, 'username': 'user$id'},
+            },
+        ];
+      return StoryDetail.fromJson(json);
+    }
+
+    testWidgets('sends mention_user_ids and no hidden element', (tester) async {
+      repo.createResults.add(withMentions([5, 7]));
+      cubit.enqueue(jobFor(mentioning()));
+      await settle(tester);
+      final body = repo.requests.single;
+      expect(body['mention_user_ids'], [5, 7]);
+      expect(
+        (body['elements'] as List).where((e) => e['id'] == 'story-mentions'),
+        isEmpty,
+      );
+      expect((cubit.state as StoryUploadDone).mentionsDropped, isFalse);
+    });
+
+    testWidgets('mentions the server dropped are reported', (tester) async {
+      // 7 is a private account the author doesn't follow: dropped silently.
+      repo.createResults.add(withMentions([5]));
+      cubit.enqueue(jobFor(mentioning()));
+      await settle(tester);
+      final done = cubit.state as StoryUploadDone;
+      expect(done.mentionsDropped, isTrue);
+      expect(storyDoneToast(done).message, "Some people couldn't be mentioned");
+      expect(storyDoneToast(done).variant, TravibeToastVariant.info);
+    });
+
+    testWidgets('no hidden mentions: nothing can be dropped', (tester) async {
+      cubit.enqueue(jobFor(draft()));
+      await settle(tester);
+      final done = cubit.state as StoryUploadDone;
+      expect(done.mentionsDropped, isFalse);
+      expect(storyDoneToast(done), same(storyPublishedToast));
+      expect(repo.requests.single, isNot(contains('mention_user_ids')));
+    });
+
+    testWidgets(
+      'mention 422: "Post anyway" posts the same photo without mentions',
+      (tester) async {
+        repo.createResults.addAll([
+          ApiError(
+            message: 'The selected mention_user_ids.0 is invalid.',
+            statusCode: 422,
+            fieldErrors: const {
+              'mention_user_ids.0': [
+                'The selected mention_user_ids.0 is invalid.',
+              ],
+            },
+          ),
+          withMentions([]),
+        ]);
+        cubit.enqueue(jobFor(mentioning()));
+        await settle(tester);
+        final failed = cubit.state as StoryUploadFailed;
+        expect(failed.mentionsRejected, isTrue);
+        expect(failed.message, "Couldn't mention some people");
+        cubit.retryWithoutMentions();
+        await settle(tester);
+        final done = cubit.state as StoryUploadDone;
+        expect(done.mentionsDropped, isFalse);
+        // No second export/upload: the same media is posted again.
+        expect(uploads.calls, 1);
+        expect(repo.requests, hasLength(2));
+        expect(repo.requests.first['mention_user_ids'], [5, 7]);
+        expect(repo.requests.last, isNot(contains('mention_user_ids')));
+        expect(repo.requests.last['media_ids'], [19]);
+      },
+    );
+
+    testWidgets('other 422s keep the normal failure and Retry', (tester) async {
+      repo.createResults.add(
+        ApiError(
+          message: 'You have too many active stories.',
+          statusCode: 422,
+          fieldErrors: const {
+            'stories': ['You have too many active stories.'],
+          },
+        ),
+      );
+      cubit.enqueue(jobFor(mentioning()));
+      await settle(tester);
+      final failed = cubit.state as StoryUploadFailed;
+      expect(failed.mentionsRejected, isFalse);
+      cubit.retryWithoutMentions();
+      expect(cubit.state, same(failed));
+    });
   });
 
   testWidgets('X asks "Discard story?"; only Discard confirms', (tester) async {
@@ -496,6 +599,25 @@ void main() {
       toast.onAction!();
       toast.onClose!();
       expect((retried, discarded), (1, 1));
+    });
+
+    test('mention 422 → red with "Post anyway" and X', () {
+      var anyway = 0, retried = 0, discarded = 0;
+      final toast = storyUploadToast(
+        const StoryUploadFailed(
+          message: StoryPublishCubit.mentionsRejectedMessage,
+          mentionsRejected: true,
+        ),
+        onRetry: () => retried++,
+        onDiscard: () => discarded++,
+        onPostWithoutMentions: () => anyway++,
+      )!;
+      expect(toast.message, "Couldn't mention some people");
+      expect(toast.variant, TravibeToastVariant.error);
+      expect(toast.actionLabel, 'Post anyway');
+      toast.onAction!();
+      toast.onClose!();
+      expect((anyway, retried, discarded), (1, 0, 1));
     });
 
     test('done/idle clear the sticky toast; success is green', () {

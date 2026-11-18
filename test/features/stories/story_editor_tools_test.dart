@@ -99,8 +99,8 @@ void main() {
       expect(cubit.setMentions([user(5, 'sara'), user(7, 'omar')]), 0);
       expect(cubit.state.layers, isEmpty);
       expect(cubit.state.mentions.map((m) => m.username), ['sara', 'omar']);
-      // One hidden element carries them all.
-      expect(cubit.elementCount, 1);
+      // Sent as mention_user_ids: no element.
+      expect(cubit.elementCount, 0);
       // No username (rejected), duplicates collapse, unchecked are dropped.
       expect(
         cubit.setMentions([
@@ -219,37 +219,77 @@ void main() {
       return state;
     }
 
-    test('hidden mentions ride on one invisible v1 text element', () {
+    test('hidden mentions go in mention_user_ids, not an element', () {
       final json = CreateStoryRequest(mediaId: 19, draft: composed()).toJson();
       final elements = json['elements'] as List;
-      expect(elements, hasLength(2));
       // Aa text keeps its @username; the API parses it from `text`.
-      expect(elements.first['text'], 'Paris with @omar');
-      final hidden = elements[1] as Map<String, dynamic>;
-      expect(hidden['id'], StoryElements.mentionsId);
-      expect(hidden['type'], 'text');
-      // The API also reads `content`, so these users are mentioned/notified.
-      expect(hidden['content'], '@sara @sarah.k');
-      expect(hidden['text'], '\u200B');
-      expect(hidden['mentions'], [
-        {'user_id': 5, 'username': 'sara'},
-        {'user_id': 8, 'username': 'sarah.k'},
-      ]);
-      // Identical v1 style keeps older app builds able to read it, and the
-      // zero-width text isn't "empty" to them, so they draw nothing.
-      expect(hidden['style'], StoryElements.style);
-      expect('\u200B'.trim(), isNotEmpty);
+      expect(elements, hasLength(1));
+      expect(elements.single['text'], 'Paris with @omar');
+      expect(
+        elements.where((e) => e['id'] == StoryElements.mentionsId),
+        isEmpty,
+      );
+      expect(json['mention_user_ids'], [5, 8]);
       expect(jsonEncode(json), isNot(contains('🌍')));
+      expect(jsonEncode(json), isNot(contains('\u200B')));
     });
 
-    test('decode hides the mentions element and keeps text', () {
-      final encoded = StoryElements.encode(
-        composed().layers,
-        mentions: composed().mentions,
+    test('mention_user_ids is deduped, ordered and left out when empty', () {
+      final dupes = draft().withMentions(const [
+        StoryMentionedUser(id: 7, username: 'omar'),
+        StoryMentionedUser(id: 5, username: 'sara'),
+        StoryMentionedUser(id: 7, username: 'omar'),
+      ]);
+      expect(
+        CreateStoryRequest(
+          mediaId: 1,
+          draft: dupes,
+        ).toJson()['mention_user_ids'],
+        [7, 5],
       );
-      final restored = StoryElements.decode(jsonDecode(jsonEncode(encoded)));
-      expect(restored, hasLength(1));
-      expect((restored.single as StoryTextLayer).text, 'Paris with @omar');
+      expect(
+        CreateStoryRequest(
+          mediaId: 1,
+          draft: dupes,
+          includeMentions: false,
+        ).toJson(),
+        isNot(contains('mention_user_ids')),
+      );
+      expect(
+        CreateStoryRequest(mediaId: 1, draft: draft()).toJson(),
+        isNot(contains('mention_user_ids')),
+      );
+      final eleven = draft().withMentions([
+        for (var i = 1; i <= 11; i++)
+          StoryMentionedUser(id: i, username: 'u$i'),
+      ]);
+      expect(
+        () => CreateStoryRequest(mediaId: 1, draft: eleven).toJson(),
+        throwsFormatException,
+      );
+    });
+
+    test('hidden mentions no longer count towards the 50 elements', () {
+      final cubit = StoryEditorCubit(draft());
+      for (var i = 0; i < StoryEditorCubit.maxElements; i++) {
+        cubit.saveText('t$i');
+      }
+      expect(cubit.setMentions([user(5, 'sara')]), 0);
+      expect(cubit.state.mentions.single.id, 5);
+      expect(cubit.elementCount, StoryEditorCubit.maxElements);
+      cubit.close();
+    });
+
+    test('decode skips the old mentions element whatever its text', () {
+      const sara = [StoryMentionedUser(id: 5, username: 'sara')];
+      for (final text in ['\u200B', null, '', '  ', '@sara']) {
+        final restored = StoryElements.decode([
+          ...StoryElements.encode(composed().layers),
+          legacyMentionsElement(sara, text: text),
+        ]);
+        expect(restored, hasLength(1), reason: 'text: $text');
+        expect((restored.single as StoryTextLayer).text, 'Paris with @omar');
+      }
     });
 
     test('stickers from earlier builds show as text with the @username', () {

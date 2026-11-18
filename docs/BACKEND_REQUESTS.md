@@ -238,17 +238,3 @@ from it (e.g. attempts made on another device, or after the app restarts).
 `otp_too_many_attempts` code, ideally with `attempts_remaining`) directly and
 drop the device counter. With `otp_expired` the app can show "Code expired.
 Tap Resend OTP" again.
-
-## Stories: explicit hidden mentions (`mention_user_ids`)
-
-People picked with the @ tool are "hidden" mentions: nothing is drawn on the
-story. The client sends them as `@a @b` in the `content` of one extra
-`type: text` element whose `text` is a zero-width space
-(`docs/STORIES_EDITOR_TOOLS.md`). They come back in `mentions` like any
-other mention.
-
-This workaround works today. A first-class field would be cleaner:
-`StoreStoryRequest.mention_user_ids` (integer array, at most 10), merged with
-mentions parsed from text under the same rules (visibility, blocks,
-notifications, and who can reshare). If it ships, the client drops the extra
-element.

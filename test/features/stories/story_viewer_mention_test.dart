@@ -46,7 +46,10 @@ void main() {
     repo.handler = (id) async {
       final json = viewerDetail(
         id,
-        elements: StoryElements.encode(layers, mentions: hidden),
+        elements: [
+          ...StoryElements.encode(layers),
+          if (hidden.isNotEmpty) legacyMentionsElement(hidden),
+        ],
       );
       json['mentions'] = [
         if (resolved)
@@ -222,7 +225,7 @@ void main() {
     expect(repo.calls, hasLength(2));
   });
 
-  testWidgets('hidden (@ tool) mentions draw nothing in the viewer', (
+  testWidgets('old hidden-mentions element ("\\u200B") draws nothing', (
     tester,
   ) async {
     await open(

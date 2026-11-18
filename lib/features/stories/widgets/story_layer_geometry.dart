@@ -85,11 +85,23 @@ class StoryTextGeometry extends StoryLayerGeometry {
 
   static final _blur = ImageFilter.blur(sigmaX: 10, sigmaY: 10);
 
+  /// Spaces at the end of a line, which text layout would otherwise "hang"
+  /// (they widen the bubble but aren't drawn where they are typed).
+  static final _lineEndSpaces = RegExp(r' +(?=\n|$)');
+
+  /// [StoryTextLayer.text] exactly as sent, with line-end spaces swapped for
+  /// no-break spaces (same length, so text offsets still line up) so leading
+  /// and trailing spaces both render where they are.
+  late final String _displayText = layer.text.replaceAllMapped(
+    _lineEndSpaces,
+    (match) => '\u00A0' * match.group(0)!.length,
+  );
+
   late final double _maxTextWidth;
 
   /// Same span, alignment and width as [content], so offsets line up.
   TextPainter _painter() => TextPainter(
-    text: storyMentionTextSpan(layer.text, style),
+    text: storyMentionTextSpan(_displayText, style),
     textDirection: TextDirection.ltr,
     textAlign: TextAlign.center,
   )..layout(maxWidth: _maxTextWidth);
@@ -170,7 +182,7 @@ class StoryTextGeometry extends StoryLayerGeometry {
             child: RichText(
               textDirection: TextDirection.ltr,
               text: storyMentionTextSpan(
-                layer.text,
+                _displayText,
                 style,
                 highlightMentions: highlightMentions,
               ),

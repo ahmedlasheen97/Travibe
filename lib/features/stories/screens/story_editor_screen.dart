@@ -2,6 +2,7 @@ import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/stories/data/story_elements.dart';
+import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/stories/cubit/story_publish_cubit.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
@@ -112,10 +113,8 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       return;
     }
     try {
-      StoryElements.encode(
-        _editor.state.layers,
-        mentions: _editor.state.mentions,
-      );
+      StoryElements.encode(_editor.state.layers);
+      CreateStoryRequest.mentionIds(_editor.state.mentions);
     } on FormatException catch (e) {
       TravibeToast.show(context, TravibeToastData.error(e.message));
       return;
@@ -184,14 +183,7 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       }
       // Hidden mentions: nothing is drawn; the @ button shows the count.
       final rejected = _editor.setMentions(selection.users);
-      if (rejected > 0) {
-        _snack(
-          _editor.state.mentions.isEmpty &&
-                  _editor.elementCount >= StoryEditorCubit.maxElements
-              ? 'A Story can contain at most 50 text elements.'
-              : 'Some people can\'t be mentioned.',
-        );
-      }
+      if (rejected > 0) _snack('Some people can\'t be mentioned.');
     } finally {
       _pickingSticker = false;
     }

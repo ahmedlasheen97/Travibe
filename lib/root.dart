@@ -535,6 +535,7 @@ class _RootState extends State<Root> {
       storyUploadToast(
         state,
         onRetry: _storyUploads.retry,
+        onPostWithoutMentions: _storyUploads.retryWithoutMentions,
         onDiscard: () async {
           if (await showDiscardStoryDialog(this.context)) {
             _storyUploads.discard();
@@ -544,7 +545,7 @@ class _RootState extends State<Root> {
     );
     if (state is StoryUploadDone) {
       unawaited(_stories.refresh());
-      _toasts.show(storyPublishedToast);
+      _toasts.show(storyDoneToast(state));
     }
   }
 

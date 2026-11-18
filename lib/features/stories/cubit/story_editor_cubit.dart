@@ -10,14 +10,13 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
   StoryEditorCubit(super.initialState);
   int _nextId = 0;
 
-  /// Text layers (and the hidden mentions element) are API elements (max 50).
+  /// Text layers are API elements (max 50). Hidden mentions are sent as
+  /// `mention_user_ids` and don't count.
   static const maxElements = 50;
   static const maxEmojis = 30;
 
-  /// Text layers, plus one element for hidden mentions when there are any.
-  int get elementCount =>
-      state.layers.whereType<StoryTextLayer>().length +
-      (state.mentions.isEmpty ? 0 : 1);
+  /// Text layers sent as elements.
+  int get elementCount => state.layers.whereType<StoryTextLayer>().length;
   int get emojiCount => state.layers.whereType<StoryEmojiLayer>().length;
 
   String _newId(String prefix) {
@@ -56,7 +55,7 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
   }
 
   /// Mention sheet "Add": the people picked with the @ tool. Nothing is drawn
-  /// on the story; they are sent as hidden mentions. Returns how many could
+  /// on the story; they are sent as `mention_user_ids` (deduped by id). Returns how many could
   /// not be kept (no id/username, or over [StoryElements.maxMentions]).
   int setMentions(List<PublicUserModel> users) {
     if (isClosed) return users.length;
@@ -74,12 +73,6 @@ class StoryEditorCubit extends Cubit<StoryEditorDraft> {
           mentions[id] = StoryMentionedUser(id: id, username: username);
         }
       }
-    }
-    // The hidden element counts towards the 50-element cap.
-    if (mentions.isNotEmpty &&
-        state.mentions.isEmpty &&
-        elementCount >= maxElements) {
-      return users.length;
     }
     emit(state.withMentions(mentions.values.toList()));
     return rejected;
