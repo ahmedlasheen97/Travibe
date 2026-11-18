@@ -23,6 +23,7 @@ import 'package:travibe/features/stories/widgets/story_audience_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_emoji_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_mention_sheet.dart';
 import 'package:travibe/features/stories/data/mentions_repo.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 
 /// Draw-mode palette: white, black, orange, red, yellow, green, blue.
 abstract final class StoryEditorScreenColors {
@@ -83,6 +84,19 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
     onPublished: widget.onPublished,
   );
 
+  /// The own account's privacy from [CurrentUserCubit]; unknown counts as
+  /// private so `allow_mention_reshare` is never sent by mistake.
+  void _syncAccountPrivacy() {
+    final cubit = context.read<CurrentUserCubit?>();
+    _editor.setAccountIsPublic(cubit?.state.profile?.isPrivate == false);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncAccountPrivacy();
+  }
+
   void _post() {
     if (_sheetOpen ||
         _drawing ||
@@ -91,6 +105,7 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       return;
     }
     FocusManager.instance.primaryFocus?.unfocus();
+    _syncAccountPrivacy();
     final submit = widget.onSubmit;
     if (submit == null) {
       _publisher.publish(_editor.state, viewport: _export.viewportSize);
@@ -131,6 +146,9 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
   }
 
   bool _enteringText = false;
+
+  /// The text layer open in text mode; hidden on the canvas meanwhile.
+  String? _editingLayerId;
   bool _selectingAudience = false;
   bool _pickingSticker = false;
   bool get _sheetOpen => _enteringText || _selectingAudience || _pickingSticker;
@@ -156,6 +174,7 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
             _picked[user.id] ?? storyMentionUser(user.id, user.username),
         ],
         allowReshare: _editor.state.allowReshare,
+        showReshareToggle: _editor.state.canAllowMentionReshare,
       );
       if (!mounted || selection == null) return;
       _editor.setAllowReshare(selection.allowReshare);
@@ -216,20 +235,34 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
       );
       return;
     }
-    _enteringText = true;
+    // Text mode (Figma text_mode.png): the top bar and tools hide; the
+    // entry shows only X and Done.
+    setState(() {
+      _enteringText = true;
+      _editingLayerId = layer?.id;
+    });
     try {
       final result = await showStoryTextEntry(
         context,
         text: layer?.text,
         mentionsRepo: _mentions,
         allowReshare: _editor.state.allowReshare,
+        showReshareToggle: _editor.state.canAllowMentionReshare,
       );
       if (mounted && result != null) {
         _editor.setAllowReshare(result.allowReshare);
         _editor.saveText(result.text, id: layer?.id);
       }
     } finally {
-      _enteringText = false;
+      if (mounted) {
+        setState(() {
+          _enteringText = false;
+          _editingLayerId = null;
+        });
+      } else {
+        _enteringText = false;
+        _editingLayerId = null;
+      }
     }
   }
 
@@ -308,168 +341,175 @@ class _StoryEditorScreenState extends State<StoryEditorScreen> {
                     brushColor: _brushColor,
                     brushWidth: _brushWidth,
                     onStroke: _editor.addStroke,
+                    hiddenLayerId: _editingLayerId,
                   ),
                 ),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 20, 12),
-                    child: Column(
-                      children: [
-                        if (_drawing)
-                          _drawHeader()
-                        else
-                          Row(
-                            children: [
-                              BackButtonWidget(
-                                key: const ValueKey('story-back'),
-                                onTap: _leave,
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    // Normal size is 140x44. Scale down only when large
-                                    // accessibility text leaves less header space.
-                                    Flexible(
-                                      child:
+                if (!_enteringText)
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 20, 12),
+                      child: Column(
+                        children: [
+                          if (_drawing)
+                            _drawHeader()
+                          else
+                            Row(
+                              children: [
+                                BackButtonWidget(
+                                  key: const ValueKey('story-back'),
+                                  onTap: _leave,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // Normal size is 140x44. Scale down only when large
+                                      // accessibility text leaves less header space.
+                                      Flexible(
+                                        child:
+                                            BlocSelector<
+                                              StoryEditorCubit,
+                                              StoryEditorDraft,
+                                              StoryAudience
+                                            >(
+                                              bloc: _editor,
+                                              selector: (draft) =>
+                                                  draft.audience,
+                                              builder: (context, audience) =>
+                                                  FittedBox(
+                                                    fit: BoxFit.scaleDown,
+                                                    child:
+                                                        _StoryAudienceControl(
+                                                          audience: audience,
+                                                          onPressed:
+                                                              _selectAudience,
+                                                        ),
+                                                  ),
+                                            ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      BlocBuilder<
+                                        StoryEditorCubit,
+                                        StoryEditorDraft
+                                      >(
+                                        bloc: _editor,
+                                        builder: (context, draft) => Tooltip(
+                                          message: 'Publish Story',
+                                          child: FilledButton(
+                                            key: const ValueKey('story-post'),
+                                            onPressed:
+                                                publishing.busy ||
+                                                    publishing.sessionEnded ||
+                                                    !PreferencesManager()
+                                                        .hasSession
+                                                ? null
+                                                : _post,
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  DarkColors.primaryColor,
+                                              foregroundColor: Colors.white,
+                                              disabledBackgroundColor:
+                                                  DarkColors.primaryColor,
+                                              disabledForegroundColor:
+                                                  Colors.white,
+                                              minimumSize: const Size(80, 44),
+                                              visualDensity:
+                                                  VisualDensity.standard,
+                                              tapTargetSize:
+                                                  MaterialTapTargetSize
+                                                      .shrinkWrap,
+                                              shape: const StadiumBorder(),
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 16,
+                                                    vertical: 10,
+                                                  ),
+                                              textStyle: const TextStyle(
+                                                fontFamily: 'Plus Jakarta Sans',
+                                                fontSize: 18,
+                                                height: 24 / 18,
+                                                fontWeight: FontWeight.w500,
+                                                letterSpacing: 0,
+                                              ),
+                                            ),
+                                            child: publishing.busy
+                                                ? SizedBox.square(
+                                                    dimension: 20,
+                                                    child: Semantics(
+                                                      label:
+                                                          publishing.progress,
+                                                      liveRegion: true,
+                                                      child: const AppActivityIndicator(
+                                                        key: ValueKey(
+                                                          'story-post-progress',
+                                                        ),
+                                                        radius: 10,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const Text('Post'),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          const SizedBox(height: 26),
+                          Expanded(
+                            child: _drawing
+                                ? Align(
+                                    alignment: Alignment.bottomCenter,
+                                    child: _drawControls(),
+                                  )
+                                : Align(
+                                    alignment: Alignment.topRight,
+                                    child: SingleChildScrollView(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _tool(
+                                            'story-text-tool',
+                                            'Add text',
+                                            text: 'Aa',
+                                            onPressed: _editText,
+                                          ),
                                           BlocSelector<
                                             StoryEditorCubit,
                                             StoryEditorDraft,
-                                            StoryAudience
+                                            List<StoryMentionedUser>
                                           >(
                                             bloc: _editor,
-                                            selector: (draft) => draft.audience,
-                                            builder: (context, audience) =>
-                                                FittedBox(
-                                                  fit: BoxFit.scaleDown,
-                                                  child: _StoryAudienceControl(
-                                                    audience: audience,
-                                                    onPressed: _selectAudience,
-                                                  ),
-                                                ),
+                                            selector: (draft) => draft.mentions,
+                                            builder: (context, mentioned) =>
+                                                _mentionTool(mentioned),
                                           ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    BlocBuilder<
-                                      StoryEditorCubit,
-                                      StoryEditorDraft
-                                    >(
-                                      bloc: _editor,
-                                      builder: (context, draft) => Tooltip(
-                                        message: 'Publish Story',
-                                        child: FilledButton(
-                                          key: const ValueKey('story-post'),
-                                          onPressed:
-                                              publishing.busy ||
-                                                  publishing.sessionEnded ||
-                                                  !PreferencesManager()
-                                                      .hasSession
-                                              ? null
-                                              : _post,
-                                          style: FilledButton.styleFrom(
-                                            backgroundColor:
-                                                DarkColors.primaryColor,
-                                            foregroundColor: Colors.white,
-                                            disabledBackgroundColor:
-                                                DarkColors.primaryColor,
-                                            disabledForegroundColor:
-                                                Colors.white,
-                                            minimumSize: const Size(80, 44),
-                                            visualDensity:
-                                                VisualDensity.standard,
-                                            tapTargetSize: MaterialTapTargetSize
-                                                .shrinkWrap,
-                                            shape: const StadiumBorder(),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 10,
-                                            ),
-                                            textStyle: const TextStyle(
-                                              fontFamily: 'Plus Jakarta Sans',
-                                              fontSize: 18,
-                                              height: 24 / 18,
-                                              fontWeight: FontWeight.w500,
-                                              letterSpacing: 0,
-                                            ),
+                                          _tool(
+                                            'story-emoji-tool',
+                                            'Add emoji',
+                                            icon: Icons
+                                                .sentiment_satisfied_outlined,
+                                            onPressed: _addEmoji,
                                           ),
-                                          child: publishing.busy
-                                              ? SizedBox.square(
-                                                  dimension: 20,
-                                                  child: Semantics(
-                                                    label: publishing.progress,
-                                                    liveRegion: true,
-                                                    child:
-                                                        const AppActivityIndicator(
-                                                          key: ValueKey(
-                                                            'story-post-progress',
-                                                          ),
-                                                          radius: 10,
-                                                        ),
-                                                  ),
-                                                )
-                                              : const Text('Post'),
-                                        ),
+                                          _tool(
+                                            'story-draw-tool',
+                                            'Draw',
+                                            icon: Icons.edit_outlined,
+                                            onPressed: () => _setDrawing(true),
+                                            last: true,
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        const SizedBox(height: 26),
-                        Expanded(
-                          child: _drawing
-                              ? Align(
-                                  alignment: Alignment.bottomCenter,
-                                  child: _drawControls(),
-                                )
-                              : Align(
-                                  alignment: Alignment.topRight,
-                                  child: SingleChildScrollView(
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        _tool(
-                                          'story-text-tool',
-                                          'Add text',
-                                          text: 'Aa',
-                                          onPressed: _editText,
-                                        ),
-                                        BlocSelector<
-                                          StoryEditorCubit,
-                                          StoryEditorDraft,
-                                          List<StoryMentionedUser>
-                                        >(
-                                          bloc: _editor,
-                                          selector: (draft) => draft.mentions,
-                                          builder: (context, mentioned) =>
-                                              _mentionTool(mentioned),
-                                        ),
-                                        _tool(
-                                          'story-emoji-tool',
-                                          'Add emoji',
-                                          icon: Icons
-                                              .sentiment_satisfied_outlined,
-                                          onPressed: _addEmoji,
-                                        ),
-                                        _tool(
-                                          'story-draw-tool',
-                                          'Draw',
-                                          icon: Icons.edit_outlined,
-                                          onPressed: () => _setDrawing(true),
-                                          last: true,
-                                        ),
-                                      ],
-                                    ),
                                   ),
-                                ),
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ),

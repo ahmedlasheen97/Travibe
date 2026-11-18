@@ -87,6 +87,12 @@ void main() {
         NotificationTargetKind.post,
       );
       expect(kind('story_liked', 'story'), NotificationTargetKind.story);
+      expect(kind('story_reshared', 'story'), NotificationTargetKind.story);
+      expect(
+        kind('story_reshared', r'App\Models\Story'),
+        NotificationTargetKind.story,
+      );
+      expect(kind('story_reshared', 'post'), isNull);
       expect(
         kind('post_commented', 'comment', data: {'post_id': 10}),
         NotificationTargetKind.comment,
@@ -370,6 +376,50 @@ void main() {
       expect(opened, isEmpty);
     });
 
+    testWidgets('story_reshared: text, reshare badge, portrait, opens story', (
+      tester,
+    ) async {
+      final opened = await pumpInbox(tester, [
+        _withPreview(
+          notice(
+            'story_reshared',
+            id: 'r',
+            morph: 'story',
+            target: 30,
+            data: {'story_id': 30, 'original_story_id': 12},
+          ),
+          thumbnail: _story,
+        ),
+      ]);
+      expect(
+        find.textContaining(
+          'Fixture actor reshared your story',
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is SvgPicture &&
+              w.bytesLoader is SvgAssetLoader &&
+              (w.bytesLoader as SvgAssetLoader).assetName ==
+                  'assets/images/icons/reshare.svg',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('notification-story-preview')),
+        ),
+        const Size(48, 72),
+      );
+      await tester.tap(find.byKey(const ValueKey('notification-r')));
+      await tester.pumpAndSettle();
+      expect(opened.single.target.kind, NotificationTargetKind.story);
+      expect(opened.single.story!.id, 30);
+    });
+
     testWidgets('avatar opens the actor profile for any type', (tester) async {
       final opened = await pumpInbox(tester, [
         notice('post_liked', morph: 'post', target: 10),
@@ -398,19 +448,37 @@ void main() {
       expect(opened.single.post!.id, '10');
     });
 
-    testWidgets('deleted story shows a snackbar and keeps the inbox', (
-      tester,
-    ) async {
+    for (final type in ['story_liked', 'story_reshared']) {
+      testWidgets('$type: a deleted story shows a friendly toast', (
+        tester,
+      ) async {
+        final opened = await pumpInbox(tester, [
+          notice(type, morph: 'story', target: 30),
+        ]);
+        adapter.status = 404;
+        await tester.tap(find.byKey(const ValueKey('notification-n1')));
+        await tester.pumpAndSettle();
+        expect(opened, isEmpty);
+        expect(find.text('This story is no longer available.'), findsOneWidget);
+        expect(find.byType(NotificationsScreen), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('an expired reshare shows the same toast', (tester) async {
+      adapter.values['stories/30'] = {
+        'data': viewerDetail(30)
+          ..['expires_at'] = DateTime.now()
+              .subtract(const Duration(minutes: 1))
+              .toIso8601String(),
+      };
       final opened = await pumpInbox(tester, [
-        notice('story_liked', morph: 'story', target: 30),
+        notice('story_reshared', morph: 'story', target: 30),
       ]);
-      adapter.status = 404;
       await tester.tap(find.byKey(const ValueKey('notification-n1')));
       await tester.pumpAndSettle();
       expect(opened, isEmpty);
-      expect(find.textContaining('unavailable'), findsOneWidget);
-      expect(find.byType(NotificationsScreen), findsOneWidget);
-      expect(tester.takeException(), isNull);
+      expect(find.text('This story is no longer available.'), findsOneWidget);
     });
 
     testWidgets('unresolvable message request falls back to Requests tab', (

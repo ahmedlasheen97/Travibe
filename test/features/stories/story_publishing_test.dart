@@ -168,7 +168,7 @@ void main() {
     },
   );
   test(
-    'overlay count, nonfinite values, duplicate IDs and unsupported style/version rejected',
+    'encode rejects bad overlays; decode skips unsupported style/version',
     () {
       const layer = StoryTextLayer(id: 'text', text: 'Trip');
       expect(
@@ -182,10 +182,14 @@ void main() {
       );
       final json = StoryElements.encode([layer]);
       json.single['version'] = 2;
-      expect(() => StoryElements.decode(json), throwsFormatException);
+      expect(StoryElements.decode(json), isEmpty);
       json.single['version'] = 1;
       json.single['style'] = {};
-      expect(() => StoryElements.decode(json), throwsFormatException);
+      expect(StoryElements.decode(json), isEmpty);
+      expect(
+        () => StoryElements.decode({'not': 'a list'}),
+        throwsFormatException,
+      );
     },
   );
   test(

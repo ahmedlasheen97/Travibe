@@ -15,7 +15,11 @@ import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/screens/story_editor_screen.dart';
 import 'package:travibe/features/stories/widgets/story_canvas.dart';
 
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
+import 'package:travibe/features/stories/data/story_audience.dart';
 import 'fixtures.dart';
+import 'story_reshare_test.dart' show currentUser;
 
 PublicUserModel user(int id, String? username) => PublicUserModel(
   id: '$id',
@@ -125,35 +129,41 @@ void main() {
       expect(cubit.state.mentions, hasLength(StoryElements.maxMentions));
     });
 
-    test(
-      'allow_reshare and reshare_of_story_id are sent only behind the flag',
-      () {
-        final off = draft().withAllowReshare(false);
-        expect(
-          CreateStoryRequest(mediaId: 3, draft: off).toJson().keys,
-          isNot(contains('allow_reshare')),
-        );
-        final on = CreateStoryRequest(
+    test('allow_mention_reshare is sent only for an eligible story', () {
+      Map<String, dynamic> body(StoryEditorDraft d) => CreateStoryRequest(
+        mediaId: 3,
+        draft: d,
+        allowMentionReshare: d.sendsMentionReshare,
+      ).toJson();
+      final eligible = draft().withAccountIsPublic(true);
+      expect(eligible.canAllowMentionReshare, isTrue);
+      expect(body(eligible)['allow_mention_reshare'], isTrue);
+      // Toggle off, private/unknown account, or followers-only: no key.
+      for (final d in [
+        eligible.withAllowReshare(false),
+        draft(),
+        eligible.withAudience(StoryAudience.followers),
+      ]) {
+        expect(body(d).keys, isNot(contains('allow_mention_reshare')));
+      }
+      expect(draft().canAllowMentionReshare, isFalse);
+      expect(
+        eligible.withAudience(StoryAudience.followers).canAllowMentionReshare,
+        isFalse,
+      );
+      // Even if asked, a followers story never sends it (the API 422s).
+      expect(
+        CreateStoryRequest(
           mediaId: 3,
-          draft: off,
-          includeReshare: true,
-        ).toJson();
-        expect(on['allow_reshare'], isFalse);
-        expect(on.containsKey('reshare_of_story_id'), isFalse);
-        final reshare = StoryEditorDraft(
-          image: draft().image,
-          reshareOfStoryId: 9,
-        );
-        expect(
-          CreateStoryRequest(
-            mediaId: 3,
-            draft: reshare,
-            includeReshare: true,
-          ).toJson()['reshare_of_story_id'],
-          9,
-        );
-      },
-    );
+          draft: draft().withAudience(StoryAudience.followers),
+          allowMentionReshare: true,
+        ).toJson().keys,
+        isNot(contains('allow_mention_reshare')),
+      );
+      for (final key in ['allow_reshare', 'reshare_of_story_id']) {
+        expect(body(eligible).keys, isNot(contains(key)));
+      }
+    });
 
     test('text keeps rotation 0 even if a rotation is committed', () {
       final cubit = StoryEditorCubit(draft());
@@ -281,20 +291,35 @@ void main() {
   });
 
   group('editor screen', () {
-    Future<void> show(WidgetTester tester, {MentionsRepo? search}) async {
+    /// [private] null: no signed-in profile (privacy unknown).
+    Future<void> show(
+      WidgetTester tester, {
+      MentionsRepo? search,
+      bool? private = false,
+      StoryAudience audience = StoryAudience.public,
+    }) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      CurrentUserCubit? user;
+      if (private != null) {
+        user = await currentUser(private: private);
+        addTearDown(user.close);
+      }
+      Widget editor = StoryEditorScreen(
+        draft: draft().withAudience(audience),
+        mentionsRepo: search ?? FakeMentionsRepo(),
+      );
+      if (user != null) {
+        editor = BlocProvider<CurrentUserCubit>.value(
+          value: user,
+          child: editor,
+        );
+      }
       await tester.pumpWidget(
         withScreenUtil(
-          MaterialApp(
-            theme: ThemeData.dark(useMaterial3: true),
-            home: StoryEditorScreen(
-              draft: draft(),
-              mentionsRepo: search ?? FakeMentionsRepo(),
-            ),
-          ),
+          MaterialApp(theme: ThemeData.dark(useMaterial3: true), home: editor),
         ),
       );
       await tester.pumpAndSettle();
@@ -501,6 +526,36 @@ void main() {
         tester.getTopLeft(row(8)).dy,
         lessThan(tester.getTopLeft(row(5)).dy),
       );
+    });
+
+    for (final (name, private, audience) in [
+      ('a private account', true, StoryAudience.public),
+      ('unknown privacy', null, StoryAudience.public),
+      ('a followers story', false, StoryAudience.followers),
+    ]) {
+      testWidgets('no reshare toggle for $name', (tester) async {
+        await show(tester, private: private, audience: audience);
+        expect(current(tester).canAllowMentionReshare, isFalse);
+        await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+        await tester.pumpAndSettle();
+        expect(row(5), findsOneWidget);
+        expect(toggle(), findsNothing);
+        expect(
+          find.text('People you mention can reshare this story'),
+          findsNothing,
+        );
+      });
+    }
+
+    testWidgets('a public account + public story can allow resharing', (
+      tester,
+    ) async {
+      await show(tester);
+      expect(current(tester).accountIsPublic, isTrue);
+      expect(current(tester).sendsMentionReshare, isTrue);
+      await tester.tap(find.byKey(const ValueKey('story-mention-tool')));
+      await tester.pumpAndSettle();
+      expect(toggle(), findsOneWidget);
     });
 
     testWidgets('reshare toggle sits right above Add and is stored', (

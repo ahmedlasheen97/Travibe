@@ -1,5 +1,5 @@
-import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
+import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/stories/data/story_elements.dart';
 
 int storyId(dynamic value) {
@@ -42,10 +42,18 @@ int _count(dynamic value) {
 }
 
 class StoryAuthor {
-  const StoryAuthor({required this.id, required this.name, this.avatarUrl});
+  const StoryAuthor({
+    required this.id,
+    required this.name,
+    this.avatarUrl,
+    this.username,
+  });
   final int id;
   final String name;
   final String? avatarUrl;
+
+  /// The handle, when the payload carries one (`PublicUserResource` does).
+  final String? username;
   factory StoryAuthor.fromJson(dynamic json) {
     final map = storyObject(json);
     if (map['name'] is! String) {
@@ -55,6 +63,7 @@ class StoryAuthor {
       id: storyId(map['id']),
       name: map['name'],
       avatarUrl: storyString(map['avatar_url']),
+      username: map['username'] is String ? map['username'] as String : null,
     );
   }
 }
@@ -214,20 +223,22 @@ class StoryDetail {
     hasSeen = _bool(map['has_seen']);
     createdAt = storyDate(map['created_at']);
     expiresAt = storyDate(map['expires_at']);
-    // Proposed fields (docs/BACKEND_REQUESTS.md); absent today, so optional.
-    allowReshare = map['allow_reshare'] != false;
+    // Required by the API, but read leniently so a missing flag only hides
+    // the reshare UI instead of failing the whole Story.
+    allowMentionReshare = map['allow_mention_reshare'] == true;
     canReshare = map['can_reshare'] == true;
     resharedFrom = StoryResharedFrom.tryParse(map['reshared_from']);
   }
   late final int id, userId, viewsCount, likesCount;
 
-  /// The author lets mentioned users reshare this story (default true).
-  late final bool allowReshare;
+  /// The author lets mentioned users reshare this story.
+  late final bool allowMentionReshare;
 
-  /// The server says the current viewer may reshare this story.
+  /// The server says the current viewer may reshare this story now (false
+  /// once they have reshared it).
   late final bool canReshare;
 
-  /// The original story when this one is a reshare, or null.
+  /// Where this story was reshared from, or null when it isn't a reshare.
   late final StoryResharedFrom? resharedFrom;
   late final StoryAuthor user;
   late final StoryMedia media;
@@ -281,25 +292,31 @@ class StoryMention {
   }
 }
 
-/// Proposed `reshared_from` block: `{story_id, user: PublicUserResource}`.
+/// `reshared_from`: `{story_id: int|null, user: PublicUserResource|null}`.
 class StoryResharedFrom {
-  const StoryResharedFrom({required this.id, required this.user});
+  const StoryResharedFrom({this.storyId, this.user});
 
-  /// The original story's id.
-  final int id;
-  final StoryAuthor user;
+  /// The source story, or null once it has expired and been purged.
+  final int? storyId;
 
-  /// Optional field: anything malformed is ignored rather than failing a Story.
+  /// The original author, or null when the API leaves them out.
+  final StoryAuthor? user;
+
+  /// Null only when the story isn't a reshare. Malformed parts are dropped
+  /// rather than failing the Story.
   static StoryResharedFrom? tryParse(dynamic json) {
     if (json is! Map) return null;
+    final id = json['story_id'];
+    StoryAuthor? user;
     try {
-      return StoryResharedFrom(
-        id: storyId(json['story_id']),
-        user: StoryAuthor.fromJson(json['user']),
-      );
+      if (json['user'] != null) user = StoryAuthor.fromJson(json['user']);
     } on FormatException {
-      return null;
+      user = null;
     }
+    return StoryResharedFrom(
+      storyId: id is int && id > 0 ? id : null,
+      user: user,
+    );
   }
 }
 
@@ -307,24 +324,24 @@ class CreateStoryRequest {
   CreateStoryRequest({
     required this.mediaId,
     required this.draft,
-    this.includeReshare = kEnableStoryReshare,
+    this.allowMentionReshare = false,
   });
   final int mediaId;
   final StoryEditorDraft draft;
 
-  /// Reshare fields are only sent once the backend supports them.
-  final bool includeReshare;
+  /// Sent as `allow_mention_reshare: true` only when set. The caller must
+  /// check eligibility (public story, public account): otherwise the API
+  /// returns 422, so the key is never sent as true then.
+  final bool allowMentionReshare;
   Map<String, dynamic> toJson() {
     storyId(mediaId);
-    final reshareOf = draft.reshareOfStoryId;
     return {
       'media_ids': [mediaId],
       'visibility': draft.audience.visibility,
       'location_name': null,
       'elements': StoryElements.encode(draft.layers, mentions: draft.mentions),
-      if (includeReshare) 'allow_reshare': draft.allowReshare,
-      if (includeReshare && reshareOf != null)
-        'reshare_of_story_id': storyId(reshareOf),
+      if (allowMentionReshare && draft.audience == StoryAudience.public)
+        'allow_mention_reshare': true,
     };
   }
 }

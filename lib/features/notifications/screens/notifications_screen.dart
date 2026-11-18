@@ -3,6 +3,7 @@ import 'package:travibe/features/follow_requests/widgets/follow_request_actions.
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'notification_navigation.dart';
 import '../data/notification_targets.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import '../data/notification_diagnostics.dart';
 import 'dart:async';
 
@@ -432,6 +433,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     final revision = _session.sessionRevision;
     bool current() =>
         mounted && revision == _session.sessionRevision && _session.hasSession;
+    NotificationTarget? opening;
     try {
       if (!item.isRead) {
         final ok = await _notifications.markRead(item.id);
@@ -466,6 +468,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         }
         return;
       }
+      opening = target;
       NotificationContent content;
       try {
         content = await _targets.resolve(target, fresh: true);
@@ -484,7 +487,15 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         content,
       );
     } catch (_) {
-      if (mounted && current()) {
+      if (mounted &&
+          current() &&
+          opening?.kind == NotificationTargetKind.story) {
+        // Expired, deleted or hidden story (e.g. a removed reshare).
+        TravibeToast.show(
+          context,
+          const TravibeToastData.info('This story is no longer available.'),
+        );
+      } else if (mounted && current()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(

@@ -57,6 +57,10 @@ Future<void> openStoryViewer(
           onDeleted: (id) {
             if (current()) stories.confirmedDelete(id);
           },
+          // The reshare is a new story of mine: refresh my ring.
+          onReshared: () {
+            if (current()) unawaited(stories.refresh());
+          },
         ),
       ),
     );

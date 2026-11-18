@@ -28,9 +28,29 @@ no separate user ids.
 
 The Mention sheet shows "People you mention can reshare this story" (default
 on) right above Add, and the inline suggestions show it under the list. Both
-set the same `StoryEditorDraft.allowReshare`. It is only sent as
-`allow_reshare` once `kEnableStoryReshare` is on (the API doesn't support it
-yet; see `docs/BACKEND_REQUESTS.md`).
+set the same `StoryEditorDraft.allowReshare`. The toggle is shown **only** for
+a `public` story from a public account (`CurrentUserCubit` profile
+`is_private == false`; unknown counts as private). It is then sent as
+`allow_mention_reshare: true`; otherwise the key is omitted, because the API
+returns 422 for `true` on any other story.
+
+## Reshare (docs/backend/STORY_RESHARE.md)
+
+- Viewer: the orange Reshare pill shows only when `can_reshare` is true. A tap
+  calls `POST /stories/{id}/reshare` (no body, so the API default `public`;
+  a private account sends `visibility: followers`). Success shows the green
+  "Story reshared" toast, hides the button and refreshes the stories bar.
+  Already reshared (422 `story`), not allowed (403) and expired (404) show a
+  red toast and hide the button. The story limit (422 `stories`) shows the
+  server message.
+- A reshare (`reshared_from` not null) shows "12h • reshared from @user" in
+  the header. A tap opens that user's profile. `reshared_from.story_id` may be
+  null (the original expired), so it never links to the source story.
+- A reshare's `mentions` is empty: `@names` in its text are plain white,
+  not tappable. The hidden-mention element is still skipped by `decode`.
+- Notification `story_reshared` ("X reshared your story.", portrait
+  thumbnail) opens the reshare from `target_id`. A story that is gone shows
+  "This story is no longer available."
 
 ## Element shapes
 

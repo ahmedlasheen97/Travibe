@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/features/stories/cubit/story_editor_cubit.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
@@ -127,7 +128,7 @@ void main() {
     final first = textLayer(tester);
     await tester.tap(overlay(tester));
     await tester.pumpAndSettle();
-    expect(find.text('Edit text'), findsOneWidget);
+    expect(find.byKey(const ValueKey('story-text-input')), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       'Hello Cairo',
@@ -139,6 +140,113 @@ void main() {
     expect(textLayer(tester).text, 'Hello world');
     expect(textLayer(tester).center, first.center);
     expect(textLayer(tester).scale, first.scale);
+  });
+
+  testWidgets('text mode (Figma text_mode.png): only X and Done show', (
+    tester,
+  ) async {
+    await show(tester);
+    const chrome = [
+      'story-back',
+      'story-post',
+      'story-text-tool',
+      'story-mention-tool',
+      'story-emoji-tool',
+      'story-draw-tool',
+    ];
+    for (final key in chrome) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const ValueKey('story-text-tool')));
+    await tester.pumpAndSettle();
+    for (final key in chrome) {
+      expect(find.byKey(ValueKey(key)), findsNothing, reason: key);
+    }
+    expect(find.text('Public'), findsNothing);
+    expect(find.text('Add text'), findsNothing);
+    expect(find.text('Edit text'), findsNothing);
+
+    // X: the same 44×44 glass circle as the back button, top-left.
+    final close = find.byKey(const ValueKey('story-text-cancel'));
+    expect(tester.getSize(close), const Size.square(44));
+    final done = find.byKey(const ValueKey('story-text-done'));
+    expect(tester.getCenter(close).dx, lessThan(100));
+    expect(tester.getCenter(done).dx, greaterThan(290));
+    expect(
+      tester.getCenter(close).dy,
+      moreOrLessEquals(tester.getCenter(done).dy, epsilon: 1),
+    );
+    final label = tester.widget<Text>(
+      find.descendant(of: done, matching: find.text('Done')),
+    );
+    expect(
+      tester.widget<TextButton>(done).style!.foregroundColor!.resolve({}),
+      DarkColors.primaryColor,
+    );
+    expect(label.data, 'Done');
+
+    // Centered white text with a white cursor and the placeholder.
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('story-text-input')),
+    );
+    expect(field.textAlign, TextAlign.center);
+    expect(field.style!.color, Colors.white);
+    expect(field.cursorColor, Colors.white);
+    expect(field.decoration!.hintText, 'Write something…');
+    expect(
+      tester.getCenter(find.byKey(const ValueKey('story-text-input'))).dx,
+      moreOrLessEquals(195, epsilon: 1),
+    );
+
+    // Done places the bubble and brings every button back.
+    await tester.enterText(find.byType(TextField), 'Hello Cairo');
+    await tester.tap(done);
+    await tester.pumpAndSettle();
+    expect(textLayer(tester).text, 'Hello Cairo');
+    for (final key in chrome) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+    }
+  });
+
+  testWidgets('the bubble being edited is hidden until X or Done', (
+    tester,
+  ) async {
+    await show(tester);
+    await add(tester, 'Hello Cairo');
+    final id = textLayer(tester).id;
+    final bubble = find.byKey(ValueKey('story-layer-$id'));
+    expect(bubble, findsOneWidget);
+    await tester.tap(bubble);
+    await tester.pumpAndSettle();
+    expect(bubble, findsNothing);
+    await tester.tap(find.byKey(const ValueKey('story-text-cancel')));
+    await tester.pumpAndSettle();
+    expect(bubble, findsOneWidget);
+    expect(textLayer(tester).text, 'Hello Cairo');
+
+    await tester.tap(bubble);
+    await tester.pumpAndSettle();
+    expect(bubble, findsNothing);
+    await tester.enterText(find.byType(TextField), 'Hello world');
+    await tester.tap(find.byKey(const ValueKey('story-text-done')));
+    await tester.pumpAndSettle();
+    expect(bubble, findsOneWidget);
+    expect(textLayer(tester).text, 'Hello world');
+  });
+
+  testWidgets('X discards new text and restores the editor buttons', (
+    tester,
+  ) async {
+    await show(tester);
+    await tester.tap(find.byKey(const ValueKey('story-text-tool')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Never placed');
+    await tester.tap(find.byKey(const ValueKey('story-text-cancel')));
+    await tester.pumpAndSettle();
+    expect(current(tester).layers, isEmpty);
+    expect(find.byKey(const ValueKey('story-text-input')), findsNothing);
+    expect(find.byKey(const ValueKey('story-post')), findsOneWidget);
+    expect(find.byKey(const ValueKey('story-text-tool')), findsOneWidget);
   });
 
   testWidgets('empty Done and explicit Cancel never create or clear text', (

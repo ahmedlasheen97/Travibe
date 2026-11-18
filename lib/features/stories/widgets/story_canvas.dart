@@ -29,6 +29,7 @@ class StoryCanvas extends StatelessWidget {
     this.brushColor = Colors.white,
     this.brushWidth = 6,
     this.onStroke,
+    this.hiddenLayerId,
   });
   final StoryEditorDraft draft;
   final StoryExportController? exportController;
@@ -44,6 +45,9 @@ class StoryCanvas extends StatelessWidget {
   final Color brushColor;
   final double brushWidth;
   final ValueChanged<StoryStroke>? onStroke;
+
+  /// A layer not drawn right now: the text bubble being edited in text mode.
+  final String? hiddenLayerId;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -65,6 +69,7 @@ class StoryCanvas extends StatelessWidget {
         brushColor: brushColor,
         brushWidth: brushWidth,
         onStroke: onStroke,
+        hiddenLayerId: hiddenLayerId,
       );
     },
   );
@@ -84,6 +89,7 @@ class _GestureCanvas extends StatefulWidget {
     this.brushColor = Colors.white,
     this.brushWidth = 6,
     this.onStroke,
+    this.hiddenLayerId,
   });
   final Size size;
   final StoryEditorDraft draft;
@@ -96,6 +102,9 @@ class _GestureCanvas extends StatefulWidget {
   final Color brushColor;
   final double brushWidth;
   final ValueChanged<StoryStroke>? onStroke;
+
+  /// A layer not drawn right now: the text bubble being edited in text mode.
+  final String? hiddenLayerId;
   @override
   State<_GestureCanvas> createState() => _GestureCanvasState();
 }
@@ -304,7 +313,8 @@ class _GestureCanvasState extends State<_GestureCanvas> {
                     key: const ValueKey('story-strokes'),
                     painter: StoryStrokesPainter(widget.draft.strokes),
                   ),
-                for (final layer in widget.draft.layers) _layer(layer),
+                for (final layer in widget.draft.layers)
+                  if (layer.id != widget.hiddenLayerId) _layer(layer),
               ],
             ),
           ),

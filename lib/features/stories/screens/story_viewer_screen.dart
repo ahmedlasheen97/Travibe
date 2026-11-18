@@ -21,12 +21,11 @@ import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/widgets/story_viewer_canvas.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
-import 'package:travibe/features/stories/data/story_editor_draft.dart';
-import 'package:travibe/features/stories/widgets/start_add_story.dart';
+import 'package:travibe/features/stories/data/story_audience.dart';
+import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_mention_popover.dart';
 
 class StoryViewerScreen extends StatefulWidget {
@@ -45,6 +44,7 @@ class StoryViewerScreen extends StatefulWidget {
     this.onOpenProfile,
     this.loadMentionProfile,
     this.onReshare,
+    this.onReshared,
     this.enableReshare = kEnableStoryReshare,
     this.duration = const Duration(seconds: 5),
   });
@@ -65,12 +65,15 @@ class StoryViewerScreen extends StatefulWidget {
   /// Name/avatar for the mention popover; defaults to the public profile.
   final StoryMentionProfileLoader? loadMentionProfile;
 
-  /// Opens the editor for a reshare. Defaults to loading the original photo
-  /// and pushing the story editor with it as the background.
+  /// Reshares [story]. Defaults to `POST /stories/{id}/reshare`; throw to
+  /// show an error toast (a [StoryReshareError] carries its own wording).
   final Future<void> Function(BuildContext context, StoryDetail story)?
   onReshare;
 
-  /// Reshare button and "reshared from mention" header.
+  /// After a successful reshare, e.g. to refresh the stories bar.
+  final VoidCallback? onReshared;
+
+  /// Reshare button and "reshared from @user" header.
   final bool enableReshare;
   final Duration duration;
   @override
@@ -117,7 +120,9 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   bool _tapMention(Offset point, Size size) {
     final state = _viewer.state;
     final detail = state.detail;
-    if (state.status != StoryViewerStatus.ready || detail == null) {
+    if (state.status != StoryViewerStatus.ready ||
+        detail == null ||
+        detail.resharedFrom != null) {
       return false;
     }
     final hit = StoryViewerCanvas.mentionHitAt(state.layers, point, size);
@@ -175,19 +180,54 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   }
 
   bool _resharing = false;
+
+  /// Stories this viewer reshared (or can no longer reshare) this session;
+  /// their button is hidden even though the loaded detail still says
+  /// `can_reshare`.
+  final _reshareDone = <int>{};
+
+  bool _showsReshare(StoryDetail detail) =>
+      widget.enableReshare &&
+      detail.canReshare &&
+      !_reshareDone.contains(detail.id) &&
+      !_replyActive;
+
+  /// `public` is the API default; a private account reshares to its
+  /// followers, which is who can see it anyway.
+  Future<void> _defaultReshare(BuildContext context, StoryDetail detail) {
+    final private =
+        context.read<CurrentUserCubit?>()?.state.profile?.isPrivate == true;
+    return _repo.reshare(
+      detail.id,
+      visibility: private ? StoryAudience.followers : null,
+    );
+  }
+
   Future<void> _reshare(StoryDetail detail) async {
     if (_resharing || _closing) return;
     FocusScope.of(context).unfocus();
     setState(() => _resharing = true);
     _viewer.pause(true, reason: 'reshare');
     try {
-      await (widget.onReshare ?? _openReshareEditor)(context, detail);
-    } catch (_) {
+      await (widget.onReshare ?? _defaultReshare)(context, detail);
+      if (!mounted || _closing) return;
+      setState(() => _reshareDone.add(detail.id));
+      TravibeToast.show(
+        context,
+        const TravibeToastData.success('Story reshared'),
+      );
+      widget.onReshared?.call();
+    } catch (error) {
       if (mounted && !_closing) {
+        if (error is StoryReshareError && error.reshareGone) {
+          setState(() => _reshareDone.add(detail.id));
+        }
         TravibeToast.show(
           context,
-          const TravibeToastData.error(
-            'Unable to reshare this story. Please try again.',
+          TravibeToastData.error(
+            error is StoryReshareError
+                ? error.message
+                : StoryReshareError.fallback,
           ),
         );
       }
@@ -195,51 +235,6 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       if (mounted) setState(() => _resharing = false);
       _viewer.pause(false, reason: 'reshare');
     }
-  }
-
-  /// Uses the photo already shown (cached) as the new story's background.
-  Future<void> _openReshareEditor(
-    BuildContext context,
-    StoryDetail detail,
-  ) async {
-    final image = await _decode(_imageFor(_viewer.state));
-    try {
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) throw StateError('No image data');
-      final source = StorySourceImage(
-        path: '',
-        name: 'reshare-${detail.id}.png',
-        width: image.width,
-        height: image.height,
-        bytes: data.buffer.asUint8List(),
-      );
-      if (!context.mounted) return;
-      await openStoryEditor(
-        context,
-        StoryEditorDraft(image: source, reshareOfStoryId: detail.id),
-      );
-    } finally {
-      image.dispose();
-    }
-  }
-
-  static Future<ui.Image> _decode(ImageProvider provider) {
-    final completer = Completer<ui.Image>();
-    final stream = provider.resolve(ImageConfiguration.empty);
-    late final ImageStreamListener listener;
-    listener = ImageStreamListener(
-      (info, _) {
-        stream.removeListener(listener);
-        completer.complete(info.image.clone());
-        info.dispose();
-      },
-      onError: (error, stack) {
-        stream.removeListener(listener);
-        completer.completeError(error, stack);
-      },
-    );
-    stream.addListener(listener);
-    return completer.future;
   }
 
   bool _ownerSheetOpen = false;
@@ -471,6 +466,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       key: ValueKey(state.request),
                       image: _imageFor(state),
                       layers: state.layers,
+                      // A reshare's mentions aren't resolved: plain text.
+                      highlightMentions: state.detail?.resharedFrom == null,
                       onReady: () => _viewer.imageDisplayed(state.request),
                       onError: () => _viewer.imageFailed(state.request),
                     ),
@@ -544,9 +541,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (widget.enableReshare &&
-                                state.detail!.canReshare &&
-                                !_replyActive) ...[
+                            if (_showsReshare(state.detail!)) ...[
                               _ReshareButton(
                                 busy: _resharing,
                                 onPressed: () => _reshare(state.detail!),
@@ -834,12 +829,16 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     fontSize: 12,
   );
 
-  /// "12h", or "12h • reshared from mention" (tap: the original author).
+  /// "12h", or "12h • reshared from @user" (tap: the original author's
+  /// profile). Never links to the source story, which may have expired.
   Widget _postingTime(StoryDetail detail) {
     final time = timeAgo(detail.createdAt);
-    final from = widget.enableReshare ? detail.resharedFrom : null;
+    final from = widget.enableReshare ? detail.resharedFrom?.user : null;
+    final handle = from?.username?.trim();
     final label = Text(
-      from == null ? time : '$time • reshared from mention',
+      from == null
+          ? time
+          : '$time • reshared from @${handle == null || handle.isEmpty ? from.name : handle}',
       key: const ValueKey('story-posting-time'),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
@@ -848,12 +847,12 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     if (from == null) return label;
     return Semantics(
       button: true,
-      label: 'Reshared from ${from.user.name}. Open profile',
+      label: 'Reshared from ${from.name}. Open profile',
       excludeSemantics: true,
       child: GestureDetector(
         key: const ValueKey('story-reshared-from'),
         behavior: HitTestBehavior.opaque,
-        onTap: () => _openMention(from.user.id),
+        onTap: () => _openMention(from.id),
         child: label,
       ),
     );

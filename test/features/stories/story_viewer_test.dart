@@ -221,15 +221,9 @@ void main() {
     },
   );
   test(
-    'expired detail, missing media URL, invalid overlays and mismatched owner never render',
+    'expired detail, missing media URL and mismatched owner never render',
     () async {
-      for (final kind in [
-        'expired',
-        'media',
-        'emptyMedia',
-        'overlays',
-        'owner',
-      ]) {
+      for (final kind in ['expired', 'media', 'emptyMedia', 'owner']) {
         final repo = ViewerRepo()
           ..handler = (id) async {
             final json = viewerDetail(id);
@@ -240,10 +234,6 @@ void main() {
                 (json['media'] as List).single['url'] = null;
               case 'emptyMedia':
                 json['media'] = [];
-              case 'overlays':
-                json['elements'] = [
-                  {'version': 99},
-                ];
               case 'owner':
                 json['user_id'] = 8;
                 json['user'] = {'id': 8, 'name': 'Other'};
@@ -262,6 +252,29 @@ void main() {
         expect(cubit.state.detail, null);
         await cubit.close();
       }
+    },
+  );
+  test(
+    'an unsupported overlay element is skipped, not a failed story',
+    () async {
+      final repo = ViewerRepo()
+        ..handler = (id) async => StoryDetail.fromJson(
+          viewerDetail(id)
+            ..['elements'] = [
+              {'version': 99},
+            ],
+        );
+      final cubit = StoryViewerCubit(
+        groups: [
+          viewerGroup(7, [1]),
+        ],
+        initialAuthorId: 7,
+        repo: repo,
+      );
+      await cubit.start();
+      expect(cubit.state.status, StoryViewerStatus.ready);
+      expect(cubit.state.layers, isEmpty);
+      await cubit.close();
     },
   );
   test(

@@ -50,6 +50,11 @@ const cases = <String, (NotificationKind, String?, String)>{
     'assets/images/icons/mention.svg',
     'mentioned you',
   ),
+  'story_reshared': (
+    NotificationKind.reshare,
+    'assets/images/icons/reshare.svg',
+    'reshared your story',
+  ),
   // Proposed backend types (not yet in docs/openapi.json).
   'message_request_accepted': (
     NotificationKind.messageRequest,

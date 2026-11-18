@@ -5,7 +5,7 @@ import 'package:travibe/core/models/public_user_model.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/stories/data/mentions_repo.dart';
-import 'package:travibe/features/stories/widgets/story_glass.dart';
+import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/stories/widgets/story_mention_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_mention_text.dart';
 
@@ -23,6 +23,7 @@ Future<StoryTextEntryResult?> showStoryTextEntry(
   String? text,
   MentionsRepo? mentionsRepo,
   bool allowReshare = true,
+  bool showReshareToggle = false,
 }) => Navigator.of(context).push<StoryTextEntryResult>(
   PageRouteBuilder(
     opaque: false,
@@ -33,6 +34,7 @@ Future<StoryTextEntryResult?> showStoryTextEntry(
       text: text,
       repo: mentionsRepo ?? MentionsRepo(),
       allowReshare: allowReshare,
+      showReshareToggle: showReshareToggle,
     ),
     transitionsBuilder: (_, animation, _, child) =>
         FadeTransition(opacity: animation, child: child),
@@ -47,10 +49,14 @@ class StoryTextEntry extends StatefulWidget {
     this.text,
     required this.repo,
     this.allowReshare = true,
+    this.showReshareToggle = false,
   });
   final String? text;
   final MentionsRepo repo;
   final bool allowReshare;
+
+  /// Only for a public story from a public account.
+  final bool showReshareToggle;
   @override
   State<StoryTextEntry> createState() => _StoryTextEntryState();
 }
@@ -122,28 +128,16 @@ class _StoryTextEntryState extends State<StoryTextEntry> {
       child: SafeArea(
         child: Column(
           children: [
+            // Same spot as the editor's back button / Post (Figma
+            // text_mode.png): X discards this edit, Done places the bubble.
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+              padding: const EdgeInsets.fromLTRB(16, 20, 12, 0),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  StoryGlass(
-                    child: IconButton(
-                      key: const ValueKey('story-text-cancel'),
-                      tooltip: 'Cancel',
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close, color: Colors.white),
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      widget.text == null ? 'Add text' : 'Edit text',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontFamily: _font,
-                        fontSize: 14,
-                      ),
-                    ),
+                  BackButtonWidget.close(
+                    key: const ValueKey('story-text-cancel'),
+                    onTap: () => Navigator.pop(context),
                   ),
                   TextButton(
                     key: const ValueKey('story-text-done'),
@@ -233,10 +227,11 @@ class _StoryTextEntryState extends State<StoryTextEntry> {
             },
           ),
         ),
-        StoryReshareToggle(
-          value: _allowReshare,
-          onChanged: (value) => setState(() => _allowReshare = value),
-        ),
+        if (widget.showReshareToggle)
+          StoryReshareToggle(
+            value: _allowReshare,
+            onChanged: (value) => setState(() => _allowReshare = value),
+          ),
       ],
     ),
   );

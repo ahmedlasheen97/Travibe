@@ -34,6 +34,7 @@ class VerifiedFixturePresentation extends NotificationPresentationResolver {
           'fixture.message': NotificationKind.messageRequest,
           'fixture.nearby': NotificationKind.nearby,
           'fixture.mention': NotificationKind.mention,
+          'fixture.reshare': NotificationKind.reshare,
         },
       );
   @override

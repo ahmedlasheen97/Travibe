@@ -12,12 +12,19 @@ import 'package:travibe/features/stories/widgets/story_mention_text.dart';
 abstract class StoryLayerGeometry {
   StoryLayerGeometry();
 
-  static StoryLayerGeometry of(StoryEditorLayer layer, Size canvas) =>
-      switch (layer) {
-        StoryTextLayer() => StoryTextGeometry(layer, canvas),
-        StoryEmojiLayer() => StoryEmojiGeometry(layer, canvas),
-        _ => throw ArgumentError.value(layer, 'layer', 'Unknown Story layer'),
-      };
+  static StoryLayerGeometry of(
+    StoryEditorLayer layer,
+    Size canvas, {
+    bool highlightMentions = true,
+  }) => switch (layer) {
+    StoryTextLayer() => StoryTextGeometry(
+      layer,
+      canvas,
+      highlightMentions: highlightMentions,
+    ),
+    StoryEmojiLayer() => StoryEmojiGeometry(layer, canvas),
+    _ => throw ArgumentError.value(layer, 'layer', 'Unknown Story layer'),
+  };
 
   Size get size;
   double get maxScale;
@@ -55,7 +62,7 @@ abstract class StoryLayerGeometry {
 /// translucent rounded bubble (the story header pill's glass), with any
 /// `@username` in orange. Editor and viewer share this.
 class StoryTextGeometry extends StoryLayerGeometry {
-  StoryTextGeometry(this.layer, Size canvas) {
+  StoryTextGeometry(this.layer, Size canvas, {this.highlightMentions = true}) {
     final unit = canvas.width / 390;
     style = TextStyle(
       fontFamily: 'Plus Jakarta Sans',
@@ -126,6 +133,9 @@ class StoryTextGeometry extends StoryLayerGeometry {
   }
 
   final StoryTextLayer layer;
+
+  /// Orange `@handle`s. Off for reshares, whose mentions aren't resolved.
+  final bool highlightMentions;
   late final TextStyle style;
   late final EdgeInsets padding;
   late final double radius;
@@ -159,7 +169,11 @@ class StoryTextGeometry extends StoryLayerGeometry {
             padding: padding,
             child: RichText(
               textDirection: TextDirection.ltr,
-              text: storyMentionTextSpan(layer.text, style),
+              text: storyMentionTextSpan(
+                layer.text,
+                style,
+                highlightMentions: highlightMentions,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
