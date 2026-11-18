@@ -1,4 +1,6 @@
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/recent_searches_section.dart';
 import '../widgets/buddies_loading_overlay.dart';
 import '../widgets/buddies_traveler_skeleton.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,8 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profilesetup/data/profile_setup_repo.dart';
 import '../cubit/buddies_search_cubit.dart';
 import '../cubit/buddies_filters_cubit.dart';
+import '../cubit/buddies_recents_cubit.dart';
+import '../data/recent_destination.dart';
 import '../widgets/buddies_filter_button.dart';
 import '../data/buddies_landing_data.dart';
 import '../data/buddies_filters.dart';
@@ -36,25 +40,30 @@ class BuddiesSearchScreen extends StatelessWidget {
   final CityPlacesProvider? placesProvider;
   final ProfileSetupRepo? catalogRepo;
   @override
-  Widget build(BuildContext context) => MultiBlocProvider(
-    providers: [
-      BlocProvider(
-        create: (context) => BuddiesSearchCubit(
-          repo: repo,
-          filtersStore: context.read<BuddiesFiltersCubit?>(),
+  Widget build(BuildContext context) {
+    final source = repo ?? BuddiesRepo();
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => BuddiesRecentsCubit(repo: source)..load()),
+        BlocProvider(
+          create: (context) => BuddiesSearchCubit(
+            repo: source,
+            filtersStore: context.read<BuddiesFiltersCubit?>(),
+            onRecentSaved: context.read<BuddiesRecentsCubit>().saved,
+          ),
         ),
-      ),
-      BlocProvider(
-        create: (_) => CityAutocompleteCubit(
-          provider: placesProvider ?? context.read<CityPlacesProvider?>(),
+        BlocProvider(
+          create: (_) => CityAutocompleteCubit(
+            provider: placesProvider ?? context.read<CityPlacesProvider?>(),
+          ),
         ),
+      ],
+      child: _SearchView(
+        catalogRepo: catalogRepo,
+        onOpenTraveler: onOpenTraveler,
       ),
-    ],
-    child: _SearchView(
-      catalogRepo: catalogRepo,
-      onOpenTraveler: onOpenTraveler,
-    ),
-  );
+    );
+  }
 }
 
 class _SearchView extends StatefulWidget {
@@ -68,6 +77,40 @@ class _SearchView extends StatefulWidget {
 class _SearchViewState extends State<_SearchView> {
   final _text = TextEditingController();
   bool _openingFilters = false;
+
+  /// A recent destination being resolved back into a city selection.
+  String? _pendingRecent;
+
+  void _openRecent(RecentDestination recent, CityAutocompleteCubit cities) {
+    FocusScope.of(context).unfocus();
+    final label = recent.destination;
+    _text.value = TextEditingValue(
+      text: label,
+      selection: TextSelection.collapsed(offset: label.length),
+    );
+    _pendingRecent = label;
+    cities.setText(label);
+  }
+
+  /// Selects the suggestion matching [_pendingRecent] once results arrive;
+  /// otherwise leaves the suggestions for the user to choose.
+  void _resolvePendingRecent(
+    CityAutocompleteState city,
+    CityAutocompleteCubit cities,
+  ) {
+    final pending = _pendingRecent;
+    if (pending == null || city.debouncing || city.loading) return;
+    _pendingRecent = null;
+    if (city.text != pending || !city.searched) return;
+    final wanted = pending.trim().toLowerCase();
+    for (final suggestion in city.suggestions) {
+      final label = suggestion.selection?.label ?? suggestion.label;
+      if (label.trim().toLowerCase() == wanted) {
+        cities.select(suggestion);
+        return;
+      }
+    }
+  }
 
   void _openTraveler(String id) => widget.onOpenTraveler != null
       ? widget.onOpenTraveler!(id)
@@ -110,6 +153,7 @@ class _SearchViewState extends State<_SearchView> {
   ) => BlocConsumer<CityAutocompleteCubit, CityAutocompleteState>(
     listener: (context, city) {
       final search = context.read<BuddiesSearchCubit>();
+      _resolvePendingRecent(city, context.read<CityAutocompleteCubit>());
       if (city.selected != null) {
         search.selectCity(city.selected!);
         FocusScope.of(context).unfocus();
@@ -127,6 +171,11 @@ class _SearchViewState extends State<_SearchView> {
       builder: (context, state) {
         final cubit = context.read<BuddiesSearchCubit>();
         final cities = context.read<CityAutocompleteCubit>();
+        final recents = context.watch<BuddiesRecentsCubit>();
+        final showRecents =
+            city.text.isEmpty &&
+            city.selected == null &&
+            recents.state.isNotEmpty;
         final blocks = context.watch<BlockCubit?>();
         Widget content(Set<String> blocked) {
           final items = state.items
@@ -149,7 +198,7 @@ class _SearchViewState extends State<_SearchView> {
                 ),
               ),
               title: const Text(
-                'Choose Destination',
+                'Search',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -167,10 +216,19 @@ class _SearchViewState extends State<_SearchView> {
                 child: Column(
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      padding: EdgeInsets.fromLTRB(
+                        AppSizes.pw20,
+                        AppSizes.ph8,
+                        AppSizes.pw20,
+                        AppSizes.ph16,
+                      ),
                       child: TextField(
                         controller: _text,
-                        onChanged: cities.setText,
+                        cursorColor: Colors.white,
+                        onChanged: (text) {
+                          _pendingRecent = null;
+                          cities.setText(text);
+                        },
                         onSubmitted: (_) {
                           FocusScope.of(context).unfocus();
                         },
@@ -187,7 +245,7 @@ class _SearchViewState extends State<_SearchView> {
                           letterSpacing: 0,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Choose Destination',
+                          hintText: 'Search by destination',
                           hintStyle: const TextStyle(
                             color: Color(0xFFBDBCBB),
                             fontSize: 14,
@@ -213,6 +271,7 @@ class _SearchViewState extends State<_SearchView> {
                               : IconButton(
                                   tooltip: 'Clear search',
                                   onPressed: () {
+                                    _pendingRecent = null;
                                     _text.clear();
                                     cities.clear();
                                   },
@@ -265,6 +324,18 @@ class _SearchViewState extends State<_SearchView> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                           children: [
+                            if (showRecents)
+                              Padding(
+                                padding: EdgeInsets.only(bottom: AppSizes.ph16),
+                                child: RecentSearchesSection<RecentDestination>(
+                                  items: recents.state,
+                                  labelOf: (recent) => recent.destination,
+                                  onSelect: (recent) =>
+                                      _openRecent(recent, cities),
+                                  onRemove: recents.remove,
+                                  onClearAll: recents.clear,
+                                ),
+                              ),
                             if (city.loading ||
                                 city.debouncing ||
                                 city.resolving ||
@@ -279,7 +350,8 @@ class _SearchViewState extends State<_SearchView> {
                                   onRetry: cities.retry,
                                 ),
                               ),
-                            if (city.text.trim().runes.length < 2 &&
+                            if (!showRecents &&
+                                city.text.trim().runes.length < 2 &&
                                 city.selected == null)
                               const Padding(
                                 padding: EdgeInsets.all(24),

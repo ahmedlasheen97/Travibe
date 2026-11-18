@@ -2,7 +2,11 @@ import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/recent_searches_section.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
+import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/features/home/widgets/suggested_users_section.dart';
 import 'package:travibe/features/search/cubit/search_cubit.dart';
@@ -12,27 +16,30 @@ import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/features/search/widgets/person_result_tile.dart';
-import 'package:travibe/features/search/widgets/recent_searches_section.dart';
 import 'package:travibe/features/search/widgets/search_field.dart';
 import 'package:travibe/features/search/widgets/search_tabs.dart';
 
 class SearchScreen extends StatelessWidget {
-  const SearchScreen({super.key, this.repo});
+  const SearchScreen({super.key, this.repo, this.onOpenProfile});
   final SearchRepo? repo;
+
+  /// Opens a person's profile by id; defaults to the profile screen.
+  final ValueChanged<String>? onOpenProfile;
 
   @override
   Widget build(BuildContext context) {
     final source = repo ?? SearchRepo();
     return BlocProvider<SearchCubit>(
       create: (context) => SearchCubit(repo: source)..loadRecents(),
-      child: _SearchView(repo: source),
+      child: _SearchView(repo: source, onOpenProfile: onOpenProfile),
     );
   }
 }
 
 class _SearchView extends StatefulWidget {
-  const _SearchView({required this.repo});
+  const _SearchView({required this.repo, this.onOpenProfile});
   final SearchRepo repo;
+  final ValueChanged<String>? onOpenProfile;
 
   @override
   State<_SearchView> createState() => _SearchViewState();
@@ -87,9 +94,9 @@ class _SearchViewState extends State<_SearchView> {
             top: false,
             child: Column(
               children: [
-                const SizedBox(height: 8),
+                SizedBox(height: AppSizes.h8),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
                   child: SearchField(
                     controller: cubit.searchController,
                     onChanged: cubit.onQueryChanged,
@@ -100,7 +107,7 @@ class _SearchViewState extends State<_SearchView> {
                     onClear: cubit.clearQuery,
                   ),
                 ),
-                const SizedBox(height: 16),
+                SizedBox(height: AppSizes.h16),
                 Expanded(
                   child: state.hasInput
                       ? _buildResults(context, state, cubit)
@@ -116,19 +123,33 @@ class _SearchViewState extends State<_SearchView> {
 
   // ---------------- nothing typed: recents + suggestions ----------------
 
+  void _openRecent(RecentSearch recent, SearchCubit cubit) {
+    if (!recent.isPerson) {
+      FocusScope.of(context).unfocus();
+      cubit.selectRecent(recent);
+      return;
+    }
+    cubit.touchRecent(recent);
+    final open = widget.onOpenProfile;
+    open != null
+        ? open(recent.userId!)
+        : openUserProfile(context, recent.userId);
+  }
+
   Widget _buildIdle(SearchState state, SearchCubit cubit) {
     return ListView(
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: EdgeInsets.symmetric(horizontal: AppSizes.pw20),
       children: [
         if (state.recentSearches.isNotEmpty) ...[
-          RecentSearchesSection(
-            searches: state.recentSearches,
-            onSelect: cubit.selectRecent,
+          RecentSearchesSection<RecentSearch>(
+            items: state.recentSearches,
+            labelOf: (recent) => recent.text,
+            onSelect: (recent) => _openRecent(recent, cubit),
             onRemove: cubit.removeRecent,
             onClearAll: cubit.clearRecents,
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: AppSizes.h24),
         ],
         FutureBuilder<String>(
           future: _viewerId,
@@ -254,10 +275,15 @@ class _SearchViewState extends State<_SearchView> {
                               user.followsYou,
                           onTap: int.tryParse(user.id) == null
                               ? null
-                              : () => ProfileScreen.open(
-                                  context,
-                                  userId: int.parse(user.id),
-                                ),
+                              : () {
+                                  cubit.recordPerson(user);
+                                  final open = widget.onOpenProfile;
+                                  if (open != null) return open(user.id);
+                                  ProfileScreen.open(
+                                    context,
+                                    userId: int.parse(user.id),
+                                  );
+                                },
                           isFollowingPending: pending,
                           onFollowTap: onToggle,
                         ),

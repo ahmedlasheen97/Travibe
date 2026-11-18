@@ -4,13 +4,40 @@ import 'package:travibe/core/datasource/remotedata/api_service.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'buddies_home_response.dart';
 import 'buddies_search_query.dart';
+import 'recent_destination.dart';
 
 class BuddiesRepo {
   BuddiesRepo({ApiService? apiService}) : _api = apiService ?? ApiService();
   final ApiService _api;
-  Future<void> saveRecentDestination(String destination) async {
-    await _api.post('buddies/search/recent', {'destination': destination});
+  static const recentEndpoint = 'buddies/search/recent';
+
+  /// Saves (upserts) a destination; returns the stored item when readable.
+  Future<RecentDestination?> saveRecentDestination(String destination) async {
+    final response = await _api.post(recentEndpoint, {
+      'destination': destination,
+    });
+    return RecentDestination.fromJson(
+      response is Map ? response['data'] : null,
+    );
   }
+
+  /// Newest first, at most 10 (server-enforced).
+  Future<List<RecentDestination>> getRecentDestinations() async {
+    final response = await _api.get(recentEndpoint);
+    final data = response is Map ? response['data'] : null;
+    if (data is! List) {
+      throw ApiError(message: 'Unable to read recent searches.');
+    }
+    return data
+        .map(RecentDestination.fromJson)
+        .whereType<RecentDestination>()
+        .toList();
+  }
+
+  Future<void> deleteRecentDestination(int id) =>
+      _api.delete('$recentEndpoint/$id');
+
+  Future<void> clearRecentDestinations() => _api.delete(recentEndpoint);
 
   Future<BuddiesHomeResponse> getHome() async {
     final response = await _api.get('buddies');

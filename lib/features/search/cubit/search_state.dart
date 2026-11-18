@@ -10,7 +10,7 @@ class SearchState {
   final SearchTab tab;
   final SearchStatus status;
   final String errorMessage;
-  final List<String> recentSearches;
+  final List<RecentSearch> recentSearches;
   final List<PublicUserModel> people;
   final bool hasMorePeople;
   final bool isLoadingMore;
@@ -44,7 +44,7 @@ class SearchState {
     SearchTab? tab,
     SearchStatus? status,
     String? errorMessage,
-    List<String>? recentSearches,
+    List<RecentSearch>? recentSearches,
     List<PublicUserModel>? people,
     bool? hasMorePeople,
     bool? isLoadingMore,
