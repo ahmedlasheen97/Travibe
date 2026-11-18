@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 
 part 'search_state.dart';
@@ -11,9 +13,12 @@ part 'search_state.dart';
 class SearchCubit extends Cubit<SearchState> {
   SearchCubit({SearchRepo? repo})
     : _repo = repo ?? SearchRepo(),
-      super(const SearchState());
+      super(const SearchState()) {
+    _preferences.addListener(_sessionChanged);
+  }
 
   final SearchRepo _repo;
+  final _preferences = PreferencesManager();
   final searchController = TextEditingController();
 
   Timer? _debounce;
@@ -21,8 +26,36 @@ class SearchCubit extends Cubit<SearchState> {
   int _currentPage = 0;
   int? _paginationRequestId;
 
-  void loadRecents() {
-    emit(state.copyWith(recentSearches: _repo.getRecentSearches()));
+  /// Owner of the loaded recents; null until resolved for this session.
+  String? _recentsOwner;
+  Future<String?>? _recentsLoad;
+
+  /// Loads the signed-in account's history. Safe to call repeatedly.
+  Future<void> loadRecents() => _ensureRecents();
+
+  Future<String?> _ensureRecents() {
+    final session = _preferences.sessionRevision;
+    return _recentsLoad ??= () async {
+      try {
+        final owner = await _repo.getCurrentUserId();
+        if (isClosed || session != _preferences.sessionRevision) return null;
+        _recentsOwner = owner;
+        emit(state.copyWith(recentSearches: _repo.getRecentSearches(owner)));
+        return owner;
+      } catch (_) {
+        // No history is better than another account's; retry on next use.
+        if (session == _preferences.sessionRevision) _recentsLoad = null;
+        return null;
+      }
+    }();
+  }
+
+  void _sessionChanged() {
+    if (isClosed) return;
+    _recentsOwner = null;
+    _recentsLoad = null;
+    emit(state.copyWith(recentSearches: const []));
+    if (_preferences.hasSession) loadRecents();
   }
 
   // ---------------- typing / searching ----------------
@@ -88,7 +121,7 @@ class SearchCubit extends Cubit<SearchState> {
     _debounce?.cancel();
     if (!state.canSearch) return;
 
-    _addRecent(state.query);
+    _addRecent(RecentSearch(state.query));
     _search(state.searchTerm);
   }
 
@@ -191,39 +224,54 @@ class SearchCubit extends Cubit<SearchState> {
 
   // ---------------- recent searches ----------------
 
-  void selectRecent(String value) {
+  /// Fills the field with a query recent and runs it. Person recents are
+  /// opened by the screen; see [touchRecent].
+  void selectRecent(RecentSearch recent) {
+    final value = recent.text;
     searchController.text = value;
     searchController.selection = TextSelection.collapsed(offset: value.length);
     onQueryChanged(value);
     submit();
   }
 
-  Future<void> _addRecent(String query) async {
-    final updated = [
-      query,
-      ...state.recentSearches.where(
-        (s) => s.toLowerCase() != query.toLowerCase(),
-      ),
-    ].take(SearchRepo.maxRecent).toList();
+  /// Remembers a person the user opened from the results as "@username".
+  Future<void> recordPerson(PublicUserModel user) {
+    final handle = user.handle.isNotEmpty ? user.handle : user.name.trim();
+    if (handle.isEmpty) return Future.value();
+    return _addRecent(RecentSearch(handle, userId: user.id));
+  }
 
+  /// Moves an existing recent to the top (e.g. a person row was reopened).
+  Future<void> touchRecent(RecentSearch recent) => _addRecent(recent);
+
+  Future<void> _addRecent(RecentSearch recent) => _updateRecents(
+    (current) => [
+      recent,
+      ...current.where((item) => !item.sameText(recent)),
+    ].take(SearchRepo.maxRecent).toList(),
+  );
+
+  Future<void> removeRecent(RecentSearch recent) => _updateRecents(
+    (current) => current.where((item) => !item.sameText(recent)).toList(),
+  );
+
+  Future<void> clearRecents() => _updateRecents((_) => const []);
+
+  Future<void> _updateRecents(
+    List<RecentSearch> Function(List<RecentSearch> current) change,
+  ) async {
+    final session = _preferences.sessionRevision;
+    final owner = _recentsOwner ?? await _ensureRecents();
+    if (owner == null ||
+        isClosed ||
+        session != _preferences.sessionRevision ||
+        owner != _recentsOwner) {
+      return;
+    }
+    final updated = change(state.recentSearches);
     emit(state.copyWith(recentSearches: updated));
-    await _saveRecents(updated);
-  }
-
-  Future<void> removeRecent(String value) async {
-    final updated = state.recentSearches.where((s) => s != value).toList();
-    emit(state.copyWith(recentSearches: updated));
-    await _saveRecents(updated);
-  }
-
-  Future<void> clearRecents() async {
-    emit(state.copyWith(recentSearches: const []));
-    await _saveRecents(const []);
-  }
-
-  Future<void> _saveRecents(List<String> values) async {
     try {
-      await _repo.saveRecentSearches(values);
+      await _repo.saveRecentSearches(owner, updated);
     } catch (_) {
       // Local history persistence must not interrupt a successful search.
     }
@@ -235,6 +283,7 @@ class SearchCubit extends Cubit<SearchState> {
   @override
   Future<void> close() {
     _debounce?.cancel();
+    _preferences.removeListener(_sessionChanged);
     searchController.dispose();
     return super.close();
   }

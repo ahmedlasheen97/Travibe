@@ -51,10 +51,41 @@ class FakeApi extends ApiService {
   dynamic result;
   int calls = 0;
   final recent = <Map<String, dynamic>>[];
+
+  /// Server-side `buddies/search/recent` history, newest first.
+  final recentItems = <Map<String, dynamic>>[];
+  final deleted = <String>[];
+  int _recentId = 0;
   @override
   Future<dynamic> post(String endpoint, Map<String, dynamic> data) async {
     recent.add(data);
-    return {};
+    if (endpoint != 'buddies/search/recent') return {};
+    final destination = data['destination'] as String;
+    recentItems.removeWhere(
+      (item) =>
+          (item['destination'] as String).toLowerCase() ==
+          destination.toLowerCase(),
+    );
+    final item = {
+      'id': ++_recentId,
+      'destination': destination,
+      'searched_at': null,
+    };
+    recentItems.insert(0, item);
+    if (recentItems.length > 10) recentItems.removeLast();
+    return {'data': item};
+  }
+
+  @override
+  Future<dynamic> delete(String endpoint) async {
+    deleted.add(endpoint);
+    if (endpoint == 'buddies/search/recent') {
+      recentItems.clear();
+    } else if (endpoint.startsWith('buddies/search/recent/')) {
+      final id = int.parse(endpoint.split('/').last);
+      recentItems.removeWhere((item) => item['id'] == id);
+    }
+    return null;
   }
 
   String? path;
@@ -64,6 +95,10 @@ class FakeApi extends ApiService {
     String endpoint, {
     Map<String, dynamic>? queryParameters,
   }) async {
+    // History reads are not part of the discovery call counts.
+    if (endpoint == 'buddies/search/recent') {
+      return {'data': List.of(recentItems)};
+    }
     calls++;
     path = endpoint;
     query = queryParameters;

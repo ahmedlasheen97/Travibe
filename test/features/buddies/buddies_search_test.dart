@@ -15,6 +15,7 @@ import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
 import 'package:travibe/features/buddies/cubit/buddies_listing_cubit.dart';
+import 'package:travibe/features/buddies/cubit/buddies_recents_cubit.dart';
 import 'package:travibe/features/buddies/cubit/buddies_search_cubit.dart';
 import 'package:travibe/features/buddies/data/buddies_filters.dart';
 import 'package:travibe/features/buddies/data/buddies_repo.dart';
@@ -47,11 +48,12 @@ Future<void> showSearch(
   home.FakeApi api, {
   BlockCubit? blocks,
   ValueChanged<String>? onOpenTraveler,
+  CityPlacesProvider? places,
 }) async {
   Widget screen = BuddiesSearchScreen(
     repo: BuddiesRepo(apiService: api),
     catalogRepo: filters.FilterCatalog(),
-    placesProvider: FakeCityPlaces(),
+    placesProvider: places ?? FakeCityPlaces(),
     onOpenTraveler: onOpenTraveler,
   );
   if (blocks != null) {
@@ -532,7 +534,8 @@ void main() {
       await tester.tap(find.text('Choose Destination'));
       await tester.pumpAndSettle();
       expect(find.byType(BuddiesSearchScreen), findsOneWidget);
-      expect(find.text('Choose Destination'), findsWidgets);
+      expect(find.text('Search'), findsOneWidget);
+      expect(find.text('Search by destination'), findsOneWidget);
       expect(api.calls, 1);
       await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
@@ -548,7 +551,7 @@ void main() {
       await showSearch(tester, api);
       expect(
         tester.widget<TextField>(find.byType(TextField)).decoration!.hintText,
-        'Choose Destination',
+        'Search by destination',
       );
       expect(
         tester.widget<TextField>(find.byType(TextField)).decoration!.labelText,
@@ -854,4 +857,155 @@ void main() {
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
+
+  group('recent destinations', () {
+    Map<String, dynamic> item(int id, String destination) => {
+      'id': id,
+      'destination': destination,
+      'searched_at': '2026-11-01T10:00:00Z',
+    };
+    home.FakeApi withRecents(List<String> destinations) {
+      final api = home.FakeApi(searchPage(ids: [1]));
+      api.recentItems.addAll([
+        for (var i = 0; i < destinations.length; i++)
+          item(100 + i, destinations[i]),
+      ]);
+      return api;
+    }
+
+    Finder row(int i) => find.byKey(ValueKey('recent-search-$i'));
+    String rowText(WidgetTester tester, int i) => tester
+        .widget<Text>(find.descendant(of: row(i), matching: find.byType(Text)))
+        .data!;
+
+    testWidgets('server history renders newest first; hidden when empty', (
+      tester,
+    ) async {
+      await showSearch(
+        tester,
+        withRecents(['Bali, Indonesia', 'Cairo, Egypt']),
+      );
+      expect(find.text('Recent Searches'), findsOneWidget);
+      expect(find.text('Clear All'), findsOneWidget);
+      expect(rowText(tester, 0), 'Bali, Indonesia');
+      expect(rowText(tester, 1), 'Cairo, Egypt');
+      await tester.pumpWidget(const SizedBox());
+
+      await showSearch(tester, withRecents([]));
+      expect(find.text('Recent Searches'), findsNothing);
+      expect(
+        find.text('Type at least 2 characters and choose a city.'),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('a selected destination is saved to the top without dupes', (
+      tester,
+    ) async {
+      final api = withRecents(['Cairo, Egypt', 'bali, indonesia']);
+      await showSearch(tester, api);
+      await searchText(tester, 'Bali');
+      expect(api.recent.last, {'destination': 'Bali, Indonesia'});
+      await tester.tap(find.byTooltip('Clear search'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('recent-search-2')), findsNothing);
+      expect(rowText(tester, 0), 'Bali, Indonesia');
+      expect(rowText(tester, 1), 'Cairo, Egypt');
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('X deletes one and Clear All deletes all, without dialogs', (
+      tester,
+    ) async {
+      final api = withRecents(['Bali, Indonesia', 'Cairo, Egypt']);
+      await showSearch(tester, api);
+      await tester.tap(find.byKey(const ValueKey('recent-search-remove-0')));
+      await tester.pumpAndSettle();
+      expect(api.deleted, ['buddies/search/recent/100']);
+      expect(find.text('Bali, Indonesia'), findsNothing);
+      expect(rowText(tester, 0), 'Cairo, Egypt');
+
+      await tester.tap(find.text('Clear All'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(api.deleted.last, 'buddies/search/recent');
+      expect(find.text('Recent Searches'), findsNothing);
+      expect(api.calls, 0);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('tapping a recent fills the field and runs that search', (
+      tester,
+    ) async {
+      final api = withRecents(['Bali, Indonesia']);
+      final places = FakeCityPlaces()
+        ..onAutocomplete = (input) async => [
+          CitySuggestion(id: 'Bali', label: 'Bali, Indonesia'),
+          CitySuggestion(id: 'Balikpapan', label: 'Balikpapan, Indonesia'),
+        ];
+      await showSearch(tester, api, places: places);
+      await tester.tap(row(0));
+      await tester.pump(const Duration(milliseconds: 350));
+      await tester.pumpAndSettle();
+      expect(places.inputs, ['Bali, Indonesia']);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'Bali, Indonesia',
+      );
+      expect(api.calls, 1);
+      expect(api.path, 'buddies/search');
+      expect(api.query?['city'], 'Bali');
+      expect(find.byType(BuddiesTravelerCard), findsOneWidget);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    test('keeps at most 10, newest first', () async {
+      final api = withRecents([for (var i = 0; i < 10; i++) 'City $i, X']);
+      final cubit = BuddiesRecentsCubit(repo: BuddiesRepo(apiService: api));
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(cubit.state, hasLength(10));
+      final saved = await BuddiesRepo(
+        apiService: api,
+      ).saveRecentDestination('New, Y');
+      cubit.saved(saved!, session: preferences.sessionRevision);
+      expect(cubit.state, hasLength(10));
+      expect(cubit.state.first.destination, 'New, Y');
+      expect(cubit.state.last.destination, 'City 8, X');
+    });
+
+    test('an account switch drops and reloads the history', () async {
+      final api = withRecents(['Bali, Indonesia']);
+      final cubit = BuddiesRecentsCubit(repo: BuddiesRepo(apiService: api));
+      addTearDown(cubit.close);
+      await cubit.load();
+      expect(cubit.state.single.destination, 'Bali, Indonesia');
+      api.recentItems
+        ..clear()
+        ..add(item(7, 'Cairo, Egypt'));
+      await preferences.saveToken('other-account');
+      await Future<void>.delayed(Duration.zero);
+      expect(cubit.state.single.destination, 'Cairo, Egypt');
+      await preferences.clearSession();
+      expect(cubit.state, isEmpty);
+    });
+
+    test('a failed delete restores the list', () async {
+      final api = FailingDeleteApi(searchPage(ids: [1]))
+        ..recentItems.add(item(1, 'Bali, Indonesia'));
+      final cubit = BuddiesRecentsCubit(repo: BuddiesRepo(apiService: api));
+      addTearDown(cubit.close);
+      await cubit.load();
+      await cubit.clear();
+      expect(cubit.state.single.destination, 'Bali, Indonesia');
+    });
+  });
+}
+
+class FailingDeleteApi extends home.FakeApi {
+  FailingDeleteApi(super.result);
+  @override
+  Future<dynamic> delete(String endpoint) async =>
+      throw ApiError(message: 'Unable to delete.');
 }

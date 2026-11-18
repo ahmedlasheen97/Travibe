@@ -5,6 +5,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
+import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
 
@@ -13,7 +14,9 @@ class SearchRepo {
     : _apiService = apiService ?? ApiService();
   final ApiService _apiService;
 
-  static const String _recentKey = 'recent_searches';
+  /// Per-account key prefix; removed by [PreferencesManager.clearSession].
+  static const String recentKeyPrefix = 'recent_searches_';
+  static const String _legacyRecentKey = 'recent_searches';
   static const int maxRecent = 10;
 
   // ---------------- API ----------------
@@ -52,22 +55,53 @@ class SearchRepo {
     }
   }
 
-  Future<String> getCurrentUserId() async =>
-      HomeAccount.fromJson(await _apiService.get('user')).id;
+  Future<String>? _userId;
+  int? _userIdRevision;
 
-  // ---------------- recent searches (local) ----------------
+  /// The signed-in user's id, shared by callers within one session.
+  Future<String> getCurrentUserId() {
+    final revision = PreferencesManager().sessionRevision;
+    if (_userId != null && _userIdRevision == revision) return _userId!;
+    _userIdRevision = revision;
+    final request = _apiService
+        .get('user')
+        .then((json) => HomeAccount.fromJson(json).id);
+    _userId = request;
+    request.catchError((_) {
+      if (identical(_userId, request)) _userId = null;
+      return '';
+    });
+    return request;
+  }
 
-  List<String> getRecentSearches() {
-    final raw = PreferencesManager().getString(_recentKey);
+  // ---------------- recent searches (local, per account) ----------------
+
+  List<RecentSearch> getRecentSearches(String userId) {
+    final raw = PreferencesManager().getString('$recentKeyPrefix$userId');
     if (raw == null || raw.isEmpty) return [];
     try {
-      return List<String>.from(jsonDecode(raw) as List);
+      return (jsonDecode(raw) as List)
+          .map(RecentSearch.fromJson)
+          .whereType<RecentSearch>()
+          .take(maxRecent)
+          .toList();
     } catch (_) {
       return [];
     }
   }
 
-  Future<void> saveRecentSearches(List<String> items) async {
-    await PreferencesManager().setString(_recentKey, jsonEncode(items));
+  Future<void> saveRecentSearches(
+    String userId,
+    List<RecentSearch> items,
+  ) async {
+    final preferences = PreferencesManager();
+    // The old shared key had no owner, so it is dropped rather than migrated.
+    if (preferences.getString(_legacyRecentKey) != null) {
+      await preferences.remove(_legacyRecentKey);
+    }
+    await preferences.setString(
+      '$recentKeyPrefix$userId',
+      jsonEncode([for (final item in items) item.toJson()]),
+    );
   }
 }

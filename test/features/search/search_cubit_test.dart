@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/search/cubit/search_cubit.dart';
+import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
+import '../home/home_experience_fixtures.dart';
 import 'search_fixtures.dart';
 
 void main() {
@@ -31,7 +33,7 @@ void main() {
       expect(repo.queries, ['sarah:1']);
       expect(cubit.state.status, SearchStatus.loaded);
       expect(cubit.state.people.single.name, 'Sarah Travels');
-      expect(repo.recents, ['@sarah']);
+      expect(repo.recentTexts, ['@sarah']);
     },
   );
   test('clear invalidates in-flight responses and pagination', () async {
@@ -94,16 +96,83 @@ void main() {
       expect(cubit.state.hasMorePeople, isFalse);
     },
   );
-  test('recent queries can be selected, removed and cleared', () async {
-    repo.recents = ['sarah', 'bali'];
-    cubit.loadRecents();
-    cubit.selectRecent('sarah');
-    await settleRequests();
-    expect(cubit.searchController.text, 'sarah');
-    expect(repo.queries, ['sarah:1']);
-    await cubit.removeRecent('sarah');
-    expect(cubit.state.recentSearches, ['bali']);
-    await cubit.clearRecents();
-    expect(repo.recents, isEmpty);
+  group('recent searches', () {
+    List<String> texts() => [
+      for (final r in cubit.state.recentSearches) r.text,
+    ];
+    Future<void> submit(String query) async {
+      cubit.onQueryChanged(query);
+      cubit.submit();
+      await settleRequests();
+    }
+
+    test('submitted queries are saved newest first', () async {
+      await cubit.loadRecents();
+      await submit('bali');
+      await submit('cairo');
+      expect(texts(), ['cairo', 'bali']);
+      expect(repo.recentTexts, ['cairo', 'bali']);
+    });
+
+    test('duplicates ignore case and move to the top', () async {
+      repo.recents = const [RecentSearch('Bali'), RecentSearch('Cairo')];
+      await cubit.loadRecents();
+      await submit('CAIRO');
+      expect(texts(), ['CAIRO', 'Bali']);
+    });
+
+    test('keeps at most 10', () async {
+      await cubit.loadRecents();
+      for (var i = 0; i < 12; i++) {
+        await submit('query $i');
+      }
+      expect(texts(), hasLength(10));
+      expect(texts().first, 'query 11');
+      expect(texts().last, 'query 2');
+    });
+
+    test('remove one and clear all', () async {
+      repo.recents = const [RecentSearch('sarah'), RecentSearch('bali')];
+      await cubit.loadRecents();
+      await cubit.removeRecent(const RecentSearch('SARAH'));
+      expect(texts(), ['bali']);
+      expect(repo.recentTexts, ['bali']);
+      await cubit.clearRecents();
+      expect(cubit.state.recentSearches, isEmpty);
+      expect(repo.recents, isEmpty);
+    });
+
+    test('selecting a query fills the field and searches', () async {
+      repo.recents = const [RecentSearch('sarah'), RecentSearch('bali')];
+      await cubit.loadRecents();
+      cubit.selectRecent(const RecentSearch('bali'));
+      await settleRequests();
+      expect(cubit.searchController.text, 'bali');
+      expect(repo.queries, ['bali:1']);
+      expect(texts(), ['bali', 'sarah']);
+    });
+
+    test('opening a person saves @username with the user id', () async {
+      await cubit.loadRecents();
+      await cubit.recordPerson(suggested('7', username: 'sarah_travels'));
+      expect(
+        cubit.state.recentSearches.single,
+        const RecentSearch('@sarah_travels', userId: '7'),
+      );
+    });
+
+    test('history is kept per account', () async {
+      repo.store['1'] = const [RecentSearch('mine')];
+      repo.store['2'] = const [RecentSearch('theirs')];
+      await cubit.loadRecents();
+      expect(texts(), ['mine']);
+      await submit('bali');
+      expect(repo.store['2'], const [RecentSearch('theirs')]);
+
+      final other = SearchCubit(repo: repo..userId = '2');
+      addTearDown(other.close);
+      await other.loadRecents();
+      expect([for (final r in other.state.recentSearches) r.text], ['theirs']);
+    });
   });
 }

@@ -12,6 +12,7 @@ import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/features/home/widgets/home_tabs.dart';
 import 'package:travibe/features/home/widgets/suggested_user_card.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
+import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import 'package:travibe/features/search/screens/search_screen.dart';
 import 'package:travibe/features/search/widgets/person_result_tile.dart';
@@ -40,6 +41,7 @@ void main() {
     Size size = const Size(390, 844),
     double textScale = 1,
     TextDirection direction = TextDirection.ltr,
+    ValueChanged<String>? onOpenProfile,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -61,7 +63,7 @@ void main() {
               BlocProvider.value(value: follow),
               BlocProvider.value(value: block),
             ],
-            child: SearchScreen(repo: repo),
+            child: SearchScreen(repo: repo, onOpenProfile: onOpenProfile),
           ),
         ),
       ),
@@ -182,7 +184,7 @@ void main() {
   testWidgets('recents select, remove and clear without extra empty searches', (
     tester,
   ) async {
-    repo.recents = ['sarah', 'bali'];
+    repo.recents = const [RecentSearch('sarah'), RecentSearch('bali')];
     await show(tester);
     await tester.tap(find.text('sarah'));
     await tester.pumpAndSettle();
@@ -192,6 +194,53 @@ void main() {
     await tester.tap(find.text('Clear All'));
     await tester.pumpAndSettle();
     expect(find.text('Recent Searches'), findsNothing);
+  });
+  testWidgets('recent section is hidden without history', (tester) async {
+    await show(tester);
+    expect(find.text('Recent Searches'), findsNothing);
+    expect(find.text('Clear All'), findsNothing);
+    expect(find.text('Search for travelers, posts..'), findsOneWidget);
+    expect(find.text('Suggested for You'), findsOneWidget);
+  });
+  testWidgets('X removes only that recent', (tester) async {
+    repo.recents = const [RecentSearch('sarah'), RecentSearch('bali')];
+    await show(tester);
+    await tester.tap(find.byKey(const ValueKey('recent-search-remove-0')));
+    await tester.pumpAndSettle();
+    expect(find.text('sarah'), findsNothing);
+    expect(find.text('bali'), findsOneWidget);
+    expect(repo.recentTexts, ['bali']);
+    expect(repo.queries, isEmpty);
+  });
+  testWidgets('a submitted query appears in recents after clearing the field', (
+    tester,
+  ) async {
+    await show(tester);
+    await search(tester, 'bali');
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Recent Searches'), findsOneWidget);
+    expect(find.byKey(const ValueKey('recent-search-0')), findsOneWidget);
+    expect(repo.recentTexts, ['bali']);
+  });
+  testWidgets('opening a person saves @username; the row opens the profile', (
+    tester,
+  ) async {
+    final opened = <String>[];
+    await show(tester, onOpenProfile: opened.add);
+    await search(tester, 'sarah');
+    await tester.tap(find.byType(PersonResultTile));
+    await tester.pumpAndSettle();
+    expect(opened, ['2']);
+    expect(repo.recents.first, const RecentSearch('@traveller', userId: '2'));
+
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pumpAndSettle();
+    final queries = List.of(repo.queries);
+    await tester.tap(find.byKey(const ValueKey('recent-search-0')));
+    await tester.pumpAndSettle();
+    expect(opened, ['2', '2']);
+    expect(repo.queries, queries);
   });
   testWidgets('small screen handles long names, missing avatars and keyboard', (
     tester,

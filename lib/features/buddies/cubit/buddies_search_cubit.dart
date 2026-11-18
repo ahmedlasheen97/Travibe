@@ -9,6 +9,7 @@ import '../data/buddies_home_response.dart';
 import '../data/buddies_page.dart';
 import '../data/buddies_repo.dart';
 import '../data/buddies_search_query.dart';
+import '../data/recent_destination.dart';
 
 class BuddiesSearchState {
   BuddiesSearchState({
@@ -67,14 +68,22 @@ class BuddiesSearchState {
 }
 
 class BuddiesSearchCubit extends Cubit<BuddiesSearchState> {
-  BuddiesSearchCubit({BuddiesRepo? repo, BuddiesFiltersCubit? filtersStore})
-    : _repo = repo ?? BuddiesRepo(),
-      _store = filtersStore,
-      super(BuddiesSearchState(filters: filtersStore?.state)) {
+  BuddiesSearchCubit({
+    BuddiesRepo? repo,
+    BuddiesFiltersCubit? filtersStore,
+    this.onRecentSaved,
+  }) : _repo = repo ?? BuddiesRepo(),
+       _store = filtersStore,
+       super(BuddiesSearchState(filters: filtersStore?.state)) {
     _preferences.addListener(_sessionChanged);
   }
   final BuddiesRepo _repo;
   final BuddiesFiltersCubit? _store;
+
+  /// Called with the stored item after a destination is saved to history,
+  /// together with the session revision it was saved under.
+  final void Function(RecentDestination item, {required int session})?
+  onRecentSaved;
   final _preferences = PreferencesManager();
   Future<void>? _pending;
   int _generation = 0;
@@ -123,7 +132,8 @@ class BuddiesSearchCubit extends Cubit<BuddiesSearchState> {
     final session = _preferences.sessionRevision;
     try {
       if (!_preferences.hasSession) return;
-      await _repo.saveRecentDestination(city.label);
+      final saved = await _repo.saveRecentDestination(city.label);
+      if (saved != null) onRecentSaved?.call(saved, session: session);
     } catch (error) {
       if (isClosed ||
           generation != _generation ||
