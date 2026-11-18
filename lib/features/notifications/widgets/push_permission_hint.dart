@@ -3,14 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/notifications/firebase_messaging_client.dart';
 import 'package:travibe/core/notifications/push_notification_service.dart';
+import 'package:travibe/core/permissions/device_settings.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
 /// Subtle device-permission line under Settings → Push Notifications.
 /// Shows nothing while the device can receive pushes (or push is
 /// unsupported here); the account toggle is a separate, server-side setting.
 class PushPermissionHint extends StatelessWidget {
-  const PushPermissionHint({super.key, required this.push});
+  const PushPermissionHint({
+    super.key,
+    required this.push,
+    this.settings = const DeviceSettings(),
+  });
   final PushNotificationService push;
+  final DeviceSettings settings;
 
   static bool _undecided(PushPermission p) =>
       p == PushPermission.notDetermined || p == PushPermission.unknown;
@@ -22,7 +28,7 @@ class PushPermissionHint extends StatelessWidget {
         'Notifications aren’t allowed on this device yet.',
       PushPermission.denied =>
         'Notifications are blocked on this device. Allow them in device '
-            'Settings, then check again.',
+            'Settings.',
       PushPermission.unknown => null,
       PushPermission.authorized || PushPermission.provisional =>
         push.tokenStatus == PushTokenStatus.waitingForApns
@@ -38,6 +44,8 @@ class PushPermissionHint extends StatelessWidget {
       final message = _message();
       if (message == null) return const SizedBox.shrink();
       final enable = _undecided(push.permission);
+      // Blocked: only device Settings can change it; resume re-reads it.
+      final blocked = push.permission == PushPermission.denied;
       final style = TextStyle(fontSize: AppSizes.sp12);
       return Padding(
         key: const ValueKey('push-permission-hint'),
@@ -52,7 +60,11 @@ class PushPermissionHint extends StatelessWidget {
               onPressed: push.requestingPermission
                   ? null
                   : () => unawaited(
-                      enable ? push.requestPermission() : push.retry(),
+                      enable
+                          ? push.requestPermission()
+                          : blocked
+                          ? settings.open()
+                          : push.retry(),
                     ),
               style: TextButton.styleFrom(
                 foregroundColor: DarkColors.primaryColor,
@@ -66,6 +78,8 @@ class PushPermissionHint extends StatelessWidget {
                     ? 'Checking…'
                     : enable
                     ? 'Enable'
+                    : blocked
+                    ? 'Open Settings'
                     : 'Check',
               ),
             ),

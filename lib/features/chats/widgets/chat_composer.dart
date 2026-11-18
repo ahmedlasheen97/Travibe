@@ -1,3 +1,5 @@
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:flutter/services.dart';
 import 'chat_emoji_picker.dart';
 import 'chat_recording_strip.dart';
@@ -49,6 +51,17 @@ class ChatComposer extends StatefulWidget {
 
 class _ChatComposerState extends State<ChatComposer>
     with WidgetsBindingObserver {
+  /// Records, or, when the microphone is blocked in Settings, explains why
+  /// with the shared permission sheet.
+  Future<void> _startRecording() async {
+    await widget.audio.startRecording();
+    if (mounted &&
+        widget.audio.needsSettings &&
+        !widget.audio.promptedForPermission) {
+      await PermissionFlow.showSettings(context, AppPermission.microphone);
+    }
+  }
+
   final _ownedFocus = FocusNode();
   FocusNode get _focus => widget.focusNode ?? _ownedFocus;
   late final int _session;
@@ -387,7 +400,7 @@ class _ChatComposerState extends State<ChatComposer>
                             : widget.audio.supported &&
                                   widget.audio.draft == null &&
                                   widget.selectedMediaTray == null
-                            ? widget.audio.startRecording
+                            ? _startRecording
                             : null,
                         icon: Icon(
                           widget.audio.recording

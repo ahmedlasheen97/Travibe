@@ -521,6 +521,15 @@ void main() {
         message: 'sensitive native details',
       ),
       PlatformException(code: 'photo_access_restricted'),
+    ]) {
+      photos.error = error;
+      await cubit.pickAvatar();
+      expect(cubit.state.selectingAvatar, false);
+      // Denials go to the shared Settings sheet, not an inline error.
+      expect(cubit.state.avatarPermissionDenied, isTrue);
+      expect(cubit.state.avatarError, isNull);
+    }
+    for (final error in [
       MissingPluginException('private path'),
       PlatformException(code: 'other'),
     ]) {
@@ -863,6 +872,24 @@ void main() {
     },
   );
 
+  testWidgets('denied photo access opens the shared Settings sheet', (
+    tester,
+  ) async {
+    final photos = _Photos()
+      ..error = PlatformException(code: 'photo_access_denied');
+    await show(tester, photos, EditingRepo());
+    await tester.tap(pick());
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('permission-settings-photos')), findsOne);
+    expect(find.byKey(const ValueKey('avatar-error')), findsNothing);
+    await tester.tap(find.text('Not Now'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('permission-settings-photos')),
+      findsNothing,
+    );
+  });
+
   testWidgets(
     'picker failure displays error and retains typed fields without HTTP',
     (tester) async {
@@ -876,7 +903,7 @@ void main() {
             find.byKey(const ValueKey('username')),
             'keep_name',
           );
-          photos.error = PlatformException(code: 'photo_access_denied');
+          photos.error = PlatformException(code: 'other');
           await tester.tap(pick());
           await tester.pumpAndSettle();
           expect(find.byKey(const ValueKey('avatar-error')), findsOneWidget);

@@ -1,4 +1,6 @@
 import 'package:travibe/core/widgets/compact_select_field.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/features/profile/data/settings_update.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/core/widgets/travibe_choice_chip.dart';
@@ -198,6 +200,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       return;
     }
     await _editor.pickAvatar();
+    if (mounted && _editor.state.avatarPermissionDenied) {
+      await PermissionFlow.showSettings(context, AppPermission.photos);
+    }
   }
 
   Future<void> _pickNationality() async {

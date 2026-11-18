@@ -27,6 +27,9 @@ class ProfileSetupState {
   final bool avatarUploadFailed;
   final String? avatarUrl;
   final String? avatarError;
+
+  /// One-shot: the photo picker was denied; the screen offers Settings.
+  final bool avatarPermissionDenied;
   final bool selectingAvatar;
   final bool uploadingAvatar;
   final MediaUploadStage? avatarStage;
@@ -57,6 +60,7 @@ class ProfileSetupState {
     this.avatarUploadFailed = false,
     this.avatarUrl,
     this.avatarError,
+    this.avatarPermissionDenied = false,
     this.selectingAvatar = false,
     this.uploadingAvatar = false,
     this.avatarStage,
@@ -93,6 +97,7 @@ class ProfileSetupState {
     double? avatarProgress,
     bool clearAvatar = false,
     bool clearAvatarError = false,
+    bool? avatarPermissionDenied,
     Map<String, List<String>>? fieldErrors,
     bool? restoring,
     String? restoreError,
@@ -118,6 +123,7 @@ class ProfileSetupState {
       avatarUploadFailed: avatarUploadFailed ?? this.avatarUploadFailed,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       avatarError: clearAvatarError ? null : avatarError ?? this.avatarError,
+      avatarPermissionDenied: avatarPermissionDenied ?? false,
       selectingAvatar: selectingAvatar ?? this.selectingAvatar,
       uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
       avatarStage: avatarStage ?? this.avatarStage,

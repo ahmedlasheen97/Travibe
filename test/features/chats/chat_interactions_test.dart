@@ -226,6 +226,9 @@ void main() {
               ? 1
               : 0,
         );
+        // The composer only adds the Settings sheet when no system prompt
+        // was just shown.
+        expect(audio.promptedForPermission, native.prompts == 1);
         await audio.cancelRecording();
         audio.dispose();
         await Future<void>.delayed(Duration.zero);

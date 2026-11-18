@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
 import 'package:travibe/features/stories/data/story_photo_repo.dart';
 
@@ -29,7 +31,12 @@ class StoryPickerCubit extends Cubit<StoryPickerState> {
       return draft;
     } catch (error) {
       if (!isClosed) {
-        emit(StoryPickerState(error: _message(error, camera: camera)));
+        final denied = PermissionFlow.fromError(error);
+        emit(
+          denied != null
+              ? StoryPickerState(permissionDenied: denied)
+              : StoryPickerState(error: _message(error, camera: camera)),
+        );
       }
       return null;
     }
@@ -43,22 +50,11 @@ class StoryPickerCubit extends Cubit<StoryPickerState> {
       if (camera) return 'The camera is unavailable on this device.';
       return 'The photo picker is unavailable on this device.';
     }
-    if (error is PlatformException) {
-      if (error.code == 'camera_access_denied' ||
-          error.code == 'camera_access_restricted') {
-        return 'Camera access is restricted. Check your device settings.';
-      }
-      if (error.code == 'no_available_camera') {
-        return 'The camera is unavailable on this device.';
-      }
+    if (error is PlatformException && error.code == 'no_available_camera') {
+      return 'The camera is unavailable on this device.';
     }
     if (camera && (error is UnsupportedError || error is UnimplementedError)) {
       return 'The camera is unavailable on this device.';
-    }
-    if (error is PlatformException &&
-        (error.code == 'photo_access_denied' ||
-            error.code == 'photo_access_restricted')) {
-      return 'Photo selection is restricted. Check your device settings.';
     }
     return camera
         ? 'Unable to take a photo. Please try again.'

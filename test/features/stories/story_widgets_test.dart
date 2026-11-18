@@ -183,7 +183,7 @@ void main() {
     },
   );
 
-  testWidgets('camera permission error stays local and gallery still works', (
+  testWidgets('camera permission denial offers Settings; gallery still works', (
     tester,
   ) async {
     repo.failure = PlatformException(
@@ -194,11 +194,11 @@ void main() {
     await openSheet(tester);
     await tester.tap(find.byKey(const ValueKey('story-camera')));
     await tester.pumpAndSettle();
-    expect(
-      find.text('Camera access is restricted. Check your device settings.'),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('permission-settings-camera')), findsOne);
+    expect(find.text('private device details'), findsNothing);
     expect(find.byType(StoryEditorScreen), findsNothing);
+    await tester.tap(find.text('Not Now'));
+    await tester.pumpAndSettle();
     repo.failure = null;
     repo.selected = draft();
     await tester.tap(find.byKey(const ValueKey('story-gallery')));

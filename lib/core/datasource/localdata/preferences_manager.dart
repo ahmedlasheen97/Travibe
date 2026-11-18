@@ -29,6 +29,7 @@ class PreferencesManager extends ChangeNotifier {
   final String _currencyKey = 'selected_currency';
   static const onboardingCompletedKey = 'onboarding_completed';
   static const pushDeviceRecordsKey = 'push_device_records_v1';
+  static const notificationSoftAskPrefix = 'notification_soft_ask_';
 
   bool get onboardingCompleted =>
       _preferences.getBool(onboardingCompletedKey) ?? false;
@@ -146,7 +147,8 @@ class PreferencesManager extends ChangeNotifier {
   }
 
   /// Remove account-scoped values, retaining app language, onboarding,
-  /// non-secret push cleanup IDs and per-account setup skips.
+  /// non-secret push cleanup IDs, per-account setup skips and the device-wide
+  /// notifications soft-ask history.
   /// Removal calls update SharedPreferences' memory synchronously before yielding,
   /// so a later account cannot be cleared by an old session's completion.
   Future<void> clearSession() async {
@@ -155,7 +157,8 @@ class PreferencesManager extends ChangeNotifier {
         if (key != _languageKey &&
             key != onboardingCompletedKey &&
             key != pushDeviceRecordsKey &&
-            !key.startsWith(_setupSkippedPrefix))
+            !key.startsWith(_setupSkippedPrefix) &&
+            !key.startsWith(notificationSoftAskPrefix))
           _preferences.remove(key),
     ];
     _setSession(null);

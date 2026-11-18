@@ -1,5 +1,6 @@
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'dart:async';
+import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:travibe/core/places/city_places_provider.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
@@ -318,13 +319,15 @@ class ProfileSetupCubit extends Cubit<ProfileSetupState> {
       await uploadAvatar();
     } catch (error) {
       if (!active()) return;
+      if (PermissionFlow.fromError(error) != null) {
+        emit(
+          state.copyWith(selectingAvatar: false, avatarPermissionDenied: true),
+        );
+        return;
+      }
       final message = switch (error) {
         InvalidProfileAvatar() =>
           'Choose a JPEG, PNG, GIF or WebP photo from your gallery.',
-        PlatformException(
-          code: 'photo_access_denied' || 'photo_access_restricted',
-        ) =>
-          'Allow photo access in device settings, then try again.',
         MissingPluginException() =>
           'Photo selection is unavailable on this device.',
         _ => 'Unable to select a photo. Please try again.',

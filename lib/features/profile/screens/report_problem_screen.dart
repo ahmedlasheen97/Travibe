@@ -10,6 +10,8 @@ import 'package:travibe/features/create_post/data/post_image_picker.dart';
 import 'package:travibe/features/profile/cubit/report_problem_cubit.dart';
 import 'package:travibe/features/profile/data/support_repo.dart';
 import 'package:travibe/features/profile/widgets/settings_form.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
+import 'package:travibe/core/permissions/permission_flow.dart';
 
 class ReportProblemScreen extends StatefulWidget {
   const ReportProblemScreen({super.key, this.repo, this.picker});
@@ -91,9 +93,9 @@ class _ReportProblemScreenState extends State<ReportProblemScreen> {
         );
       }
     } on PostImagePermissionDenied {
-      toast.present(
-        const TravibeToastData.error('Allow photo access to add a screenshot.'),
-      );
+      if (mounted) {
+        await PermissionFlow.showSettings(context, AppPermission.photos);
+      }
     } catch (_) {
       toast.present(
         const TravibeToastData.error('Unable to open your photos.'),

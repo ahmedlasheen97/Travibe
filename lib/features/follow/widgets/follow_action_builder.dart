@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
+import 'package:travibe/core/notifications/notification_soft_ask.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 
 export 'package:travibe/features/follow/cubit/follow_cubit.dart'
@@ -77,10 +79,18 @@ class FollowActionBuilder extends StatelessWidget {
                   currentlyFollowing: relation == FollowRelation.following,
                   currentlyRequested: relation == FollowRelation.requested,
                 );
-                if (error != null && context.mounted) {
+                if (!context.mounted) return;
+                if (error != null) {
                   ScaffoldMessenger.of(
                     context,
                   ).showSnackBar(SnackBar(content: Text(error.message)));
+                } else if (relation == FollowRelation.follow) {
+                  unawaited(
+                    NotificationSoftAsk.maybeShow(
+                      context,
+                      NotificationPromptTrigger.firstFollow,
+                    ),
+                  );
                 }
               },
       );

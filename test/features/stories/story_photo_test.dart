@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker_android/image_picker_android.dart';
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:travibe/core/permissions/app_permission.dart';
 import 'package:travibe/features/stories/cubit/story_picker_cubit.dart';
 import 'package:travibe/features/stories/data/story_photo_repo.dart';
 
@@ -149,11 +150,35 @@ void main() {
     },
   );
 
+  for (final code in ['camera_access_denied', 'camera_access_restricted']) {
+    test('camera $code asks for Settings instead of an inline error', () async {
+      picker.error = PlatformException(code: code);
+      final cubit = StoryPickerCubit(repo: repo);
+      addTearDown(cubit.close);
+      expect(await cubit.capture(), isNull);
+      expect(cubit.state.permissionDenied, AppPermission.camera);
+      expect(cubit.state.error, isNull);
+      expect(cubit.state.busy, isFalse);
+      expect(pending.pending, isFalse);
+      picker.error = null;
+      expect(await cubit.capture(), isNull);
+      expect(cubit.state.permissionDenied, isNull);
+    });
+  }
+
+  test('denied photo access asks for Settings and allows retry', () async {
+    picker.error = PlatformException(code: 'photo_access_denied');
+    final cubit = StoryPickerCubit(repo: repo);
+    addTearDown(cubit.close);
+    expect(await cubit.pick(), isNull);
+    expect(cubit.state.permissionDenied, AppPermission.photos);
+    expect(cubit.state.error, isNull);
+    picker.error = null;
+    expect(await cubit.pick(), isNull);
+    expect(cubit.state.permissionDenied, isNull);
+  });
+
   final cameraErrors = <Object, String>{
-    PlatformException(code: 'camera_access_denied'):
-        'Camera access is restricted. Check your device settings.',
-    PlatformException(code: 'camera_access_restricted'):
-        'Camera access is restricted. Check your device settings.',
     PlatformException(code: 'no_available_camera'):
         'The camera is unavailable on this device.',
     MissingPluginException(): 'The camera is unavailable on this device.',
@@ -302,7 +327,6 @@ void main() {
 
   for (final error in [
     MissingPluginException(),
-    PlatformException(code: 'photo_access_denied'),
     PlatformException(code: 'unknown', message: 'sensitive native details'),
   ]) {
     test(
