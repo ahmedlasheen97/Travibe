@@ -109,9 +109,9 @@ class HomeTopBar extends StatelessWidget {
           SizedBox(width: AppSizes.adaptiveWidth(10)),
           _circleIconButton(
             SvgPicture.asset(
-              'assets/images/home/notification.svg',
-              width: AppSizes.adaptiveRadius(18),
-              height: AppSizes.adaptiveRadius(18),
+              'assets/images/icons/notification_bell.svg',
+              width: AppSizes.adaptiveRadius(24),
+              height: AppSizes.adaptiveRadius(24),
             ),
             onTap: onNotificationsTap,
             badgeCount: count,

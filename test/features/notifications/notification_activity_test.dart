@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -138,6 +139,46 @@ void main() {
       }
     });
   }
+  testWidgets('bell uses notification_bell.svg sized like the chat icon', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          home: Scaffold(
+            body: HomeTopBar(
+              unreadCount: 3,
+              onMessagesTap: () {},
+              onNotificationsTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    SvgPicture iconIn(String key) => tester.widget<SvgPicture>(
+      find.descendant(
+        of: find.byKey(ValueKey(key)),
+        matching: find.byType(SvgPicture),
+      ),
+    );
+    final bell = iconIn('home-notification-bell');
+    final chat = iconIn('home-messages-button');
+    expect(
+      (bell.bytesLoader as SvgAssetLoader).assetName,
+      'assets/images/icons/notification_bell.svg',
+    );
+    expect(bell.width, chat.width);
+    expect(bell.height, chat.height);
+    expect(bell.colorFilter, chat.colorFilter);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('home-notification-bell')),
+        matching: find.byKey(const ValueKey('notification-unread-badge')),
+      ),
+      findsOneWidget,
+    );
+  });
   test('invalid unread count fails without guessing zero', () {
     for (final value in [-1, '3', null, 1.5]) {
       expect(
