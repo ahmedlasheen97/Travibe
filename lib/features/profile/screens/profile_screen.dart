@@ -28,6 +28,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/navigation/app_cubits.dart';
+import 'package:travibe/core/widgets/platform_scroll_physics.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/features/profile/screens/edit_profile_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -573,12 +574,9 @@ class _ProfileViewState extends State<_ProfileView> {
         !locked && (selected == 0 || (selected == 2 && _savedSub == 0));
     return CustomScrollView(
       key: const PageStorageKey('profile-content'),
-      // Instagram-style: scrolls only when taller than the screen and never
-      // bounces. Always-scrollable keeps the top overscroll that drives
-      // RefreshIndicator (Material, so it needs no bounce on iOS either).
-      physics: const AlwaysScrollableScrollPhysics(
-        parent: ClampingScrollPhysics(),
-      ),
+      // Native feel per platform (iOS bounces, Android clamps). Always
+      // scrollable keeps the top overscroll that drives RefreshIndicator.
+      physics: platformRefreshPhysics(context),
       slivers: [
         SliverToBoxAdapter(
           child: Column(

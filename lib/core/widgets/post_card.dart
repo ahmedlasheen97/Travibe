@@ -12,6 +12,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/action_icon_button.dart';
+import 'package:travibe/core/widgets/display_sized_image.dart';
 import 'package:travibe/core/widgets/image_retry_signal.dart';
 
 class PostCard extends StatefulWidget {
@@ -272,8 +273,14 @@ class _PostCardState extends State<PostCard> {
     return CircleAvatar(
       key: const ValueKey('post-author-avatar'),
       radius: radius,
+      // The picture is decoded at its drawn size.
       backgroundColor: const Color(0xFF2A2A2A),
-      foregroundImage: _imageProvider(avatar),
+      foregroundImage: DisplaySizedImage.of(
+        context,
+        _imageProvider(avatar),
+        logicalWidth: radius * 2,
+        logicalHeight: radius * 2,
+      ),
       onForegroundImageError: (_, _) {},
       child: const Icon(Icons.person_rounded, color: Colors.white54),
     );
@@ -495,14 +502,28 @@ class _PostCardState extends State<PostCard> {
     );
   }
 
+  /// [path] decoded at the size it is drawn: [width] (from the layout) ×
+  /// [height] logical pixels, covered.
+  ImageProvider _sized(String path, double width, double height) =>
+      DisplaySizedImage.of(
+        context,
+        _imageProvider(path),
+        logicalWidth: width,
+        logicalHeight: height,
+      );
+
   Widget _buildSingleImage() {
+    final height = _h(220);
     return ClipRRect(
       borderRadius: BorderRadius.circular(_r(16)),
-      child: RetryingPostImage(
-        image: _imageProvider(widget.image!),
-        height: _h(220),
-        width: double.infinity,
-        errorBuilder: (_) => _imageError(_h(220)),
+      // Decoded at display size (perf) and retried on reconnect (main).
+      child: LayoutBuilder(
+        builder: (context, constraints) => RetryingPostImage(
+          image: _sized(widget.image!, constraints.maxWidth, height),
+          height: height,
+          width: double.infinity,
+          errorBuilder: (_) => _imageError(height),
+        ),
       ),
     );
   }
@@ -514,13 +535,19 @@ class _PostCardState extends State<PostCard> {
         height: _h(260),
         child: Stack(
           children: [
-            PageView.builder(
-              itemCount: widget.images!.length,
-              onPageChanged: (i) => setState(() => _imageIndex = i),
-              itemBuilder: (context, i) => RetryingPostImage(
-                image: _imageProvider(widget.images![i]),
-                width: double.infinity,
-                errorBuilder: (_) => _imageError(_h(260)),
+            LayoutBuilder(
+              builder: (context, constraints) => PageView.builder(
+                itemCount: widget.images!.length,
+                onPageChanged: (i) => setState(() => _imageIndex = i),
+                itemBuilder: (context, i) => RetryingPostImage(
+                  image: _sized(
+                    widget.images![i],
+                    constraints.maxWidth,
+                    _h(260),
+                  ),
+                  width: double.infinity,
+                  errorBuilder: (_) => _imageError(_h(260)),
+                ),
               ),
             ),
             Positioned(
@@ -560,10 +587,10 @@ class _PostCardState extends State<PostCard> {
   }
 
   Widget _buildActions() {
-    final count = context
-        .watch<PostActivityCubit?>()
-        ?.state
-        .comments[widget.postId];
+    // Only this post's comment count: other posts' changes don't rebuild it.
+    final count = context.select<PostActivityCubit?, int?>(
+      (activity) => activity?.state.comments[widget.postId],
+    );
     final bordered = !widget.detailPresentation;
     final actions = <Widget>[
       _buildLikeAction(),
