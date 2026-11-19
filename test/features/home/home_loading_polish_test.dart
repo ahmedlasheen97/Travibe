@@ -492,17 +492,23 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
-    'initial failure removes skeletons and retry restores skeletons',
+    'initial failure removes skeletons without inline errors and a retry '
+    'keeps the empty feed under the toast',
     (tester) async {
-      await show(tester);
+      final signal = ValueNotifier<int>(0);
+      addTearDown(signal.dispose);
+      await show(tester, refreshSignal: signal);
       api.reads.last.response.completeError(ApiError(message: 'Feed failed'));
       await tester.pumpAndSettle();
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
-      expect(find.text('Feed failed'), findsOneWidget);
-      await tester.tap(find.text('Retry'));
+      expect(find.text('Feed failed'), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+      expect(find.byType(HomeFeedSkeleton), findsNothing);
+      expect(find.byKey(const ValueKey('home-offline-feed')), findsOneWidget);
+      signal.value++;
       await tester.pump();
-      expect(find.byType(CupertinoActivityIndicator), findsNothing);
-      expect(find.byType(HomeFeedSkeleton), findsOneWidget);
+      expect(find.byType(HomeFeedSkeleton), findsNothing);
+      expect(find.byKey(const ValueKey('home-offline-feed')), findsOneWidget);
       api.finish(ids: []);
       await tester.pumpAndSettle();
       expect(find.byType(CupertinoActivityIndicator), findsNothing);
@@ -677,7 +683,8 @@ void main() {
       expect(scroll.offset, 100);
       expect(find.byType(PostCard), findsWidgets);
       expect(find.byType(HomeFeedSkeleton), findsNothing);
-      expect(find.text('Refresh failed'), findsOneWidget);
+      // Reported by Home's shared error toast, never inline.
+      expect(find.text('Refresh failed'), findsNothing);
       signal.value++;
       await tester.pump();
       expect(api.reads.last.query, {'per_page': 15});

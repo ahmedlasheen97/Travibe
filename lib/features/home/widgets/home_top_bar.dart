@@ -9,6 +9,10 @@ import 'package:travibe/core/theme/dark_colors.dart';
 
 class HomeTopBar extends StatelessWidget {
   final String? name;
+
+  /// A signed-in user is never greeted as "there": without a (cached) name
+  /// the greeting is just "Hello".
+  final bool signedIn;
   final int? unreadCount;
   final VoidCallback onMessagesTap;
   final VoidCallback onNotificationsTap;
@@ -16,6 +20,7 @@ class HomeTopBar extends StatelessWidget {
   const HomeTopBar({
     super.key,
     this.name,
+    this.signedIn = false,
     this.unreadCount,
     required this.onMessagesTap,
     required this.onNotificationsTap,
@@ -83,15 +88,19 @@ class HomeTopBar extends StatelessWidget {
                   text: TextSpan(
                     style: greetingStyle,
                     children: [
-                      const TextSpan(text: 'Hello, '),
-                      TextSpan(
-                        text: name?.trim().isNotEmpty == true
-                            ? name!.trim().split(RegExp(r'\s+')).first
-                            : 'there',
-                        style: greetingStyle.copyWith(
-                          fontWeight: FontWeight.w700,
+                      if (name?.trim().isNotEmpty != true && signedIn)
+                        const TextSpan(text: 'Hello')
+                      else ...[
+                        const TextSpan(text: 'Hello, '),
+                        TextSpan(
+                          text: name?.trim().isNotEmpty == true
+                              ? name!.trim().split(RegExp(r'\s+')).first
+                              : 'there',
+                          style: greetingStyle.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

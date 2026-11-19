@@ -1,3 +1,4 @@
+import 'package:travibe/core/network/reconnect_monitor.dart';
 import 'package:travibe/features/buddies/cubit/buddies_filters_cubit.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
@@ -64,10 +65,14 @@ class Root extends StatefulWidget {
     this.revalidateSession = false,
     this.sessionRevalidator,
     this.afterProfileSetup = false,
+    this.homeReconnectMonitor,
   });
   final CreatePostRepo? createPostRepo;
   final PostsRepo? postsRepo;
   final HomeAccountRepo? homeAccountRepo;
+
+  /// Test seam for Home's reconnect signal (defaults to the platform one).
+  final ReconnectMonitor? homeReconnectMonitor;
   final FollowRepo? followRepo;
   final BuddiesRepo? buddiesRepo;
   final ProfileRepo? profileRepo;
@@ -272,6 +277,7 @@ class _RootState extends State<Root> {
       refreshSignal: _homeRefreshes,
       accountRepo: widget.homeAccountRepo,
       storiesRepo: widget.storiesRepo,
+      reconnectMonitor: widget.homeReconnectMonitor,
     ),
     ExploreScreen(),
     SizedBox(),

@@ -820,35 +820,32 @@ void main() {
       expect(cubit.state.groups.map((g) => g.user.id), [9]);
     },
   );
-  testWidgets(
-    'Home renders owner first, unseen rings, retry and no functional viewer',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: HomeStories(
-              stories: [
-                StoryGroup.fromJson(groupJson(8)),
-                StoryGroup.fromJson(groupJson(7)),
-              ],
-              currentUserId: 7,
-              error: 'offline',
-              onRetry: () {},
-            ),
+  testWidgets('Home renders owner first, unseen rings, no inline retry and no '
+      'functional viewer', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: HomeStories(
+            stories: [
+              StoryGroup.fromJson(groupJson(8)),
+              StoryGroup.fromJson(groupJson(7)),
+            ],
+            currentUserId: 7,
           ),
         ),
-      );
-      expect(
-        tester.getTopLeft(find.text('You')).dx,
-        lessThan(tester.getTopLeft(find.text('Traveler 8')).dx),
-      );
-      expect(find.byKey(const ValueKey('stories-retry')), findsOneWidget);
-      await tester.tap(find.text('Traveler 8'));
-      await tester.pumpAndSettle();
-      expect(find.byType(HomeStories), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    },
-  );
+      ),
+    );
+    expect(
+      tester.getTopLeft(find.text('You')).dx,
+      lessThan(tester.getTopLeft(find.text('Traveler 8')).dx),
+    );
+    expect(find.byKey(const ValueKey('stories-retry')), findsNothing);
+    expect(find.text('Retry Stories'), findsNothing);
+    await tester.tap(find.text('Traveler 8'));
+    await tester.pumpAndSettle();
+    expect(find.byType(HomeStories), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets(
     'Home "You" prefers my current picture over the stale story feed avatar',
     (tester) async {
