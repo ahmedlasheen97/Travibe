@@ -266,10 +266,15 @@ class _PostCardState extends State<PostCard> {
         child: Icon(Icons.person_rounded, color: Colors.white54),
       );
     }
+    // The person placeholder shows while the picture loads or if it fails,
+    // instead of a bare (theme-black) circle.
     return CircleAvatar(
       key: const ValueKey('post-author-avatar'),
       radius: radius,
-      backgroundImage: _imageProvider(avatar),
+      backgroundColor: const Color(0xFF2A2A2A),
+      foregroundImage: _imageProvider(avatar),
+      onForegroundImageError: (_, _) {},
+      child: const Icon(Icons.person_rounded, color: Colors.white54),
     );
   }
 

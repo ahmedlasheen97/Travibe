@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/widgets/top_glow_background.dart';
 
 class PinnedTabsDelegate extends SliverPersistentHeaderDelegate {
   final Widget child;
@@ -14,11 +15,18 @@ class PinnedTabsDelegate extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: DarkColors.backgroundColor,
-      alignment: Alignment.center,
-      child: child,
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
+    // Shows the page color + fixed top glow behind the tabs (no solid band),
+    // still hiding posts under it; they fade out below once it is pinned.
+    return TopGlowBackdrop(
+      key: const ValueKey('home-tabs-backdrop'),
+      fadeExtent: AppSizes.adaptiveHeight(24),
+      fadeWhenPinned: true,
+      child: Align(child: child),
     );
   }
 

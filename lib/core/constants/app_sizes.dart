@@ -1,6 +1,12 @@
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppSizes {
+  /// Figma frame width every design value is drawn against.
+  static const double designWidth = 390;
+
+  /// Linear scale of a Figma value for [screenWidth] (1.0 at 390).
+  static double widthScale(double screenWidth) => screenWidth / designWidth;
+
   // Opt-in responsive values. Legacy fields below remain unchanged.
   static double get w64 => 64.w;
   static double get h64 => 64.h;

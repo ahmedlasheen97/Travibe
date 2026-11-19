@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
@@ -481,112 +482,124 @@ class _ProfileViewState extends State<_ProfileView> {
   );
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: DarkColors.backgroundColor,
-    appBar: context.read<ProfileCubit>().userId == null
-        ? null
-        : AppBar(
-            leading: Navigator.of(context).canPop()
-                ? const BackButtonWidget()
-                : null,
-            centerTitle: true,
-            title: Text(
-              'Profile',
-              style: TextStyle(color: Colors.white, fontSize: AppSizes.sp18),
-            ),
-            actions: [
-              if (_block case final block?)
-                BlocBuilder<BlockCubit, BlockState>(
-                  bloc: block,
-                  builder: (context, blocks) {
-                    final id = context.read<ProfileCubit>().userId.toString();
-                    // A blocked profile body is unavailable; keep ⋮ so the
-                    // viewer can unblock from here.
-                    return blocks.blocked[id] == true
-                        ? BlockedProfileOptionsButton(
-                            key: ValueKey(('profile-unblock', id)),
-                            userId: id,
-                          )
-                        : _profileOptions();
-                  },
-                )
-              else
-                _profileOptions(),
-            ],
-          ),
-    body: SafeArea(
-      // Inside Root the content runs under the hideable bottom bar.
-      bottom: BottomNavScope.bottomInsetOf(context) == 0,
-      child: Stack(
-        children: [
-          Column(
-            children: [
-              if (context.read<ProfileCubit>().userId == null) ...[
-                SizedBox(height: AppSizes.h8),
-                const ProfileTopBar(),
-              ],
-              Expanded(
-                child: BlocBuilder<ProfileCubit, ProfileState>(
-                  builder: (context, state) {
-                    _contentContext = null;
-                    final id = context.read<ProfileCubit>().userId?.toString();
-                    if (state is ProfileUnavailable ||
-                        (id != null && _block?.state.blocked[id] == true)) {
-                      return _unavailable();
-                    }
-                    if (state is ProfileLoaded) {
-                      final authorId =
-                          context.read<ProfileCubit>().userId ??
-                          int.tryParse(state.profile.id);
-                      if (authorId == null || authorId < 1) {
-                        return _unavailable();
-                      }
-                      return ProfilePostsScope(
-                        key: ValueKey(authorId),
-                        userId: authorId,
-                        repo: widget.postsRepo,
-                        builder: (context) {
-                          _contentContext = context;
-                          return RefreshIndicator.noSpinner(
-                            onRefresh: () => _refresh(context),
-                            child: _buildContent(state),
-                          );
-                        },
-                      );
-                    }
-                    if (state is ProfileFailure) {
-                      return ErrorRetryView(
-                        message: state.errorMessage,
-                        onRetry: () =>
-                            context.read<ProfileCubit>().loadProfile(),
-                      );
-                    }
-                    return const ProfileShimmer();
-                  },
-                ),
+  Widget build(BuildContext context) => TopGlowBackground(
+    color: DarkColors.backgroundColor,
+    child: Scaffold(
+      backgroundColor: Colors.transparent,
+      appBar: context.read<ProfileCubit>().userId == null
+          ? null
+          : AppBar(
+              // Transparent so the top glow shows behind the title.
+              backgroundColor: Colors.transparent,
+              surfaceTintColor: Colors.transparent,
+              scrolledUnderElevation: 0,
+              leading: Navigator.of(context).canPop()
+                  ? const BackButtonWidget()
+                  : null,
+              centerTitle: true,
+              title: Text(
+                'Profile',
+                style: TextStyle(color: Colors.white, fontSize: AppSizes.sp18),
               ),
-            ],
-          ),
-          if (_refreshing)
-            Positioned(
-              // Header is 8px + 44px. This uses its existing lower clearance
-              // and the avatar's 20px gap; it reserves no layout height.
-              top: context.read<ProfileCubit>().userId == null
-                  ? AppSizes.h8 + AppSizes.h44 + AppSizes.h20 - AppSizes.w30
-                  : 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Center(
-                  child: TravibeLoadingIndicator(
-                    key: const ValueKey('profile-refresh-indicator'),
-                    size: AppSizes.w30,
-                    semanticsLabel: 'Refreshing profile',
+              actions: [
+                if (_block case final block?)
+                  BlocBuilder<BlockCubit, BlockState>(
+                    bloc: block,
+                    builder: (context, blocks) {
+                      final id = context.read<ProfileCubit>().userId.toString();
+                      // A blocked profile body is unavailable; keep ⋮ so the
+                      // viewer can unblock from here.
+                      return blocks.blocked[id] == true
+                          ? BlockedProfileOptionsButton(
+                              key: ValueKey(('profile-unblock', id)),
+                              userId: id,
+                            )
+                          : _profileOptions();
+                    },
+                  )
+                else
+                  _profileOptions(),
+              ],
+            ),
+      body: SafeArea(
+        // Inside Root the content runs under the hideable bottom bar.
+        bottom: BottomNavScope.bottomInsetOf(context) == 0,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                if (context.read<ProfileCubit>().userId == null) ...[
+                  SizedBox(height: AppSizes.h8),
+                  const ProfileTopBar(),
+                ],
+                Expanded(
+                  child: TopGlowEdgeFade(
+                    child: BlocBuilder<ProfileCubit, ProfileState>(
+                      builder: (context, state) {
+                        _contentContext = null;
+                        final id = context
+                            .read<ProfileCubit>()
+                            .userId
+                            ?.toString();
+                        if (state is ProfileUnavailable ||
+                            (id != null && _block?.state.blocked[id] == true)) {
+                          return _unavailable();
+                        }
+                        if (state is ProfileLoaded) {
+                          final authorId =
+                              context.read<ProfileCubit>().userId ??
+                              int.tryParse(state.profile.id);
+                          if (authorId == null || authorId < 1) {
+                            return _unavailable();
+                          }
+                          return ProfilePostsScope(
+                            key: ValueKey(authorId),
+                            userId: authorId,
+                            repo: widget.postsRepo,
+                            builder: (context) {
+                              _contentContext = context;
+                              return RefreshIndicator.noSpinner(
+                                onRefresh: () => _refresh(context),
+                                child: _buildContent(state),
+                              );
+                            },
+                          );
+                        }
+                        if (state is ProfileFailure) {
+                          return ErrorRetryView(
+                            message: state.errorMessage,
+                            onRetry: () =>
+                                context.read<ProfileCubit>().loadProfile(),
+                          );
+                        }
+                        return const ProfileShimmer();
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_refreshing)
+              Positioned(
+                // Header is 8px + 44px. This uses its existing lower clearance
+                // and the avatar's 20px gap; it reserves no layout height.
+                top: context.read<ProfileCubit>().userId == null
+                    ? AppSizes.h8 + AppSizes.h44 + AppSizes.h20 - AppSizes.w30
+                    : 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Center(
+                    child: TravibeLoadingIndicator(
+                      key: const ValueKey('profile-refresh-indicator'),
+                      size: AppSizes.w30,
+                      semanticsLabel: 'Refreshing profile',
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     ),
   );

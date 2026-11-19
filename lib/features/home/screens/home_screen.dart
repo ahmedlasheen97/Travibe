@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
 import 'package:travibe/features/likes/widgets/liked_by_sheet.dart';
@@ -28,6 +29,7 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'dart:async';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
@@ -353,6 +355,14 @@ class _HomeViewState extends State<_HomeView> {
     _stories =
         sharedStories ?? StoriesCubit(repo: widget.storiesRepo, blocks: blocks);
     unawaited(_stories.load());
+    // The "You" picture comes from the shared current user; make sure it is
+    // loading even if its first load failed (load() de-duplicates).
+    final currentUser = context.read<CurrentUserCubit?>();
+    if (currentUser != null &&
+        currentUser.state.profile == null &&
+        !currentUser.state.loading) {
+      unawaited(currentUser.load());
+    }
     final sharedLikes = context.read<StoryLikesCubit?>();
     _ownsStoryLikes = sharedLikes == null;
     _storyLikes = sharedLikes ?? StoryLikesCubit(repo: _stories.repo);
@@ -565,206 +575,213 @@ class _HomeViewState extends State<_HomeView> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      bottom: false,
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: LayoutBuilder(
-            builder: (context, _) => Stack(
-              fit: StackFit.expand,
-              children: [
-                RefreshIndicator.noSpinner(
-                  onRefresh: () => _refreshFromUser(refreshAncillary: true),
-                  notificationPredicate: (notification) =>
-                      notification.depth == 0 &&
-                      notification.metrics.axis == Axis.vertical,
-                  child: CustomScrollView(
-                    physics: const BouncingScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
-                    controller: _scrollController,
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: Column(
-                          children: [
-                            SizedBox(height: AppSizes.adaptiveHeight(20)),
-                            BlocBuilder<HomeAccountCubit, HomeAccountState>(
-                              bloc: _account,
-                              builder: (context, state) => HomeTopBar(
-                                name: state.account?.name,
-                                onMessagesTap: _openChats,
-                                onNotificationsTap: () =>
-                                    PushNotificationsScope.openInbox(context),
+    return TopGlowBackground(
+      child: SafeArea(
+        bottom: false,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: LayoutBuilder(
+              builder: (context, _) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  RefreshIndicator.noSpinner(
+                    onRefresh: () => _refreshFromUser(refreshAncillary: true),
+                    notificationPredicate: (notification) =>
+                        notification.depth == 0 &&
+                        notification.metrics.axis == Axis.vertical,
+                    child: CustomScrollView(
+                      physics: const BouncingScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
+                      controller: _scrollController,
+                      slivers: [
+                        SliverToBoxAdapter(
+                          child: Column(
+                            children: [
+                              SizedBox(height: AppSizes.adaptiveHeight(20)),
+                              BlocBuilder<HomeAccountCubit, HomeAccountState>(
+                                bloc: _account,
+                                builder: (context, state) => HomeTopBar(
+                                  name: state.account?.name,
+                                  onMessagesTap: _openChats,
+                                  onNotificationsTap: () =>
+                                      PushNotificationsScope.openInbox(context),
+                                ),
                               ),
-                            ),
-                            SizedBox(height: AppSizes.adaptiveHeight(20)),
-                            BlocBuilder<HomeAccountCubit, HomeAccountState>(
-                              bloc: _account,
-                              builder: (context, accountState) {
-                                final owner =
-                                    _storyOwnerSession ==
-                                        _storySession.sessionRevision
-                                    ? accountState.account
-                                    : null;
-                                return _ownAvatar(
-                                  context,
-                                  ownerId: owner?.id,
-                                  fallback: owner?.avatarUrl,
-                                  builder: (avatarUrl) => StoryEntry(
-                                    avatarUrl: avatarUrl,
-                                    storiesRepo: _stories.repo,
-                                    onPublished: _onStoryPublished,
-                                    onSubmit: context
-                                        .read<StoryUploadCubit?>()
-                                        ?.enqueue,
-                                    builder: (context, onAddStory) =>
-                                        BlocBuilder<StoriesCubit, StoriesState>(
-                                          bloc: _stories,
-                                          builder: (context, state) =>
-                                              HomeStories(
-                                                stories: state.groups,
-                                                currentUserId: int.tryParse(
-                                                  owner?.id ?? '',
+                              SizedBox(height: AppSizes.adaptiveHeight(20)),
+                              BlocBuilder<HomeAccountCubit, HomeAccountState>(
+                                bloc: _account,
+                                builder: (context, accountState) {
+                                  final owner =
+                                      _storyOwnerSession ==
+                                          _storySession.sessionRevision
+                                      ? accountState.account
+                                      : null;
+                                  return _ownAvatar(
+                                    context,
+                                    ownerId: owner?.id,
+                                    fallback: owner?.avatarUrl,
+                                    builder: (avatarUrl) => StoryEntry(
+                                      avatarUrl: avatarUrl,
+                                      storiesRepo: _stories.repo,
+                                      onPublished: _onStoryPublished,
+                                      onSubmit: context
+                                          .read<StoryUploadCubit?>()
+                                          ?.enqueue,
+                                      builder: (context, onAddStory) =>
+                                          BlocBuilder<
+                                            StoriesCubit,
+                                            StoriesState
+                                          >(
+                                            bloc: _stories,
+                                            builder: (context, state) =>
+                                                HomeStories(
+                                                  stories: state.groups,
+                                                  currentUserId: int.tryParse(
+                                                    owner?.id ?? '',
+                                                  ),
+                                                  avatarUrl: avatarUrl,
+                                                  onAddStory: onAddStory,
+                                                  onViewStory: _openStoryViewer,
+                                                  loading: state.loading,
+                                                  loadingMore:
+                                                      state.loadingMore,
+                                                  hasMore: state.hasMore,
+                                                  error: state.error?.message,
+                                                  onRetry: _stories.refresh,
+                                                  onLoadMore: _stories.loadMore,
                                                 ),
-                                                avatarUrl: avatarUrl,
-                                                onAddStory: onAddStory,
-                                                onViewStory: _openStoryViewer,
-                                                loading: state.loading,
-                                                loadingMore: state.loadingMore,
-                                                hasMore: state.hasMore,
-                                                error: state.error?.message,
-                                                onRetry: _stories.refresh,
-                                                onLoadMore: _stories.loadMore,
-                                              ),
+                                          ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          delegate: PinnedTabsDelegate(
+                            height: HomeTabs.preferredHeight(context),
+                            child: HomeTabs(
+                              selectedIndex: _selectedTab,
+                              onTabSelected: _switchFeed,
+                              onSearchTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => MultiBlocProvider(
+                                      providers: [
+                                        BlocProvider.value(
+                                          value: context.read<FollowCubit>(),
                                         ),
+                                        BlocProvider.value(
+                                          value: context.read<BlockCubit>(),
+                                        ),
+                                      ],
+                                      child: SearchScreen(
+                                        repo: widget.searchRepo,
+                                      ),
+                                    ),
                                   ),
                                 );
                               },
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      SliverPersistentHeader(
-                        pinned: true,
-                        delegate: PinnedTabsDelegate(
-                          height: HomeTabs.preferredHeight(context),
-                          child: HomeTabs(
-                            selectedIndex: _selectedTab,
-                            onTabSelected: _switchFeed,
-                            onSearchTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => MultiBlocProvider(
-                                    providers: [
-                                      BlocProvider.value(
-                                        value: context.read<FollowCubit>(),
-                                      ),
-                                      BlocProvider.value(
-                                        value: context.read<BlockCubit>(),
+                        BlocBuilder<PostsCubit, PostsState>(
+                          key: const ValueKey('home-feed-content'),
+                          bloc: _activeFeed,
+                          builder: (context, state) {
+                            // Figma: an empty feed under the offline toast,
+                            // kept while quiet retries are in flight.
+                            if (_offline &&
+                                (state is! PostsLoaded ||
+                                    state.posts.isEmpty)) {
+                              return const SliverFillRemaining(
+                                key: ValueKey('home-offline-feed'),
+                                hasScrollBody: false,
+                                child: SizedBox.shrink(),
+                              );
+                            }
+                            if (state is PostsFailure) {
+                              return SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: ErrorRetryView(
+                                  message: state.errorMessage,
+                                  onRetry: () => _activeFeed.loadPosts(),
+                                ),
+                              );
+                            }
+
+                            if (state is PostsLoaded) {
+                              if (state.posts.isEmpty &&
+                                  state.refreshError != null) {
+                                return SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: ErrorRetryView(
+                                    message: state.refreshError!.message,
+                                    onRetry: _refreshFromUser,
+                                  ),
+                                );
+                              }
+                              if (state.posts.isEmpty &&
+                                  state.paginationError != null) {
+                                return SliverFillRemaining(
+                                  hasScrollBody: false,
+                                  child: ErrorRetryView(
+                                    message: state.paginationError!.message,
+                                    onRetry: () =>
+                                        _activeFeed.loadMore(retry: true),
+                                  ),
+                                );
+                              }
+                              if (_selectedTab == 1) {
+                                return _followingSliver(state);
+                              }
+                              if (state.posts.isEmpty) {
+                                return SliverToBoxAdapter(
+                                  child: Column(
+                                    children: [
+                                      _noPosts(state),
+                                      _homeSuggestions(),
+                                      SizedBox(
+                                        height: AppSizes.adaptiveHeight(100),
                                       ),
                                     ],
-                                    child: SearchScreen(
-                                      repo: widget.searchRepo,
-                                    ),
+                                  ),
+                                );
+                              }
+                              return SliverPadding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: AppSizes.adaptiveWidth(10),
+                                ),
+                                sliver: SliverList(
+                                  delegate: SliverChildListDelegate(
+                                    _buildFeed(state),
                                   ),
                                 ),
                               );
-                            },
+                            }
+
+                            return const SliverToBoxAdapter(
+                              child: HomeFeedSkeleton(),
+                            );
+                          },
+                        ),
+                        SliverToBoxAdapter(
+                          child: SizedBox(
+                            height: BottomNavScope.bottomInsetOf(context),
                           ),
                         ),
-                      ),
-                      BlocBuilder<PostsCubit, PostsState>(
-                        key: const ValueKey('home-feed-content'),
-                        bloc: _activeFeed,
-                        builder: (context, state) {
-                          // Figma: an empty feed under the offline toast,
-                          // kept while quiet retries are in flight.
-                          if (_offline &&
-                              (state is! PostsLoaded || state.posts.isEmpty)) {
-                            return const SliverFillRemaining(
-                              key: ValueKey('home-offline-feed'),
-                              hasScrollBody: false,
-                              child: SizedBox.shrink(),
-                            );
-                          }
-                          if (state is PostsFailure) {
-                            return SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: ErrorRetryView(
-                                message: state.errorMessage,
-                                onRetry: () => _activeFeed.loadPosts(),
-                              ),
-                            );
-                          }
-
-                          if (state is PostsLoaded) {
-                            if (state.posts.isEmpty &&
-                                state.refreshError != null) {
-                              return SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: ErrorRetryView(
-                                  message: state.refreshError!.message,
-                                  onRetry: _refreshFromUser,
-                                ),
-                              );
-                            }
-                            if (state.posts.isEmpty &&
-                                state.paginationError != null) {
-                              return SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: ErrorRetryView(
-                                  message: state.paginationError!.message,
-                                  onRetry: () =>
-                                      _activeFeed.loadMore(retry: true),
-                                ),
-                              );
-                            }
-                            if (_selectedTab == 1) {
-                              return _followingSliver(state);
-                            }
-                            if (state.posts.isEmpty) {
-                              return SliverToBoxAdapter(
-                                child: Column(
-                                  children: [
-                                    _noPosts(state),
-                                    _homeSuggestions(),
-                                    SizedBox(
-                                      height: AppSizes.adaptiveHeight(100),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-                            return SliverPadding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: AppSizes.adaptiveWidth(10),
-                              ),
-                              sliver: SliverList(
-                                delegate: SliverChildListDelegate(
-                                  _buildFeed(state),
-                                ),
-                              ),
-                            );
-                          }
-
-                          return const SliverToBoxAdapter(
-                            child: HomeFeedSkeleton(),
-                          );
-                        },
-                      ),
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: BottomNavScope.bottomInsetOf(context),
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                _loadingOverlay(),
-              ],
+                  _loadingOverlay(),
+                ],
+              ),
             ),
           ),
         ),
@@ -1013,8 +1030,13 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
-  /// Home's "You" bubble follows my current picture (CurrentUserCubit), so a
-  /// new upload shows without reloading the Home account.
+  /// Home's "You" bubble shows the same picture as the Profile tab: the
+  /// session-scoped [CurrentUserCubit] profile (Profile caches into it), so it
+  /// updates as soon as that profile loads or the picture changes. It doesn't
+  /// depend on the Home account having loaded. The cubit clears synchronously
+  /// on account changes, so its profile always belongs to this session. Until
+  /// it has loaded, the Home account's picture ([fallback]) is used, but only
+  /// when that account is this session's ([ownerId] is null otherwise).
   Widget _ownAvatar(
     BuildContext context, {
     required String? ownerId,
@@ -1022,19 +1044,50 @@ class _HomeViewState extends State<_HomeView> {
     required Widget Function(String? avatarUrl) builder,
   }) {
     final current = context.read<CurrentUserCubit?>();
-    if (current == null || ownerId == null) return builder(fallback);
+    final home = ownerId == null ? null : fallback;
+    if (current == null) {
+      return builder(_logOwnAvatar(home, 'home-account (no CurrentUserCubit)'));
+    }
     return BlocBuilder<CurrentUserCubit, CurrentUserState>(
       bloc: current,
-      buildWhen: (a, b) => a.profile?.avatarUrl != b.profile?.avatarUrl,
+      buildWhen: (a, b) =>
+          a.profile?.id != b.profile?.id ||
+          a.profile?.avatarUrl != b.profile?.avatarUrl,
       builder: (context, state) {
-        final mine = state.profile?.avatarUrl;
-        final own =
-            mine != null &&
-            mine.isNotEmpty &&
-            normalizeUserId(state.profile?.id) == normalizeUserId(ownerId);
-        return builder(own ? mine : fallback);
+        final profile = state.profile;
+        if (profile == null) {
+          return builder(
+            _logOwnAvatar(
+              home,
+              'home-account (current user ${state.loading ? 'loading' : 'not loaded'}, owner $ownerId)',
+            ),
+          );
+        }
+        final mine = profile.avatarUrl;
+        return builder(
+          _logOwnAvatar(
+            mine == null || mine.isEmpty ? null : mine,
+            'current-user ${profile.id}',
+          ),
+        );
       },
     );
+  }
+
+  String? _lastOwnAvatar;
+  bool _ownAvatarLogged = false;
+
+  /// Debug only: logs the "You" picture whenever the resolved URL changes.
+  /// A no-op in profile/release builds (`kDebugMode` is a compile-time
+  /// constant, so this branch is removed there).
+  String? _logOwnAvatar(String? url, String source) {
+    if (!kDebugMode) return url;
+    if (!_ownAvatarLogged || url != _lastOwnAvatar) {
+      debugPrint('[home-you-avatar] ${url ?? '(none)'} from $source');
+    }
+    _ownAvatarLogged = true;
+    _lastOwnAvatar = url;
+    return url;
   }
 
   Widget _buildPostCard(PostModel post) {

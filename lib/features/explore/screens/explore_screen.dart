@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -20,94 +21,97 @@ class ExploreScreen extends StatelessWidget {
       (Icons.flight_takeoff_rounded, ar ? 'الرحلات' : 'Trips'),
       (Icons.tour_outlined, ar ? 'مرشدون محليون' : 'Local guides'),
     ];
-    return Scaffold(
-      backgroundColor: DarkColors.backgroundColor,
-      body: SafeArea(
-        // Inside Root the content runs under the hideable bottom bar.
-        bottom: navInset == 0,
-        child: Column(
-          children: [
-            // Header in the root-tab title style; no back button. Leaves the
-            // top band free for a shared glow background once one exists.
-            SizedBox(
-              height: AppSizes.adaptiveHeight(56),
-              child: Center(
-                child: Text(
-                  ar ? 'استكشف' : 'Explore',
-                  key: const ValueKey('explore-title'),
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: AppSizes.sp18,
-                    fontWeight: FontWeight.w600,
+    return TopGlowBackground(
+      color: DarkColors.backgroundColor,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          // Inside Root the content runs under the hideable bottom bar.
+          bottom: navInset == 0,
+          child: Column(
+            children: [
+              // Header in the root-tab title style; no back button. The top
+              // band shows the shared TopGlowBackground.
+              SizedBox(
+                height: AppSizes.adaptiveHeight(56),
+                child: Center(
+                  child: Text(
+                    ar ? 'استكشف' : 'Explore',
+                    key: const ValueKey('explore-title'),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: AppSizes.sp18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.adaptiveWidth(24),
-                  0,
-                  AppSizes.adaptiveWidth(24),
-                  navInset + AppSizes.adaptiveHeight(16),
-                ),
-                child: Center(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: SizedBox(
-                      width: AppSizes.adaptiveWidth(342),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const _FloatingIllustration(),
-                          SizedBox(height: AppSizes.adaptiveHeight(32)),
-                          Text(
-                            ar ? 'قريبًا' : 'Coming soon',
-                            key: const ValueKey('explore-coming-soon'),
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: AppSizes.sp28,
-                              height: 1.25,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          SizedBox(height: AppSizes.adaptiveHeight(10)),
-                          Text(
-                            ar
-                                ? 'اكتشف الوجهات والفنادق والأماكن المخفية. نحن نبني شيئًا مميزًا من أجلك.'
-                                : "Discover destinations, hotels and hidden gems. We're building something special for you.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: DarkColors.greyColor,
-                              fontSize: AppSizes.sp14,
-                              height: 1.5,
-                            ),
-                          ),
-                          SizedBox(height: AppSizes.adaptiveHeight(28)),
-                          ExcludeSemantics(
-                            child: Opacity(
-                              opacity: 0.55,
-                              child: Wrap(
-                                key: const ValueKey('explore-previews'),
-                                alignment: WrapAlignment.center,
-                                spacing: AppSizes.adaptiveWidth(8),
-                                runSpacing: AppSizes.adaptiveHeight(8),
-                                children: [
-                                  for (final (icon, label) in previews)
-                                    _PreviewChip(icon: icon, label: label),
-                                ],
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    AppSizes.adaptiveWidth(24),
+                    0,
+                    AppSizes.adaptiveWidth(24),
+                    navInset + AppSizes.adaptiveHeight(16),
+                  ),
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: SizedBox(
+                        width: AppSizes.adaptiveWidth(342),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const _FloatingIllustration(),
+                            SizedBox(height: AppSizes.adaptiveHeight(32)),
+                            Text(
+                              ar ? 'قريبًا' : 'Coming soon',
+                              key: const ValueKey('explore-coming-soon'),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: AppSizes.sp28,
+                                height: 1.25,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                        ],
+                            SizedBox(height: AppSizes.adaptiveHeight(10)),
+                            Text(
+                              ar
+                                  ? 'اكتشف الوجهات والفنادق والأماكن المخفية. نحن نبني شيئًا مميزًا من أجلك.'
+                                  : "Discover destinations, hotels and hidden gems. We're building something special for you.",
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: DarkColors.greyColor,
+                                fontSize: AppSizes.sp14,
+                                height: 1.5,
+                              ),
+                            ),
+                            SizedBox(height: AppSizes.adaptiveHeight(28)),
+                            ExcludeSemantics(
+                              child: Opacity(
+                                opacity: 0.55,
+                                child: Wrap(
+                                  key: const ValueKey('explore-previews'),
+                                  alignment: WrapAlignment.center,
+                                  spacing: AppSizes.adaptiveWidth(8),
+                                  runSpacing: AppSizes.adaptiveHeight(8),
+                                  children: [
+                                    for (final (icon, label) in previews)
+                                      _PreviewChip(icon: icon, label: label),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

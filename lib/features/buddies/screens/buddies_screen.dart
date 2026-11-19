@@ -1,3 +1,4 @@
+import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:flutter/foundation.dart';
 import '../widgets/buddies_loading_overlay.dart';
@@ -184,130 +185,138 @@ class BuddiesLandingView extends StatelessWidget {
     // Until the profile is complete only the cards show: no traveler
     // sections and no empty state.
     final showTravelers = !needsProfile;
-    return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      body: SafeArea(
-        // Inside Root the content runs under the hideable bottom bar.
-        bottom: navInset == 0,
-        child: BuddiesLoadingOverlay(
-          loading: refreshing && !skeleton,
-          child: RefreshIndicator.noSpinner(
-            onRefresh: onRefresh ?? () async {},
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.only(top: 20, bottom: 36 + navInset),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(
-                          width: 286,
-                          child: Text.rich(
-                            TextSpan(
-                              text: 'Find people for your next ',
-                              children: [
+    return TopGlowBackground(
+      color: const Color(0xFF0A0A0A),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          // Inside Root the content runs under the hideable bottom bar.
+          bottom: navInset == 0,
+          child: BuddiesLoadingOverlay(
+            loading: refreshing && !skeleton,
+            child: TopGlowEdgeFade(
+              child: RefreshIndicator.noSpinner(
+                onRefresh: onRefresh ?? () async {},
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.only(top: 20, bottom: 36 + navInset),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(
+                              width: 286,
+                              child: Text.rich(
                                 TextSpan(
-                                  text: 'adventure',
-                                  style: TextStyle(
-                                    letterSpacing: 0,
-                                    color: Colors.white,
-                                  ),
+                                  text: 'Find people for your next ',
+                                  children: [
+                                    TextSpan(
+                                      text: 'adventure',
+                                      style: TextStyle(
+                                        letterSpacing: 0,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                                style: TextStyle(
+                                  letterSpacing: 0,
+                                  color: Color(0xFF989693),
+                                  fontSize: 28,
+                                  height: 1.3,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ),
-                            style: TextStyle(
-                              letterSpacing: 0,
-                              color: Color(0xFF989693),
-                              fontSize: 28,
-                              height: 1.3,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
+                            const SizedBox(height: 27),
+                            _DestinationSearch(onTap: onSearch),
+                            if (needsProfile) ...[
+                              const SizedBox(height: 28),
+                              BuddiesCompleteProfileCard(
+                                onComplete: () async {
+                                  final step =
+                                      ProfileSetupCubit.firstMissingStep(
+                                        context
+                                            .read<CurrentUserCubit?>()
+                                            ?.state
+                                            .profile,
+                                      );
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ProfileSetupScreen(
+                                        popOnComplete: true,
+                                        initialStep: step,
+                                      ),
+                                    ),
+                                  );
+                                  if (context.mounted) onRefresh?.call();
+                                },
+                              ),
+                            ],
+                            if (errorMessage != null) ...[
+                              const SizedBox(height: 16),
+                              Text(errorMessage!),
+                              if (onRetry != null)
+                                TextButton(
+                                  onPressed: onRetry,
+                                  child: const Text('Retry'),
+                                ),
+                            ],
+                            if (invitation) ...[
+                              SizedBox(height: needsProfile ? 16 : 28),
+                              const BuddiesVisibilityInvitation(),
+                            ],
+                          ],
                         ),
-                        const SizedBox(height: 27),
-                        _DestinationSearch(onTap: onSearch),
-                        if (needsProfile) ...[
+                      ),
+                      if (!showTravelers)
+                        const SizedBox.shrink()
+                      else if (skeleton) ...[
+                        SizedBox(height: AppSizes.adaptiveHeight(28)),
+                        const BuddiesSectionSkeleton(),
+                        SizedBox(height: AppSizes.adaptiveHeight(24)),
+                        const BuddiesSectionSkeleton(),
+                      ] else ...[
+                        if (errorMessage == null && empty)
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              meta == null
+                                  ? 'Traveler discovery is not available yet.'
+                                  : 'No travelers found yet.',
+                              style: const TextStyle(color: Color(0xFFBDBCBB)),
+                            ),
+                          ),
+                        if (nearbyTravelers.isNotEmpty) ...[
                           const SizedBox(height: 28),
-                          BuddiesCompleteProfileCard(
-                            onComplete: () async {
-                              final step = ProfileSetupCubit.firstMissingStep(
-                                context
-                                    .read<CurrentUserCubit?>()
-                                    ?.state
-                                    .profile,
-                              );
-                              await Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => ProfileSetupScreen(
-                                    popOnComplete: true,
-                                    initialStep: step,
-                                  ),
-                                ),
-                              );
-                              if (context.mounted) onRefresh?.call();
-                            },
+                          BuddiesTravelerSection(
+                            title: 'In Your City',
+                            onSeeAll: onSeeCity,
+                            onOpenTraveler: onOpenTraveler,
+                            travelers: nearbyTravelers,
                           ),
                         ],
-                        if (errorMessage != null) ...[
-                          const SizedBox(height: 16),
-                          Text(errorMessage!),
-                          if (onRetry != null)
-                            TextButton(
-                              onPressed: onRetry,
-                              child: const Text('Retry'),
-                            ),
-                        ],
-                        if (invitation) ...[
-                          SizedBox(height: needsProfile ? 16 : 28),
-                          const BuddiesVisibilityInvitation(),
+                        if (sharedInterestTravelers.isNotEmpty) ...[
+                          SizedBox(
+                            height: invitation || nearbyTravelers.isEmpty
+                                ? 28
+                                : 24,
+                          ),
+                          BuddiesTravelerSection(
+                            title: 'With Same Interests',
+                            onSeeAll: onSeeInterests,
+                            onOpenTraveler: onOpenTraveler,
+                            travelers: sharedInterestTravelers,
+                          ),
                         ],
                       ],
-                    ),
+                    ],
                   ),
-                  if (!showTravelers)
-                    const SizedBox.shrink()
-                  else if (skeleton) ...[
-                    SizedBox(height: AppSizes.adaptiveHeight(28)),
-                    const BuddiesSectionSkeleton(),
-                    SizedBox(height: AppSizes.adaptiveHeight(24)),
-                    const BuddiesSectionSkeleton(),
-                  ] else ...[
-                    if (errorMessage == null && empty)
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          meta == null
-                              ? 'Traveler discovery is not available yet.'
-                              : 'No travelers found yet.',
-                          style: const TextStyle(color: Color(0xFFBDBCBB)),
-                        ),
-                      ),
-                    if (nearbyTravelers.isNotEmpty) ...[
-                      const SizedBox(height: 28),
-                      BuddiesTravelerSection(
-                        title: 'In Your City',
-                        onSeeAll: onSeeCity,
-                        onOpenTraveler: onOpenTraveler,
-                        travelers: nearbyTravelers,
-                      ),
-                    ],
-                    if (sharedInterestTravelers.isNotEmpty) ...[
-                      SizedBox(
-                        height: invitation || nearbyTravelers.isEmpty ? 28 : 24,
-                      ),
-                      BuddiesTravelerSection(
-                        title: 'With Same Interests',
-                        onSeeAll: onSeeInterests,
-                        onOpenTraveler: onOpenTraveler,
-                        travelers: sharedInterestTravelers,
-                      ),
-                    ],
-                  ],
-                ],
+                ),
               ),
             ),
           ),
