@@ -355,7 +355,7 @@ void main() {
             find.byKey(const ValueKey('post-author-avatar')),
           )
           .elementAt(index)
-          .backgroundImage;
+          .foregroundImage;
       return image is NetworkImage ? image.url : null;
     }
 

@@ -6,10 +6,12 @@ class HomeUserAvatar extends StatelessWidget {
   final String? url;
   final double size;
 
+  static const _placeholder = Color(0xFF2A2A2A);
+
   @override
   Widget build(BuildContext context) {
     final fallback = ColoredBox(
-      color: const Color(0xFF2A2A2A),
+      color: _placeholder,
       child: Icon(Icons.person_rounded, color: Colors.white54, size: size / 2),
     );
     return ExcludeSemantics(
@@ -21,6 +23,10 @@ class HomeUserAvatar extends StatelessWidget {
               : Image.network(
                   url!,
                   fit: BoxFit.cover,
+                  // A grey disc until the first frame, never an empty hole.
+                  frameBuilder: (_, image, frame, sync) => sync || frame != null
+                      ? image
+                      : const ColoredBox(color: _placeholder),
                   errorBuilder: (_, _, _) => fallback,
                 ),
         ),
