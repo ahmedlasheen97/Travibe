@@ -12,6 +12,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/action_icon_button.dart';
+import 'package:travibe/core/widgets/image_retry_signal.dart';
 
 class PostCard extends StatefulWidget {
   final bool responsive;
@@ -497,12 +498,11 @@ class _PostCardState extends State<PostCard> {
   Widget _buildSingleImage() {
     return ClipRRect(
       borderRadius: BorderRadius.circular(_r(16)),
-      child: Image(
+      child: RetryingPostImage(
         image: _imageProvider(widget.image!),
         height: _h(220),
         width: double.infinity,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _imageError(_h(220)),
+        errorBuilder: (_) => _imageError(_h(220)),
       ),
     );
   }
@@ -517,11 +517,10 @@ class _PostCardState extends State<PostCard> {
             PageView.builder(
               itemCount: widget.images!.length,
               onPageChanged: (i) => setState(() => _imageIndex = i),
-              itemBuilder: (context, i) => Image(
+              itemBuilder: (context, i) => RetryingPostImage(
                 image: _imageProvider(widget.images![i]),
-                fit: BoxFit.cover,
                 width: double.infinity,
-                errorBuilder: (_, _, _) => _imageError(_h(260)),
+                errorBuilder: (_) => _imageError(_h(260)),
               ),
             ),
             Positioned(
@@ -730,4 +729,103 @@ extension on _PostCardState {
 ImageProvider _imageProvider(String path) {
   if (path.startsWith('http')) return NetworkImage(path);
   return AssetImage(path);
+}
+
+/// A cover-fit post image that keeps the dark placeholder on failure and
+/// re-requests when [ImageRetrySignal] fires (reconnect / Refresh).
+class RetryingPostImage extends StatefulWidget {
+  const RetryingPostImage({
+    super.key,
+    required this.image,
+    required this.errorBuilder,
+    this.height,
+    this.width,
+    this.signal,
+  });
+  final ImageProvider image;
+  final WidgetBuilder errorBuilder;
+  final double? height, width;
+  final ImageRetrySignal? signal;
+
+  @override
+  State<RetryingPostImage> createState() => _RetryingPostImageState();
+}
+
+class _RetryingPostImageState extends State<RetryingPostImage> {
+  /// Failed loads after which automatic (reconnect) retries stop for this
+  /// image; a manual Refresh/pull-to-refresh still retries and resets it.
+  static const maxAutoAttempts = 5;
+
+  late final ImageRetrySignal _signal =
+      widget.signal ?? ImageRetrySignal.instance;
+  bool _failed = false;
+  int _attempt = 0, _failures = 0, _countedAttempt = -1;
+
+  bool get _capped => _failures >= maxAutoAttempts;
+
+  @override
+  void initState() {
+    super.initState();
+    _signal.addListener(_retry);
+  }
+
+  @override
+  void didUpdateWidget(RetryingPostImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.image != widget.image) {
+      _failed = false;
+      _failures = 0;
+      _signal.reportResolved(this);
+    }
+  }
+
+  Future<void> _retry() async {
+    if (!_failed) return;
+    if (_signal.lastBumpManual) {
+      _failures = 0;
+    } else if (_capped) {
+      return;
+    }
+    _failed = false;
+    await widget.image.evict();
+    if (mounted) setState(() => _attempt++);
+  }
+
+  @override
+  void dispose() {
+    _signal.removeListener(_retry);
+    _signal.reportResolved(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Image(
+    key: ValueKey(_attempt),
+    image: widget.image,
+    height: widget.height,
+    width: widget.width,
+    fit: BoxFit.cover,
+    frameBuilder: (context, child, frame, _) {
+      if (frame != null) {
+        _failures = 0;
+        _signal.reportResolved(this);
+      }
+      return child;
+    },
+    errorBuilder: (context, _, _) {
+      _failed = true;
+      if (_countedAttempt != _attempt) {
+        _countedAttempt = _attempt;
+        _failures++;
+      }
+      // Lets Home watch for the connection to return (no toast needed);
+      // once capped, this image no longer keeps the monitor running.
+      if (_capped) {
+        _signal.reportResolved(this);
+      } else {
+        _signal.reportFailed(this);
+      }
+      return widget.errorBuilder(context);
+    },
+  );
 }

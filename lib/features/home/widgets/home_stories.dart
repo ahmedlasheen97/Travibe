@@ -19,16 +19,16 @@ class HomeStories extends StatelessWidget {
     this.loading = false,
     this.loadingMore = false,
     this.hasMore = false,
-    this.error,
-    this.onRetry,
     this.onLoadMore,
   });
   final List<StoryGroup> stories;
   final void Function(List<StoryGroup> groups, int authorId)? onViewStory;
   final int? currentUserId;
-  final String? avatarUrl, error;
+  // Load failures never render here: the row keeps cached stories (or only
+  // "You") and Home's shared error toast reports the failure.
+  final String? avatarUrl;
   final bool loading, loadingMore, hasMore;
-  final VoidCallback? onAddStory, onRetry, onLoadMore;
+  final VoidCallback? onAddStory, onLoadMore;
 
   static const badgeDiameter = 20.0;
   // Badge center lies on the image circumference at the 45-degree diagonal.
@@ -87,7 +87,7 @@ class HomeStories extends StatelessWidget {
           itemCount:
               1 +
               (initialLoading ? 5 : others.length) +
-              (!loading && !loadingMore && (error != null || hasMore) ? 1 : 0),
+              (!loading && !loadingMore && hasMore ? 1 : 0),
           separatorBuilder: (_, _) =>
               SizedBox(width: AppSizes.adaptiveWidth(16)),
           itemBuilder: (context, index) {
@@ -103,13 +103,9 @@ class HomeStories extends StatelessWidget {
                 width: AppSizes.adaptiveWidth(120),
                 child: Center(
                   child: TextButton(
-                    key: ValueKey(
-                      error != null ? 'stories-retry' : 'stories-more',
-                    ),
-                    onPressed: error != null ? onRetry : onLoadMore,
-                    child: Text(
-                      error != null ? 'Retry Stories' : 'More Stories',
-                    ),
+                    key: const ValueKey('stories-more'),
+                    onPressed: onLoadMore,
+                    child: const Text('More Stories'),
                   ),
                 ),
               );

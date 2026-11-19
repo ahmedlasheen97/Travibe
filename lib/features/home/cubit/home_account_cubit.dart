@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/features/home/data/home_account_cache.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
 
 enum HomeAccountStatus { loading, loaded, failure }
@@ -19,10 +21,19 @@ class HomeAccountState {
 }
 
 class HomeAccountCubit extends Cubit<HomeAccountState> {
-  HomeAccountCubit({HomeAccountRepo? repo})
+  /// Seeds the last cached account of this session (name/avatar only; the
+  /// following count is never cached, so it is never treated as verified).
+  HomeAccountCubit({HomeAccountRepo? repo, HomeAccountCache? cache})
     : _repo = repo ?? HomeAccountRepo(),
-      super(const HomeAccountState());
+      _cache = cache ?? HomeAccountCache(),
+      super(const HomeAccountState()) {
+    _revision = _cache.sessionRevision;
+    final cached = _cache.read();
+    if (cached != null) emit(HomeAccountState(account: cached));
+  }
   final HomeAccountRepo _repo;
+  final HomeAccountCache _cache;
+  late int _revision;
   int _generation = 0;
   Future<void>? _pending;
 
@@ -36,13 +47,18 @@ class HomeAccountCubit extends Cubit<HomeAccountState> {
   }
 
   Future<void> _load(int generation) async {
-    emit(HomeAccountState(account: state.account));
+    final revision = _cache.sessionRevision;
+    // A different account must not keep showing the previous one's name.
+    final previous = revision == _revision ? state.account : _cache.read();
+    _revision = revision;
+    emit(HomeAccountState(account: previous));
     try {
       final account = await _repo.getAccount();
       if (!isClosed && _generation == generation) {
         emit(
           HomeAccountState(status: HomeAccountStatus.loaded, account: account),
         );
+        unawaited(_cache.write(account, sessionRevision: revision));
       }
     } catch (error) {
       if (!isClosed && _generation == generation) {

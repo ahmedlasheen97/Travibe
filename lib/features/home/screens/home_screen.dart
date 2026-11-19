@@ -45,7 +45,9 @@ import 'package:travibe/features/follow/cubit/follow_users_cubit.dart';
 import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/core/utils/formatters.dart';
-import 'package:travibe/core/widgets/error_retry_view.dart';
+import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/network/reconnect_monitor.dart';
+import 'package:travibe/core/widgets/image_retry_signal.dart';
 import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/home/cubit/posts_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
@@ -59,6 +61,13 @@ import 'package:travibe/features/home/widgets/suggested_users_section.dart';
 import 'package:travibe/features/search/screens/search_screen.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 
+/// Home's single shared error toast (sticky key and copy).
+abstract final class HomeErrorToast {
+  static const key = 'home-error';
+  static const offlineMessage = 'No internet connection';
+  static const failureMessage = "Couldn't load. Try again.";
+}
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
     super.key,
@@ -69,6 +78,7 @@ class HomeScreen extends StatelessWidget {
     this.accountRepo,
     this.storiesRepo,
     this.searchRepo,
+    this.reconnectMonitor,
   });
 
   final PostsRepo? postsRepo;
@@ -81,6 +91,9 @@ class HomeScreen extends StatelessWidget {
   final StoriesRepo? storiesRepo;
   final SearchRepo? searchRepo;
 
+  /// Reconnect signal driving quiet retries while Home shows its error toast.
+  final ReconnectMonitor? reconnectMonitor;
+
   @override
   Widget build(BuildContext context) {
     return _HomeView(
@@ -91,6 +104,7 @@ class HomeScreen extends StatelessWidget {
       accountRepo: accountRepo,
       storiesRepo: storiesRepo,
       searchRepo: searchRepo,
+      reconnectMonitor: reconnectMonitor,
     );
   }
 }
@@ -104,6 +118,7 @@ class _HomeView extends StatefulWidget {
     this.accountRepo,
     this.storiesRepo,
     this.searchRepo,
+    this.reconnectMonitor,
   });
 
   final PostsRepo? postsRepo;
@@ -115,6 +130,9 @@ class _HomeView extends StatefulWidget {
   final HomeAccountRepo? accountRepo;
   final StoriesRepo? storiesRepo;
   final SearchRepo? searchRepo;
+
+  /// Reconnect signal driving quiet retries while Home shows its error toast.
+  final ReconnectMonitor? reconnectMonitor;
 
   @override
   State<_HomeView> createState() => _HomeViewState();
@@ -165,64 +183,131 @@ class _HomeViewState extends State<_HomeView> {
 
   final _feedOffsets = [0.0, 0.0];
 
-  // "No internet connection": a sticky toast plus quiet retries while the
-  // active feed's latest load failed for lack of a connection.
-  static const _offlineToast = 'offline';
-  static const offlineRetryInterval = Duration(seconds: 5);
-  final List<StreamSubscription<PostsState>> _feedSubscriptions = [];
+  // One sticky error toast for the whole of Home (feed, Stories, account,
+  // suggestions): "No internet connection" or a generic failure, with Refresh.
+  // No section renders inline error/retry text. While shown, quiet retries
+  // run on reconnect, periodic probes and app resume.
+  final List<StreamSubscription<Object?>> _errorSubscriptions = [];
   TravibeToastController? _toasts;
-  Timer? _offlineRetry;
+  late final ReconnectMonitor _reconnect;
   AppLifecycleListener? _lifecycle;
-  bool _offline = false;
+  bool _homeError = false;
+  String? _errorMessage;
 
-  static bool _isOfflineState(PostsState state) => switch (state) {
-    PostsFailure(:final error) => error.isConnectionError,
-    PostsLoaded(:final refreshError) => refreshError?.isConnectionError == true,
-    _ => false,
-  };
+  List<ApiError> _homeFailures() {
+    final feed = _activeFeed.state;
+    final suggestions = _suggestions.state;
+    final account = _account.state;
+    return [
+      if (feed is PostsFailure) feed.error,
+      if (feed is PostsLoaded) ...[?feed.refreshError, ?feed.paginationError],
+      ?_stories.state.error,
+      if (account.status == HomeAccountStatus.failure) ?account.error,
+      ?suggestions.error,
+      ?suggestions.paginationError,
+    ];
+  }
 
-  void _syncOffline() {
+  bool _retrying() {
+    final feed = _activeFeed.state;
+    final suggestions = _suggestions.state;
+    return feed is PostsLoading ||
+        feed is PostsInitial ||
+        (feed is PostsLoaded && (feed.isRefreshing || feed.isLoadingMore)) ||
+        _stories.state.loading ||
+        _stories.state.loadingMore ||
+        _account.state.status == HomeAccountStatus.loading ||
+        suggestions.status == FollowUsersStatus.loading ||
+        suggestions.refreshing ||
+        suggestions.loadingMore;
+  }
+
+  void _syncHomeError() {
     if (!mounted) return;
-    final toasts = _toasts;
-    if (toasts == null) return;
-    final state = _activeFeed.state;
-    final offline = _isOfflineState(state)
-        // Keep the toast through a retry until it resolves.
-        ? true
-        : (_offline &&
-              (state is PostsLoading ||
-                  state is PostsInitial ||
-                  (state is PostsLoaded && state.isRefreshing)));
-    if (offline == _offline) return;
-    setState(() => _offline = offline);
-    if (offline) {
-      toasts.setSticky(
-        _offlineToast,
+    final failures = _homeFailures();
+    // Keep the toast through a retry until it resolves.
+    final show = failures.isNotEmpty || (_homeError && _retrying());
+    final message = failures.isEmpty
+        ? _errorMessage
+        : failures.any((error) => error.isConnectionError)
+        ? HomeErrorToast.offlineMessage
+        : HomeErrorToast.failureMessage;
+    if (show == _homeError && message == _errorMessage) return;
+    final recovered = _homeError && !show;
+    setState(() {
+      _homeError = show;
+      _errorMessage = show ? message : null;
+    });
+    if (show) {
+      _toasts?.setSticky(
+        HomeErrorToast.key,
         TravibeToastData.error(
-          'No internet connection',
+          message ?? HomeErrorToast.failureMessage,
           actionLabel: 'Refresh',
-          onAction: () => unawaited(_refreshFromUser()),
+          onAction: () => unawaited(_retryAll()),
         ),
       );
-      _offlineRetry?.cancel();
-      _offlineRetry = Timer.periodic(
-        offlineRetryInterval,
-        (_) => _retryQuietly(),
-      );
+      _syncReconnect();
     } else {
-      _clearOffline();
+      _clearHomeError();
+      // Images that failed while offline reload once Home recovers.
+      if (recovered) ImageRetrySignal.instance.bump();
     }
   }
 
-  void _clearOffline() {
-    _offlineRetry?.cancel();
-    _offlineRetry = null;
-    _toasts?.setSticky(_offlineToast, null);
+  /// The reconnect monitor runs while Home shows its error toast or any post
+  /// image is waiting to retry (image-only failures show no toast).
+  void _syncReconnect() {
+    if (mounted &&
+        (_homeError || ImageRetrySignal.instance.failedCount.value > 0)) {
+      _reconnect.start(_onReconnect);
+    } else {
+      _reconnect.stop();
+    }
   }
 
+  void _onReconnect() {
+    if (!mounted) return;
+    if (_homeError) {
+      _retryQuietly(); // also retries images
+    } else {
+      ImageRetrySignal.instance.bump();
+    }
+  }
+
+  void _clearHomeError() {
+    _syncReconnect();
+    _toasts?.setSticky(HomeErrorToast.key, null);
+  }
+
+  /// Refresh: retries everything on Home.
+  Future<void> _retryAll() {
+    ImageRetrySignal.instance.bump(manual: true);
+    return _refreshFromUser(refreshAncillary: true);
+  }
+
+  /// Reconnect/probe/resume: retries only the sections that failed.
   void _retryQuietly() {
-    if (!mounted || !_offline) return;
-    unawaited(_activeFeed.refresh());
+    if (!mounted || !_homeError) return;
+    ImageRetrySignal.instance.bump();
+    final feed = _activeFeed.state;
+    if (feed is PostsFailure ||
+        (feed is PostsLoaded && feed.refreshError != null)) {
+      unawaited(_activeFeed.refresh());
+    } else if (feed is PostsLoaded && feed.paginationError != null) {
+      unawaited(_activeFeed.loadMore(retry: true));
+    }
+    if (_stories.state.error != null) unawaited(_stories.refresh());
+    if (_account.state.status == HomeAccountStatus.failure) {
+      unawaited(_account.load(force: true));
+    }
+    final suggestions = _suggestions.state;
+    if (suggestions.paginationError != null &&
+        suggestions.status == FollowUsersStatus.loaded) {
+      unawaited(_suggestions.more(retry: true));
+    } else if (suggestions.error != null) {
+      unawaited(_suggestions.load(force: true));
+    }
   }
 
   void _switchFeed(int index) {
@@ -231,7 +316,7 @@ class _HomeViewState extends State<_HomeView> {
       _feedOffsets[_selectedTab] = _scrollController.offset;
     }
     setState(() => _selectedTab = index);
-    _syncOffline();
+    _syncHomeError();
     if (index == 1 && _followingDirty) {
       _refreshFollowing();
     } else if (_activeFeed.state is PostsInitial) {
@@ -269,7 +354,7 @@ class _HomeViewState extends State<_HomeView> {
     if (refreshAncillary) {
       unawaited(_stories.refresh());
       unawaited(_account.load(force: true));
-      unawaited(_suggestions.load());
+      unawaited(_suggestions.load(force: true));
     }
     return request.whenComplete(() {
       if (mounted &&
@@ -394,10 +479,18 @@ class _HomeViewState extends State<_HomeView> {
     widget.storyPublicationSignal?.addListener(_onStoryUploaded);
     widget.refreshSignal?.addListener(_onHomeRetap);
     _toasts = TravibeToastScope.maybeOf(context);
-    for (final feed in _feeds) {
-      _feedSubscriptions.add(feed.stream.listen((_) => _syncOffline()));
+    _reconnect = widget.reconnectMonitor ?? ReconnectMonitor();
+    ImageRetrySignal.instance.failedCount.addListener(_syncReconnect);
+    for (final Stream<Object?> source in [
+      ..._feeds.map((feed) => feed.stream),
+      _stories.stream,
+      _account.stream,
+      _suggestions.stream,
+    ]) {
+      _errorSubscriptions.add(source.listen((_) => _syncHomeError()));
     }
     _lifecycle = AppLifecycleListener(onResume: _retryQuietly);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncHomeError());
     _activeFeed.loadPosts();
     _scrollController.addListener(_onScroll);
   }
@@ -483,11 +576,14 @@ class _HomeViewState extends State<_HomeView> {
     _explicitRefreshes.clear();
     _followSubscription?.cancel();
     _blockSubscription?.cancel();
-    for (final subscription in _feedSubscriptions) {
+    for (final subscription in _errorSubscriptions) {
       subscription.cancel();
     }
     _lifecycle?.dispose();
-    _clearOffline();
+    ImageRetrySignal.instance.failedCount.removeListener(_syncReconnect);
+    _reconnect.stop();
+    _toasts?.setSticky(HomeErrorToast.key, null);
+    if (widget.reconnectMonitor == null) _reconnect.dispose();
     _hiddenPosts.unregisterFeeds(_feeds);
     if (_ownsHidden) _hiddenPosts.close();
     _account.close();
@@ -587,7 +683,8 @@ class _HomeViewState extends State<_HomeView> {
                 fit: StackFit.expand,
                 children: [
                   RefreshIndicator.noSpinner(
-                    onRefresh: () => _refreshFromUser(refreshAncillary: true),
+                    // Pull-to-refresh also retries capped images.
+                    onRefresh: _retryAll,
                     notificationPredicate: (notification) =>
                         notification.depth == 0 &&
                         notification.metrics.axis == Axis.vertical,
@@ -604,7 +701,14 @@ class _HomeViewState extends State<_HomeView> {
                               BlocBuilder<HomeAccountCubit, HomeAccountState>(
                                 bloc: _account,
                                 builder: (context, state) => HomeTopBar(
-                                  name: state.account?.name,
+                                  name:
+                                      state.account?.name ??
+                                      context
+                                          .read<CurrentUserCubit?>()
+                                          ?.state
+                                          .profile
+                                          ?.name,
+                                  signedIn: _storySession.hasSession,
                                   onMessagesTap: _openChats,
                                   onNotificationsTap: () =>
                                       PushNotificationsScope.openInbox(context),
@@ -649,8 +753,6 @@ class _HomeViewState extends State<_HomeView> {
                                                   loadingMore:
                                                       state.loadingMore,
                                                   hasMore: state.hasMore,
-                                                  error: state.error?.message,
-                                                  onRetry: _stories.refresh,
                                                   onLoadMore: _stories.loadMore,
                                                 ),
                                           ),
@@ -695,49 +797,25 @@ class _HomeViewState extends State<_HomeView> {
                           key: const ValueKey('home-feed-content'),
                           bloc: _activeFeed,
                           builder: (context, state) {
-                            // Figma: an empty feed under the offline toast,
-                            // kept while quiet retries are in flight.
-                            if (_offline &&
-                                (state is! PostsLoaded ||
-                                    state.posts.isEmpty)) {
+                            // Figma: an empty feed under the error toast
+                            // (never inline error text), kept while quiet
+                            // retries are in flight.
+                            final failedEmpty =
+                                state is PostsFailure ||
+                                (state is PostsLoaded &&
+                                    state.posts.isEmpty &&
+                                    (state.refreshError != null ||
+                                        state.paginationError != null));
+                            if (failedEmpty ||
+                                (_homeError && state is! PostsLoaded)) {
                               return const SliverFillRemaining(
                                 key: ValueKey('home-offline-feed'),
                                 hasScrollBody: false,
                                 child: SizedBox.shrink(),
                               );
                             }
-                            if (state is PostsFailure) {
-                              return SliverFillRemaining(
-                                hasScrollBody: false,
-                                child: ErrorRetryView(
-                                  message: state.errorMessage,
-                                  onRetry: () => _activeFeed.loadPosts(),
-                                ),
-                              );
-                            }
 
                             if (state is PostsLoaded) {
-                              if (state.posts.isEmpty &&
-                                  state.refreshError != null) {
-                                return SliverFillRemaining(
-                                  hasScrollBody: false,
-                                  child: ErrorRetryView(
-                                    message: state.refreshError!.message,
-                                    onRetry: _refreshFromUser,
-                                  ),
-                                );
-                              }
-                              if (state.posts.isEmpty &&
-                                  state.paginationError != null) {
-                                return SliverFillRemaining(
-                                  hasScrollBody: false,
-                                  child: ErrorRetryView(
-                                    message: state.paginationError!.message,
-                                    onRetry: () =>
-                                        _activeFeed.loadMore(retry: true),
-                                  ),
-                                );
-                              }
                               if (_selectedTab == 1) {
                                 return _followingSliver(state);
                               }
@@ -825,18 +903,12 @@ class _HomeViewState extends State<_HomeView> {
     child: BlocBuilder<HomeAccountCubit, HomeAccountState>(
       bloc: _account,
       builder: (context, state) {
-        if (state.account == null) {
-          if (state.status == HomeAccountStatus.failure) {
-            return ErrorRetryView(
-              message: state.error!.message,
-              onRetry: _account.load,
-            );
-          }
-          return const SizedBox.shrink();
-        }
+        // Failures surface only through Home's shared error toast.
+        if (state.account == null) return const SizedBox.shrink();
         return SuggestedUsersSection(
           showLoadingIndicators: false,
           compact: true,
+          hideErrors: true,
           currentUserId: state.account!.id,
           cubit: _suggestions,
         );
@@ -876,14 +948,11 @@ class _HomeViewState extends State<_HomeView> {
         );
       }
       if (!account.hasVerifiedCount) {
-        return SliverFillRemaining(
+        // Failure is reported by Home's shared error toast.
+        return const SliverFillRemaining(
+          key: ValueKey('home-following-unavailable'),
           hasScrollBody: false,
-          child: ErrorRetryView(
-            message:
-                account.error?.message ??
-                'Unable to load your following count. Please try again.',
-            onRetry: () => _account.load(force: true),
-          ),
+          child: SizedBox.shrink(),
         );
       }
       return SliverFillRemaining(
@@ -952,15 +1021,6 @@ class _HomeViewState extends State<_HomeView> {
       if (showFollowingIntro)
         FollowingEmptyState(onExplorePeople: _explorePeople),
     ];
-    if (state.refreshError != null &&
-        !(_offline && state.refreshError!.isConnectionError)) {
-      items.add(
-        ErrorRetryView(
-          message: state.refreshError!.message,
-          onRetry: _refreshFromUser,
-        ),
-      );
-    }
 
     for (var i = 0; i < posts.length; i++) {
       items.add(_buildPostCard(posts[i]));
@@ -981,15 +1041,6 @@ class _HomeViewState extends State<_HomeView> {
               semanticsLabel: 'Loading more posts',
             ),
           ),
-        ),
-      );
-    }
-
-    if (state.paginationError != null) {
-      items.add(
-        ErrorRetryView(
-          message: state.paginationError!.message,
-          onRetry: () => _activeFeed.loadMore(retry: true),
         ),
       );
     }

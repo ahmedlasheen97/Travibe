@@ -13,6 +13,9 @@ class PreferencesManager extends ChangeNotifier {
   int _sessionRevision = 0;
   int get sessionRevision => _sessionRevision;
   bool get hasSession => _sessionToken?.isNotEmpty == true;
+
+  /// Current token; identifies the account owning per-session caches.
+  String? get sessionToken => _sessionToken;
   final ValueNotifier<String> language = ValueNotifier('en');
   final ValueNotifier<String?> currency = ValueNotifier(null);
 

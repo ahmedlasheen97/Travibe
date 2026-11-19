@@ -21,8 +21,13 @@ class SuggestedUsersSection extends StatelessWidget {
     this.showLoadingIndicators = true,
     this.currentUserId,
     this.cubit,
+    this.hideErrors = false,
   });
   final bool compact;
+
+  /// Home reports failures through its shared error toast: no inline error
+  /// or Retry text, and the section hides when nothing has loaded.
+  final bool hideErrors;
   // Home suppresses independent spinners; Search retains its current behavior.
   final bool showLoadingIndicators;
   final String? currentUserId;
@@ -42,88 +47,96 @@ class SuggestedUsersSection extends StatelessWidget {
   }
 
   Widget _content(BuildContext context) => RefreshUsersOnUnblock(
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                compact ? 'Suggested for You' : 'Suggested for you',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+    child: hideErrors
+        ? BlocBuilder<FollowUsersCubit, FollowUsersState>(
+            buildWhen: (a, b) => _hidden(a) != _hidden(b),
+            builder: (context, state) => _hidden(state)
+                ? const SizedBox.shrink(key: ValueKey('suggestions-hidden'))
+                : _section(context),
+          )
+        : _section(context),
+  );
+
+  bool _hidden(FollowUsersState state) =>
+      state.users.isEmpty &&
+      (state.status == FollowUsersStatus.failure || state.error != null);
+
+  Widget _section(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              compact ? 'Suggested for You' : 'Suggested for you',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
               ),
             ),
-            TextButton(
-              onPressed: () => FollowUsersScreen.open(
-                context,
-                type: FollowListType.suggested,
-              ),
-              child: Text(
-                'See All',
-                style: compact
-                    ? const TextStyle(color: Colors.white70, fontSize: 14)
-                    : null,
-              ),
+          ),
+          TextButton(
+            onPressed: () =>
+                FollowUsersScreen.open(context, type: FollowListType.suggested),
+            child: Text(
+              'See All',
+              style: compact
+                  ? const TextStyle(color: Colors.white70, fontSize: 14)
+                  : null,
             ),
-          ],
-        ),
-        BlocBuilder<FollowUsersCubit, FollowUsersState>(
-          builder: (context, state) {
-            final cubit = context.read<FollowUsersCubit>();
-            if (state.status == FollowUsersStatus.initial ||
-                state.status == FollowUsersStatus.loading) {
-              return compact
-                  ? const _SuggestedCardsSkeleton()
-                  : const PeopleSkeleton(count: 3, scrollable: false);
-            }
-            if (state.status == FollowUsersStatus.failure ||
-                (!compact && state.error != null)) {
-              return ErrorRetryView(
-                message: state.error!.message,
-                onRetry: cubit.load,
-              );
-            }
-            return BlocBuilder<BlockCubit, BlockState>(
-              builder: (context, block) =>
-                  BlocBuilder<FollowCubit, FollowState>(
-                    builder: (context, follow) {
-                      final users = state.users
-                          .where(
-                            (user) =>
-                                !block.isBlocked(
-                                  user.id,
-                                  fallback: user.isBlocked,
-                                ) &&
-                                user.id != currentUserId &&
-                                user.id.isNotEmpty &&
-                                (compact ||
-                                    !(follow.following[user.id] ??
-                                        user.isFollowing)),
-                          )
-                          .toList();
-                      final unique = {
-                        for (final user in users) user.id: user,
-                      }.values.toList();
-                      if (compact) return _cards(context, state, unique);
-                      return Column(
-                        children: [
-                          if (users.isEmpty)
-                            const Text('No suggestions right now'),
-                          for (final user in unique.take(3))
-                            FollowUserTile(key: ValueKey(user.id), user: user),
-                        ],
-                      );
-                    },
-                  ),
+          ),
+        ],
+      ),
+      BlocBuilder<FollowUsersCubit, FollowUsersState>(
+        builder: (context, state) {
+          final cubit = context.read<FollowUsersCubit>();
+          if (state.status == FollowUsersStatus.initial ||
+              state.status == FollowUsersStatus.loading) {
+            return compact
+                ? const _SuggestedCardsSkeleton()
+                : const PeopleSkeleton(count: 3, scrollable: false);
+          }
+          if (hideErrors && state.status == FollowUsersStatus.failure) {
+            return const SizedBox.shrink();
+          }
+          if (state.status == FollowUsersStatus.failure ||
+              (!compact && state.error != null)) {
+            return ErrorRetryView(
+              message: state.error!.message,
+              onRetry: cubit.load,
             );
-          },
-        ),
-      ],
-    ),
+          }
+          return BlocBuilder<BlockCubit, BlockState>(
+            builder: (context, block) => BlocBuilder<FollowCubit, FollowState>(
+              builder: (context, follow) {
+                final users = state.users
+                    .where(
+                      (user) =>
+                          !block.isBlocked(user.id, fallback: user.isBlocked) &&
+                          user.id != currentUserId &&
+                          user.id.isNotEmpty &&
+                          (compact ||
+                              !(follow.following[user.id] ?? user.isFollowing)),
+                    )
+                    .toList();
+                final unique = {
+                  for (final user in users) user.id: user,
+                }.values.toList();
+                if (compact) return _cards(context, state, unique);
+                return Column(
+                  children: [
+                    if (users.isEmpty) const Text('No suggestions right now'),
+                    for (final user in unique.take(3))
+                      FollowUserTile(key: ValueKey(user.id), user: user),
+                  ],
+                );
+              },
+            ),
+          );
+        },
+      ),
+    ],
   );
   Widget _cards(
     BuildContext context,
@@ -133,9 +146,9 @@ class SuggestedUsersSection extends StatelessWidget {
     final list = context.read<FollowUsersCubit>();
     return Column(
       children: [
-        if (state.error != null)
+        if (state.error != null && !hideErrors)
           ErrorRetryView(message: state.error!.message, onRetry: list.load),
-        if (users.isEmpty && !state.hasMore)
+        if (users.isEmpty && !state.hasMore && !hideErrors)
           const Padding(
             padding: EdgeInsets.all(24),
             child: Text(
@@ -158,7 +171,12 @@ class SuggestedUsersSection extends StatelessWidget {
               },
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: users.length + (state.hasMore ? 1 : 0),
+                itemCount:
+                    users.length +
+                    (state.hasMore &&
+                            !(hideErrors && state.paginationError != null)
+                        ? 1
+                        : 0),
                 separatorBuilder: (_, _) => const SizedBox(width: 12),
                 itemBuilder: (context, index) {
                   if (index < users.length) {

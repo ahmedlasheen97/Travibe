@@ -24,6 +24,7 @@ import 'package:travibe/features/home/data/posts_repo.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import 'home_experience_fixtures.dart';
 import 'package:travibe/root.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 
 void main() {
   late AccountRepo account;
@@ -31,7 +32,9 @@ void main() {
   late EmptyPostsRepo posts;
   late FollowCubit follow;
   late BlockCubit block;
+  late TravibeToastController toasts;
   setUp(() {
+    toasts = TravibeToastController();
     account = AccountRepo();
     people = PeopleRepo(account);
     posts = EmptyPostsRepo();
@@ -39,6 +42,7 @@ void main() {
     block = BlockCubit(follow: follow);
   });
   tearDown(() async {
+    toasts.dispose();
     await block.close();
     await follow.close();
   });
@@ -63,13 +67,26 @@ void main() {
                 BlocProvider.value(value: follow),
                 BlocProvider.value(value: block),
               ],
-              child:
-                  child ?? HomeScreen(accountRepo: account, postsRepo: posts),
+              child: TravibeToastScope(
+                controller: toasts,
+                child:
+                    child ?? HomeScreen(accountRepo: account, postsRepo: posts),
+              ),
             ),
           ),
         ),
       ),
     );
+    await tester.pumpAndSettle();
+  }
+
+  /// Home's single shared error toast (no inline error/retry text).
+  String? homeError() => toasts.hasSticky(HomeErrorToast.key)
+      ? toasts.current?.data.message
+      : null;
+
+  Future<void> refreshFromToast(WidgetTester tester) async {
+    toasts.current!.data.onAction!();
     await tester.pumpAndSettle();
   }
 
@@ -170,11 +187,11 @@ void main() {
     expect(find.byType(HomeFeedSkeleton), findsOneWidget);
     posts.followingGate!.completeError(ApiError(message: 'Feed failed'));
     await tester.pumpAndSettle();
-    expect(find.text('Feed failed'), findsOneWidget);
+    expect(find.text('Feed failed'), findsNothing);
+    expect(homeError(), HomeErrorToast.failureMessage);
     expect(find.byType(FollowingEmptyState), findsNothing);
     posts.followingGate = null;
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
+    await refreshFromToast(tester);
     expect(find.byType(FollowingEmptyState), findsOneWidget);
   });
 
@@ -200,11 +217,12 @@ void main() {
     account.error = ApiError(message: 'Unable to reach your account.');
     await show(tester);
     await following(tester);
-    expect(find.text('Unable to reach your account.'), findsOneWidget);
+    expect(find.text('Unable to reach your account.'), findsNothing);
+    expect(homeError(), HomeErrorToast.failureMessage);
     expect(find.byType(FollowingEmptyState), findsNothing);
     account.error = null;
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
+    await refreshFromToast(tester);
+    expect(homeError(), isNull);
     expect(find.byType(FollowingEmptyState), findsOneWidget);
     expect(find.text('Explore People'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -308,7 +326,7 @@ void main() {
   });
 
   testWidgets(
-    'missing relationship count shows retry instead of a false empty state',
+    'missing relationship count shows no inline error and no false empty state',
     (tester) async {
       account.followingCount = null;
       await show(tester);
@@ -316,8 +334,9 @@ void main() {
       expect(find.byType(FollowingEmptyState), findsNothing);
       expect(
         find.text('Unable to load your following count. Please try again.'),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.text('Retry'), findsNothing);
     },
   );
   testWidgets('horizontal suggestions keep pagination and retry behavior', (
@@ -362,16 +381,18 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Explore API failure offers retry rather than an empty feed', (
+  testWidgets('Explore API failure shows the Home toast, not an empty feed', (
     tester,
   ) async {
     posts.error = ApiError(message: 'Network failed');
     await show(tester);
-    expect(find.text('Network failed'), findsOneWidget);
+    expect(find.text('Network failed'), findsNothing);
+    expect(find.text('Retry'), findsNothing);
+    expect(homeError(), HomeErrorToast.failureMessage);
     expect(find.text('No posts yet'), findsNothing);
     posts.error = null;
-    await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
+    await refreshFromToast(tester);
+    expect(homeError(), isNull);
     expect(find.text('No posts yet'), findsOneWidget);
     expect(find.text('Suggested for You'), findsOneWidget);
   });
