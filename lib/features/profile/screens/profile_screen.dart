@@ -484,6 +484,7 @@ class _ProfileViewState extends State<_ProfileView> {
   @override
   Widget build(BuildContext context) => TopGlowBackground(
     color: DarkColors.backgroundColor,
+    fadeOnScroll: true,
     child: Scaffold(
       backgroundColor: Colors.transparent,
       appBar: context.read<ProfileCubit>().userId == null

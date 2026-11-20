@@ -55,9 +55,10 @@ Future<void> _pump(
   WidgetTester tester,
   Widget child, {
   double width = 390,
+  double height = 844,
   bool settle = true,
 }) async {
-  tester.view.physicalSize = Size(width, 844);
+  tester.view.physicalSize = Size(width, height);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
@@ -73,6 +74,41 @@ Future<void> _pump(
 }
 
 Rect _glowRect(WidgetTester tester) => tester.getRect(_glow);
+
+/// The scroll fade of the (first) TopGlowBackground on screen.
+double _opacity(WidgetTester tester) {
+  final background = tester.widget<TopGlowBackground>(
+    find.byType(TopGlowBackground).first,
+  );
+  final content = find.byWidgetPredicate((w) => identical(w, background.child));
+  return TopGlowBackground.opacityOf(tester.element(content.first))!.value;
+}
+
+/// Scrolling the screen's own vertical scroll view fades the glow out by
+/// 120 px and back in at the top (the glow stays fixed, never re-blurred).
+Future<void> _expectFadesOnScroll(WidgetTester tester) async {
+  final scrollable = find.byWidgetPredicate(
+    (w) =>
+        w is Scrollable &&
+        axisDirectionToAxis(w.axisDirection) == Axis.vertical,
+  );
+  final position = tester.state<ScrollableState>(scrollable.first).position;
+  expect(position.maxScrollExtent, greaterThanOrEqualTo(120));
+  final glow = _glowRect(tester);
+  position.jumpTo(0);
+  await tester.pump();
+  expect(_opacity(tester), 1);
+  position.jumpTo(60);
+  await tester.pump();
+  expect(_opacity(tester), closeTo(0.5, 1e-9));
+  position.jumpTo(120);
+  await tester.pump();
+  expect(_opacity(tester), 0);
+  position.jumpTo(0);
+  await tester.pump();
+  expect(_opacity(tester), 1);
+  expect(_glowRect(tester), glow);
+}
 
 /// The glow is present at the screen's top-left and doesn't move when the
 /// screen's content is dragged up.
@@ -204,6 +240,131 @@ void main() {
         await tester.pump();
       }
       expect(TopGlowRaster.debugRasterCount - before, 1);
+    });
+  });
+
+  group('scroll fade', () {
+    Future<ScrollController> pumpList(
+      WidgetTester tester, {
+      bool fade = true,
+      Widget? header,
+      void Function()? onBuild,
+    }) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await _pump(
+        tester,
+        TopGlowBackground(
+          fadeOnScroll: fade,
+          child: Builder(
+            builder: (context) {
+              onBuild?.call();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ?header,
+                  Expanded(
+                    child: ListView(
+                      controller: controller,
+                      physics: const BouncingScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: 120,
+                          child: ListView(
+                            key: const ValueKey('horizontal'),
+                            scrollDirection: Axis.horizontal,
+                            children: const [SizedBox(width: 3000)],
+                          ),
+                        ),
+                        const SizedBox(height: 3000),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+      return controller;
+    }
+
+    testWidgets('fades out by 120 px and back in at the top, repaint only', (
+      tester,
+    ) async {
+      var builds = 0;
+      final rasters = TopGlowRaster.debugRasterCount;
+      final controller = await pumpList(tester, onBuild: () => builds++);
+      final built = builds;
+      final glow = _glowRect(tester);
+      expect(_opacity(tester), 1);
+      expect(tester.renderObject(_glow), paints..drawImageRect());
+
+      controller.jumpTo(60);
+      await tester.pump();
+      expect(_opacity(tester), closeTo(0.5, 1e-9));
+      controller.jumpTo(120);
+      await tester.pump();
+      expect(_opacity(tester), 0);
+      // Fully hidden: the glow layer paints nothing.
+      expect(tester.renderObject(_glow), isNot(paints..drawImageRect()));
+      controller.jumpTo(800);
+      await tester.pump();
+      expect(_opacity(tester), 0);
+
+      controller.jumpTo(30);
+      await tester.pump();
+      expect(_opacity(tester), closeTo(0.75, 1e-9));
+      controller.jumpTo(0);
+      await tester.pump();
+      expect(_opacity(tester), 1);
+
+      expect(builds, built, reason: 'scrolling must not rebuild');
+      expect(TopGlowRaster.debugRasterCount, rasters);
+      expect(_glowRect(tester), glow);
+    });
+
+    testWidgets('horizontal scrolling and pull overscroll keep full glow', (
+      tester,
+    ) async {
+      await pumpList(tester);
+      await tester.drag(
+        find.byKey(const ValueKey('horizontal')),
+        const Offset(-300, 0),
+      );
+      await tester.pump();
+      expect(_opacity(tester), 1);
+      final gesture = await tester.startGesture(const Offset(200, 400));
+      await gesture.moveBy(const Offset(0, 200));
+      await tester.pump();
+      expect(_opacity(tester), 1);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(_opacity(tester), 1);
+    });
+
+    testWidgets('pinned backdrop copies fade with the glow', (tester) async {
+      const key = ValueKey('pinned');
+      final controller = await pumpList(
+        tester,
+        header: const TopGlowBackdrop(key: key, child: SizedBox(height: 40)),
+      );
+      final backdrop = _backdrop(tester, find.byKey(key));
+      expect(backdrop.glowOpacity, 1);
+      controller.jumpTo(90);
+      await tester.pump();
+      expect(backdrop.glowOpacity, closeTo(0.25, 1e-9));
+      expect(backdrop.glowOpacity, _opacity(tester));
+      controller.jumpTo(0);
+      await tester.pump();
+      expect(backdrop.glowOpacity, 1);
+    });
+
+    testWidgets('without fadeOnScroll the glow never fades', (tester) async {
+      final controller = await pumpList(tester, fade: false);
+      controller.jumpTo(500);
+      await tester.pump();
+      expect(_opacity(tester), 1);
     });
   });
 
@@ -355,7 +516,36 @@ void main() {
     testWidgets('Explore', (tester) async {
       await _pump(tester, const ExploreScreen(), settle: false);
       await _expectFixedGlow(tester);
+      // Explore doesn't scroll and never fades.
+      expect(_opacity(tester), 1);
     });
+
+    // A short viewport so the fixture content scrolls past 120 px.
+    for (final (name, screen) in <(String, Widget Function())>[
+      (
+        'Home',
+        () => Scaffold(
+          body: withCubits(
+            HomeScreen(accountRepo: AccountRepo(), postsRepo: EmptyPostsRepo()),
+          ),
+        ),
+      ),
+      (
+        'own Profile',
+        () => ProfileScreen(
+          profileRepo: MemoryProfileRepo(),
+          postsRepo: EmptyProfilePostsRepo(),
+        ),
+      ),
+      ('Buddies', () => const BuddiesLandingView()),
+    ]) {
+      testWidgets('$name glow fades out on scroll and back in at the top', (
+        tester,
+      ) async {
+        await _pump(tester, screen(), height: 360);
+        await _expectFadesOnScroll(tester);
+      });
+    }
 
     testWidgets('Home pinned tabs use the glow backdrop, not a solid band', (
       tester,

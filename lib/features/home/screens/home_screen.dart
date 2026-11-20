@@ -672,6 +672,7 @@ class _HomeViewState extends State<_HomeView> {
   @override
   Widget build(BuildContext context) {
     return TopGlowBackground(
+      fadeOnScroll: true,
       child: SafeArea(
         bottom: false,
         child: Align(
