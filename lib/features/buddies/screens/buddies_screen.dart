@@ -187,6 +187,7 @@ class BuddiesLandingView extends StatelessWidget {
     final showTravelers = !needsProfile;
     return TopGlowBackground(
       color: const Color(0xFF0A0A0A),
+      fadeOnScroll: true,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: SafeArea(

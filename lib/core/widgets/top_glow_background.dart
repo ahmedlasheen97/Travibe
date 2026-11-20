@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -15,27 +16,48 @@ import 'package:travibe/core/constants/app_sizes.dart';
 /// Opaque bars inside [child] (e.g. a pinned tab bar) use [TopGlowBackdrop]
 /// so they show the same page color and glow instead of cutting across it.
 class TopGlowBackground extends StatefulWidget {
-  const TopGlowBackground({super.key, required this.child, this.color});
+  const TopGlowBackground({
+    super.key,
+    required this.child,
+    this.color,
+    this.fadeOnScroll = false,
+    this.fadeDistance = 120,
+  });
 
   final Widget child;
+
+  /// Fades the glow (and every [TopGlowBackdrop] copy) out as the child's
+  /// primary vertical scroll view scrolls down, fully hidden after
+  /// [fadeDistance], and back in towards the top. Driven by scroll
+  /// notifications into a repaint-only listenable: no widget rebuilds and no
+  /// re-blur (the cached image is painted with a lower alpha).
+  final bool fadeOnScroll;
+  final double fadeDistance;
 
   /// Optional page background painted under the glow (screens that own a
   /// Scaffold pass its color and make the Scaffold transparent). Without it
   /// the theme's scaffold color is assumed for [TopGlowBackdrop].
   final Color? color;
 
-  /// Figma token "Color/Alpha/bg blur circle" (#E45C10 at 84%).
-  static const glowColor = Color(0xD6E45C10);
+  /// Fitted to the Figma Home render (docs/figma/home/home_glow_reference.png
+  /// on #0A0A0A): a soft dark brown, ≈(36,22,13) at the clock and
+  /// ≈(31,20,12) behind "Hello", within ±2 per channel at every sampled
+  /// point (test/core/widgets/top_glow_figma_match_test.dart). The token
+  /// #E45C10 at 84% rendered ≈(50,25,11) there — far too orange.
+  static const glowColor = Color(0x8BE46E1E);
 
   /// Figma layer blur.
   static const figmaLayerBlur = 150.0;
 
-  /// Gaussian σ per unit of Figma blur, fitted to the Figma render
-  /// (docs/figma/home_toasts/post_published.png on #0A0A0A: ≈17% orange at
-  /// the clock, ≈8% at x 240, ≈6% at (5, 200) → σ ≈ 135 at 390 wide).
+  /// Gaussian σ per unit of Figma blur (σ ≈ 135 at 390 wide); the falloff
+  /// matches the Home reference out to y ≈ 260 with [glowColor].
   static const blurToSigma = 0.9;
 
   static const glowKey = ValueKey('top-glow');
+
+  /// The current glow opacity (1 at rest) for the enclosing background.
+  static ValueListenable<double>? opacityOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_TopGlowScope>()?.opacity;
 
   @override
   State<TopGlowBackground> createState() => _TopGlowBackgroundState();
@@ -44,6 +66,33 @@ class TopGlowBackground extends StatefulWidget {
 class _TopGlowBackgroundState extends State<TopGlowBackground> {
   /// The glow's top-left; [TopGlowBackdrop] aligns its copy to this box.
   final _origin = GlobalKey();
+  final _opacity = ValueNotifier<double>(1);
+
+  bool _onScroll(ScrollNotification notification) {
+    final metrics = notification.metrics;
+    if (notification.depth != 0 || metrics.axis != Axis.vertical) {
+      return false;
+    }
+    final distance = widget.fadeDistance;
+    final scrolled = (metrics.pixels - metrics.minScrollExtent).clamp(
+      0.0,
+      distance,
+    );
+    _opacity.value = 1 - scrolled / distance;
+    return false;
+  }
+
+  @override
+  void didUpdateWidget(TopGlowBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.fadeOnScroll) _opacity.value = 1;
+  }
+
+  @override
+  void dispose() {
+    _opacity.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +113,7 @@ class _TopGlowBackgroundState extends State<TopGlowBackground> {
               child: CustomPaint(
                 key: TopGlowBackground.glowKey,
                 size: geometry.frame,
-                painter: _GlowPainter(image),
+                painter: _GlowPainter(image, _opacity),
               ),
             ),
           ),
@@ -74,7 +123,13 @@ class _TopGlowBackgroundState extends State<TopGlowBackground> {
           frame: geometry.frame,
           color: color ?? Theme.of(context).scaffoldBackgroundColor,
           origin: _origin,
-          child: widget.child,
+          opacity: _opacity,
+          child: widget.fadeOnScroll
+              ? NotificationListener<ScrollNotification>(
+                  onNotification: _onScroll,
+                  child: widget.child,
+                )
+              : widget.child,
         ),
       ],
     );
@@ -95,6 +150,7 @@ class _TopGlowScope extends InheritedWidget {
     required this.frame,
     required this.color,
     required this.origin,
+    required this.opacity,
     required super.child,
   });
 
@@ -102,6 +158,7 @@ class _TopGlowScope extends InheritedWidget {
   final Size frame;
   final Color color;
   final GlobalKey origin;
+  final ValueListenable<double> opacity;
 
   static _TopGlowScope? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<_TopGlowScope>();
@@ -111,7 +168,8 @@ class _TopGlowScope extends InheritedWidget {
       old.image != image ||
       old.frame != frame ||
       old.color != color ||
-      old.origin != origin;
+      old.origin != origin ||
+      old.opacity != opacity;
 }
 
 /// Paints, behind [child], exactly what the enclosing [TopGlowBackground]
@@ -144,6 +202,7 @@ class TopGlowBackdrop extends SingleChildRenderObjectWidget {
       image: scope?.image,
       frame: scope?.frame ?? Size.zero,
       origin: scope?.origin,
+      opacity: scope?.opacity,
       fadeExtent: fadeExtent,
       fadeWhenPinned: fadeWhenPinned,
     );
@@ -160,6 +219,7 @@ class TopGlowBackdrop extends SingleChildRenderObjectWidget {
       ..image = scope?.image
       ..frame = scope?.frame ?? Size.zero
       ..origin = scope?.origin
+      ..opacity = scope?.opacity
       ..fadeExtent = fadeExtent
       ..fadeWhenPinned = fadeWhenPinned;
   }
@@ -206,7 +266,33 @@ class RenderTopGlowBackdrop extends RenderProxyBox {
     required this._origin,
     required this._fadeExtent,
     required this._fadeWhenPinned,
+    this._opacity,
   });
+
+  ValueListenable<double>? _opacity;
+  set opacity(ValueListenable<double>? value) {
+    if (value == _opacity) return;
+    if (attached) _opacity?.removeListener(markNeedsPaint);
+    _opacity = value;
+    if (attached) _opacity?.addListener(markNeedsPaint);
+    markNeedsPaint();
+  }
+
+  /// The glow alpha this copy paints with (follows the main glow's fade).
+  @visibleForTesting
+  double get glowOpacity => _opacity?.value ?? 1;
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _opacity?.addListener(markNeedsPaint);
+  }
+
+  @override
+  void detach() {
+    _opacity?.removeListener(markNeedsPaint);
+    super.detach();
+  }
 
   Color _color;
   set color(Color value) {
@@ -278,12 +364,15 @@ class RenderTopGlowBackdrop extends RenderProxyBox {
       ..drawRect(area, Paint()..color = _color);
     final image = _image;
     final glow = glowOffset;
-    if (image != null && glow != null) {
+    final alpha = glowOpacity;
+    if (image != null && glow != null && alpha > 0) {
       canvas.drawImageRect(
         image,
         Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
         (offset + glow) & _frame,
-        Paint()..filterQuality = FilterQuality.low,
+        Paint()
+          ..filterQuality = FilterQuality.low
+          ..color = Color.fromRGBO(0, 0, 0, alpha),
       );
     }
     canvas.restore();
@@ -378,12 +467,17 @@ class TopGlowRaster {
 }
 
 class _GlowPainter extends CustomPainter {
-  _GlowPainter(this.image);
+  _GlowPainter(this.image, this.opacity) : super(repaint: opacity);
 
   final ui.Image image;
 
+  /// Repaint-only fade (scroll): the cached image is drawn with this alpha.
+  final ValueListenable<double> opacity;
+
   @override
   void paint(Canvas canvas, Size size) {
+    final alpha = opacity.value;
+    if (alpha <= 0) return;
     final image = this.image;
     final src = Rect.fromLTWH(
       0,
@@ -395,10 +489,13 @@ class _GlowPainter extends CustomPainter {
       image,
       src,
       Offset.zero & size,
-      Paint()..filterQuality = FilterQuality.low,
+      Paint()
+        ..filterQuality = FilterQuality.low
+        ..color = Color.fromRGBO(0, 0, 0, alpha),
     );
   }
 
   @override
-  bool shouldRepaint(_GlowPainter old) => old.image != image;
+  bool shouldRepaint(_GlowPainter old) =>
+      old.image != image || old.opacity != opacity;
 }
