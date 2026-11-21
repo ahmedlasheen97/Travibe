@@ -123,34 +123,11 @@ Future<void> openNotificationDestination(
         body: const BuddiesScreen(),
       );
     case NotificationTargetKind.story:
-      final story = content.story!;
-      final group = StoryGroup.fromJson({
-        'user': {
-          'id': story.userId,
-          'name': story.user.name,
-          'avatar_url': story.user.avatarUrl,
-        },
-        'has_unseen': !story.hasSeen,
-        'stories': [
-          {
-            'id': story.id,
-            'thumbnail_url': story.media.thumbnailUrl,
-            'created_at': story.createdAt?.toIso8601String(),
-            'expires_at': story.expiresAt!.toIso8601String(),
-            'views_count': story.viewsCount,
-            'has_seen': story.hasSeen,
-          },
-        ],
-      });
-      screen = StoryViewerScreen(
-        groups: [group],
-        initialAuthorId: story.userId,
-        repo: stories,
+      screen = storyViewerDestination(
+        context,
+        content.story!,
+        stories: stories,
         blocks: blocks,
-        follow: context.read<FollowCubit?>(),
-        currentUserId: int.tryParse(
-          context.read<CurrentUserCubit?>()?.state.profile?.id ?? '',
-        ),
       );
   }
   if (!context.mounted) return;
@@ -163,6 +140,44 @@ Future<void> openNotificationDestination(
         context,
         _NotificationDestinationGuard(session: session, child: screen),
       ),
+    ),
+  );
+}
+
+/// Single-story viewer for a loaded [story]; shared by notifications and
+/// chat story-reply cards. Reads Follow/CurrentUser cubits from [context].
+Widget storyViewerDestination(
+  BuildContext context,
+  StoryDetail story, {
+  StoriesRepo? stories,
+  BlockCubit? blocks,
+}) {
+  final group = StoryGroup.fromJson({
+    'user': {
+      'id': story.userId,
+      'name': story.user.name,
+      'avatar_url': story.user.avatarUrl,
+    },
+    'has_unseen': !story.hasSeen,
+    'stories': [
+      {
+        'id': story.id,
+        'thumbnail_url': story.media.thumbnailUrl,
+        'created_at': story.createdAt?.toIso8601String(),
+        'expires_at': story.expiresAt!.toIso8601String(),
+        'views_count': story.viewsCount,
+        'has_seen': story.hasSeen,
+      },
+    ],
+  });
+  return StoryViewerScreen(
+    groups: [group],
+    initialAuthorId: story.userId,
+    repo: stories,
+    blocks: blocks,
+    follow: context.read<FollowCubit?>(),
+    currentUserId: int.tryParse(
+      context.read<CurrentUserCubit?>()?.state.profile?.id ?? '',
     ),
   );
 }

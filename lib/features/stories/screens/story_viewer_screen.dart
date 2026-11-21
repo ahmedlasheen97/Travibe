@@ -237,6 +237,35 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     }
   }
 
+  /// Sends a story reply; true when it was sent. The story stays paused while
+  /// the request runs, even if the field loses focus.
+  Future<bool> _sendReply(StoryDetail detail, String text) async {
+    if (_closing) return false;
+    _viewer.pause(true, reason: 'reply-send');
+    try {
+      await _repo.reply(detail.id, text);
+      if (mounted && !_closing) {
+        TravibeToast.show(
+          context,
+          const TravibeToastData.success('Reply sent'),
+        );
+      }
+      return true;
+    } catch (error) {
+      if (mounted && !_closing) {
+        TravibeToast.show(
+          context,
+          TravibeToastData.error(
+            error is StoryReplyError ? error.message : StoryReplyError.fallback,
+          ),
+        );
+      }
+      return false;
+    } finally {
+      _viewer.pause(false, reason: 'reply-send');
+    }
+  }
+
   bool _ownerSheetOpen = false;
   Future<void> _ownerAction({required bool viewers}) async {
     if (_ownerSheetOpen || !_viewer.ownsCurrent || _viewer.deleting) return;
@@ -557,6 +586,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                                     key: ValueKey(state.detail!.id),
                                     storyId: state.detail!.id,
                                     onActiveChanged: _replyFocus,
+                                    onSend: (text) =>
+                                        _sendReply(state.detail!, text),
                                   ),
                                 ),
                                 const SizedBox(width: 8),

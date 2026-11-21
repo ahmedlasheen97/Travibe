@@ -41,6 +41,14 @@ class OwnerRepo extends StoriesRepo {
   Future<StoryDetail> Function(int)? detailHandler;
   Future<StoryViewersPage> Function(int)? viewersHandler;
   Future<StoriesPage> Function(int)? groupsHandler;
+  final replies = <(int, String)>[];
+  Future<void> Function(int, String)? replyHandler;
+  @override
+  Future<void> reply(int id, String text) async {
+    replies.add((id, text));
+    await replyHandler?.call(id, text);
+  }
+
   @override
   Future<StoryDetail> getStory(int id) async {
     if (detailHandler != null) return detailHandler!(id);

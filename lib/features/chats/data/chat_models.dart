@@ -119,14 +119,21 @@ class ChatConversation {
     final other = chatObject(json['other_user']);
     final snapshot = chatObject(json['last_message']);
     final last = snapshot == null ? null : ChatLastMessage.fromJson(snapshot);
+    final participant = other == null
+        ? const ChatParticipant(id: '', name: 'Unavailable user')
+        : ChatParticipant.fromJson(other);
     return ChatConversation(
       id: chatId(json['id']),
-      participant: other == null
-          ? const ChatParticipant(id: '', name: 'Unavailable user')
-          : ChatParticipant.fromJson(other),
+      participant: participant,
       lastMessage: last,
       preview: last?.isDeleted == true
           ? ''
+          : last?.storyExpiresAt != null
+          ? storyReplyLabel(
+              incoming:
+                  participant.id.isNotEmpty && last!.senderId == participant.id,
+              available: true,
+            )
           : last?.type == 'post'
           ? 'Shared a post'
           : last?.body ??
@@ -173,6 +180,8 @@ class ChatLastMessage {
       durationMs = chatCount(json['duration_ms']),
       postId = json['post_id'] == null ? null : chatId(json['post_id']),
       sharedPost = ChatSharedPost.tryParse(json['post']),
+      story = ChatSharedStory.tryParse(json['story']),
+      storyExpiresAt = chatDate(json['story_expires_at']),
       isDeleted = chatBool(json['is_deleted']),
       deliveredAt = chatDate(json['delivered_at']),
       readAt = chatDate(json['read_at']),
@@ -186,6 +195,12 @@ class ChatLastMessage {
   /// Shared post ID for `post` messages; kept when [sharedPost] is null.
   final String? postId;
   final ChatSharedPost? sharedPost;
+
+  /// Story card of a story reply; null once the viewer can't open it.
+  final ChatSharedStory? story;
+
+  /// Non-null marks a story reply; kept after the story is gone.
+  final DateTime? storyExpiresAt;
   final bool? isDeleted;
   final DateTime? deliveredAt, readAt, createdAt, updatedAt, deletedAt;
 }
@@ -231,6 +246,44 @@ class ChatSharedPost {
   }
 }
 
+/// Compact story card on a story reply (`SharedStoryResource`). Null on a
+/// message when the viewer may no longer open the story.
+class ChatSharedStory {
+  const ChatSharedStory({
+    required this.id,
+    required this.userId,
+    this.thumbnailUrl,
+    this.expiresAt,
+    this.isReshare = false,
+  });
+  final String id, userId;
+  final Uri? thumbnailUrl;
+  final DateTime? expiresAt;
+  final bool isReshare;
+
+  /// Returns null for a missing card; throws for a malformed one.
+  static ChatSharedStory? tryParse(Object? value) {
+    final json = chatObject(value);
+    if (json == null) return null;
+    return ChatSharedStory(
+      id: chatId(json['id']),
+      userId: chatId(json['user_id']),
+      thumbnailUrl: chatHttpsUri(json['thumbnail_url']),
+      expiresAt: chatDate(json['expires_at']),
+      isReshare: chatBool(json['is_reshare']) == true,
+    );
+  }
+}
+
+/// Label shown on a story reply. [incoming] is true for the story owner (the
+/// message came from the other person).
+String storyReplyLabel({required bool incoming, required bool available}) =>
+    !available
+    ? 'Story unavailable'
+    : incoming
+    ? 'Replied to your story'
+    : 'You replied to their story';
+
 enum ChatMessageKind { text, image, audio, video, post, unsupported }
 
 enum ChatDelivery { sending, sent, delivered, seen, failed }
@@ -258,6 +311,8 @@ class ChatMessage {
     this.replyTo,
     this.postId,
     this.sharedPost,
+    this.story,
+    this.storyExpiresAt,
   });
   final String id, senderId, text;
   final ChatMessageKind kind;
@@ -276,6 +331,20 @@ class ChatMessage {
   /// null so the bubble can show "Post unavailable".
   final String? postId;
   final ChatSharedPost? sharedPost;
+
+  /// Story card of a story reply; null once the viewer can't open the story.
+  final ChatSharedStory? story;
+
+  /// Non-null marks a story reply; kept after the story is gone.
+  final DateTime? storyExpiresAt;
+
+  bool get isStoryReply => storyExpiresAt != null;
+
+  /// The story can still be shown: the card is present and not expired.
+  /// Expiry doesn't touch the message, so this is checked against [now].
+  bool storyAvailable(DateTime now) =>
+      story != null && storyExpiresAt != null && now.isBefore(storyExpiresAt!);
+
   ChatMessage asDeleted() => ChatMessage(
     id: id,
     senderId: senderId,
@@ -348,6 +417,8 @@ class ChatMessage {
           ? null
           : chatId(json['post_id']),
       sharedPost: deleted ? null : ChatSharedPost.tryParse(json['post']),
+      story: deleted ? null : ChatSharedStory.tryParse(json['story']),
+      storyExpiresAt: deleted ? null : chatDate(json['story_expires_at']),
       text: deleted ? '' : chatString(json['body']) ?? '',
       createdAt: chatDate(json['created_at']),
       updatedAt: chatDate(json['updated_at']),
@@ -459,6 +530,8 @@ ChatMessage reconcileChatMessage(ChatMessage existing, ChatMessage incoming) {
     replyTo: selected.replyTo,
     postId: selected.postId,
     sharedPost: selected.sharedPost,
+    story: selected.story,
+    storyExpiresAt: selected.storyExpiresAt,
     deliveredAt: delivered,
     readAt: read,
     delivery: read != null

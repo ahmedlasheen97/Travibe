@@ -3,15 +3,21 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/stories/widgets/story_glass.dart';
 
-/// Ephemeral, current-story UI only. No repository, persistence or send action.
+/// Reply field for the current story. Not persisted; [onSend] does the
+/// request and returns true when the reply was sent (the text is then
+/// cleared). On false the text stays so the user can try again.
 class StoryReplyComposer extends StatefulWidget {
   const StoryReplyComposer({
     super.key,
     required this.storyId,
     required this.onActiveChanged,
+    this.onSend,
   });
   final int storyId;
   final ValueChanged<bool> onActiveChanged;
+
+  /// Null hides the send button.
+  final Future<bool> Function(String text)? onSend;
   @override
   State<StoryReplyComposer> createState() => _StoryReplyComposerState();
 }
@@ -22,6 +28,26 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
   final _focus = FocusNode();
   final _session = PreferencesManager();
   bool _keyboardVisible = false;
+  bool _sending = false;
+  int _sendGeneration = 0;
+
+  bool get _canSend =>
+      widget.onSend != null && !_sending && _text.text.trim().isNotEmpty;
+
+  Future<void> _send() async {
+    if (!_canSend) return;
+    final generation = ++_sendGeneration;
+    setState(() => _sending = true);
+    final sent = await widget.onSend!(_text.text.trim());
+    // A story or account change while sending already reset the field.
+    if (!mounted || generation != _sendGeneration) return;
+    setState(() => _sending = false);
+    if (sent) {
+      _text.clear();
+      _focus.unfocus();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -36,6 +62,8 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
   }
 
   void _sessionChanged() {
+    _sendGeneration++;
+    _sending = false;
     _text.clear();
     _focus.unfocus();
     if (mounted) setState(() {});
@@ -45,6 +73,8 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
   void didUpdateWidget(covariant StoryReplyComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.storyId != widget.storyId) {
+      _sendGeneration++;
+      _sending = false;
       _text.clear();
       _focus.unfocus();
     }
@@ -84,8 +114,12 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
               fontFamily: 'Plus Jakarta Sans',
               fontSize: 14,
             ),
-            textInputAction: TextInputAction.done,
-            onEditingComplete: _focus.unfocus,
+            readOnly: _sending,
+            maxLength: 5000,
+            textInputAction: widget.onSend == null
+                ? TextInputAction.done
+                : TextInputAction.send,
+            onEditingComplete: widget.onSend == null ? _focus.unfocus : _send,
             onTapOutside: (_) => _focus.unfocus(),
             onChanged: (_) => setState(() {}),
             decoration: InputDecoration(
@@ -95,6 +129,7 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
                 fontFamily: 'Plus Jakarta Sans',
                 fontSize: 14,
               ),
+              counterText: '',
               filled: false,
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -114,33 +149,33 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
                 ),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 36),
-             suffixIcon: _focus.hasFocus
-              ? IconButton(
-          tooltip: 'Send message (coming soon)',
-          icon: SvgPicture.asset(
-            'assets/images/interactions/send.svg',
-            width: 20,
-            height: 20,
-          ),
-          onPressed: null, // Disabled until Story Reply API is ready
-                )
-              : null,
+              suffixIcon: _focus.hasFocus && widget.onSend != null
+                  ? _sending
+                        ? const Padding(
+                            padding: EdgeInsets.all(14),
+                            child: SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            ),
+                          )
+                        : IconButton(
+                            key: const ValueKey('story-reply-send'),
+                            tooltip: 'Send reply',
+                            icon: SvgPicture.asset(
+                              'assets/images/interactions/send.svg',
+                              width: 20,
+                              height: 20,
+                            ),
+                            onPressed: _canSend ? _send : null,
+                          )
+                  : null,
             ),
           ),
         ),
       ),
-      if (_focus.hasFocus || _text.text.isNotEmpty)
-        const Padding(
-          padding: EdgeInsets.only(top: 6),
-          child: Text(
-            'Replies are not available yet.',
-            style: TextStyle(
-              fontFamily: 'Plus Jakarta Sans',
-              fontSize: 11,
-              color: Colors.white70,
-            ),
-          ),
-        ),
     ],
   );
 }

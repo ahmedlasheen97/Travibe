@@ -189,6 +189,15 @@ void main() {
         'sent you a message request',
       );
       expect(
+        resolver.description(
+          _item(
+            'message_received',
+            data: {'is_request': true, 'is_story_reply': true},
+          ),
+        ),
+        'replied to your story',
+      );
+      expect(
         resolver.description(_item('story_liked', data: {'others_count': 8})),
         'and 8 others liked your story',
       );

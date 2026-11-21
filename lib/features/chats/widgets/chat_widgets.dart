@@ -14,6 +14,7 @@ import '../cubit/chat_audio_controller.dart';
 import 'chat_video_message.dart';
 import 'chat_post_card.dart';
 import 'package:travibe/features/shares/screens/open_shared_post.dart';
+import 'package:travibe/features/stories/screens/open_shared_story.dart';
 
 class ChatListTile extends StatelessWidget {
   const ChatListTile({
@@ -254,8 +255,21 @@ class ChatMessageBubble extends StatelessWidget {
     this.onDetailsTap,
     this.onRetry,
     this.onOpenPost,
+    this.onOpenStory,
+    this.unavailableStoryIds = const {},
+    this.now,
   });
   final ChatMessage message;
+
+  /// Opens a story-reply's story; defaults to [openSharedStory].
+  final void Function(int storyId)? onOpenStory;
+
+  /// Stories found gone when opened; shown as unavailable before the next
+  /// fetch says so.
+  final Set<String> unavailableStoryIds;
+
+  /// Time for story-reply expiry; null means [DateTime.now].
+  final DateTime? now;
 
   /// Opens a shared post; defaults to [openSharedPost].
   final void Function(int postId)? onOpenPost;
@@ -329,6 +343,8 @@ class ChatMessageBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (message.isStoryReply && !message.isDeleted)
+                        _storyReplyHeader(context),
                       if (message.replyTo != null && !message.isDeleted)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -444,6 +460,72 @@ class ChatMessageBubble extends StatelessWidget {
   Radius get _corner => _isPostCard
       ? Radius.circular(AppSizes.adaptiveRadius(24))
       : const Radius.circular(16);
+
+  /// Label (and thumbnail while the story is viewable) above a story reply.
+  /// Not Figma-verified: reuses the reply-quote styling.
+  Widget _storyReplyHeader(BuildContext context) {
+    final available =
+        message.storyAvailable(now ?? DateTime.now()) &&
+        !unavailableStoryIds.contains(message.story!.id);
+    final thumbnail = available ? message.story!.thumbnailUrl : null;
+    final storyId = available ? int.tryParse(message.story!.id) : null;
+    final open = storyId == null || storyId < 1
+        ? null
+        : () => onOpenStory != null
+              ? onOpenStory!(storyId)
+              : openSharedStory(context, storyId);
+    return Padding(
+      key: ValueKey('chat-story-reply-${message.id}'),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (thumbnail != null) ...[
+            Semantics(
+              button: open != null,
+              label: 'Open story',
+              onTap: open,
+              excludeSemantics: true,
+              child: GestureDetector(
+                key: ValueKey('chat-story-thumbnail-${message.id}'),
+                behavior: HitTestBehavior.opaque,
+                onTap: open,
+                // A failed image's own retry tap must not swallow the open;
+                // it still retries by itself when back online.
+                child: IgnorePointer(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: ChatHistoryImage(
+                      key: ValueKey(thumbnail),
+                      url: thumbnail,
+                      width: 40,
+                      maxHeight: 64,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ] else if (!available) ...[
+            const Icon(
+              Icons.hide_image_outlined,
+              color: Colors.white60,
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+          ],
+          Flexible(
+            child: Text(
+              storyReplyLabel(incoming: !outgoing, available: available),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   VoidCallback? _postOpener(BuildContext context) {
     final id = int.tryParse(message.sharedPost?.id ?? message.postId ?? '');

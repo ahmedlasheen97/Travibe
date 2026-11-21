@@ -40,6 +40,7 @@ import '../cubit/chat_cubit.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import '../widgets/chat_widgets.dart';
+import 'package:travibe/features/stories/screens/open_shared_story.dart';
 
 class ConversationScreen extends StatefulWidget {
   const ConversationScreen({
@@ -53,8 +54,17 @@ class ConversationScreen extends StatefulWidget {
     this.onRequestResolved,
     this.onDeleted,
     this.markReadOnOpen = true,
+    this.loadStory,
+    this.now,
   });
   final ChatConversation conversation;
+
+  /// Loads a story-reply's story before opening it; defaults to
+  /// `StoriesRepo.getStory`.
+  final SharedStoryLoader? loadStory;
+
+  /// Clock for story-reply expiry; defaults to [DateTime.now].
+  final DateTime Function()? now;
 
   /// False when the caller already marked this conversation read.
   final bool markReadOnOpen;
@@ -164,6 +174,65 @@ class _ConversationScreenState extends State<ConversationScreen>
   ChatReverbService? _reverb;
   Animation<double>? _covered;
   Timer? _liveRead;
+
+  /// Stories found gone when tapped; their bubbles show "Story unavailable".
+  final _goneStories = <String>{};
+  bool _openingStory = false;
+  Future<void> _openStory(int id) async {
+    if (_openingStory) return;
+    _openingStory = true;
+    try {
+      await openSharedStory(
+        context,
+        id,
+        load: widget.loadStory,
+        onUnavailable: () {
+          if (mounted) setState(() => _goneStories.add('$id'));
+        },
+      );
+    } finally {
+      _openingStory = false;
+    }
+  }
+
+  /// One timer for the earliest `story_expires_at` among loaded story replies,
+  /// so their label flips to "Story unavailable" on time. Expiry doesn't
+  /// touch the message, so no fetch or event would do it.
+  Timer? _storyExpiry;
+  DateTime? _storyExpiryAt;
+  DateTime _now() => widget.now?.call() ?? DateTime.now();
+  void _scheduleStoryExpiry(Iterable<ChatMessage> messages) {
+    final now = _now();
+    DateTime? next;
+    for (final message in messages) {
+      final at = message.storyExpiresAt;
+      if (message.isDeleted ||
+          message.story == null ||
+          _goneStories.contains(message.story!.id) ||
+          at == null ||
+          !at.isAfter(now)) {
+        continue;
+      }
+      if (next == null || at.isBefore(next)) next = at;
+    }
+    final scheduled = _storyExpiryAt;
+    if (next == scheduled ||
+        next != null && scheduled != null && next.isAtSameMomentAs(scheduled)) {
+      return;
+    }
+    _storyExpiry?.cancel();
+    _storyExpiryAt = next;
+    if (next == null) return;
+    // A little past the instant, so `now.isBefore(expiresAt)` is false.
+    _storyExpiry = Timer(
+      next.difference(now) + const Duration(milliseconds: 20),
+      () {
+        _storyExpiryAt = null;
+        if (mounted) setState(() {});
+      },
+    );
+  }
+
   void _visibility(AnimationStatus _) => _bindConversation();
   void _bindConversation() {
     if (!mounted || !_valid) return;
@@ -502,6 +571,7 @@ class _ConversationScreenState extends State<ConversationScreen>
   void dispose() {
     _covered?.removeStatusListener(_visibility);
     _liveRead?.cancel();
+    _storyExpiry?.cancel();
     _reverb?.removeListener(_presenceChanged);
     _reverb?.conversation(this, null);
     unawaited(_realtime?.cancel() ?? Future.value());
@@ -675,6 +745,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                                     .where((m) => m.isDeleted)
                                     .map((m) => m.id)
                                     .toSet();
+                                _scheduleStoryExpiry(state.items);
                                 return NotificationListener<ScrollNotification>(
                                   onNotification: (event) {
                                     ChatHistoryCache.instance.write(
@@ -859,6 +930,10 @@ class _ConversationScreenState extends State<ConversationScreen>
                                                       : null,
                                                   audio: _audio,
                                                   deletedMessageIds: deletedIds,
+                                                  onOpenStory: _openStory,
+                                                  now: _now(),
+                                                  unavailableStoryIds:
+                                                      _goneStories,
                                                   outgoing:
                                                       message.id.startsWith(
                                                         'local-',
