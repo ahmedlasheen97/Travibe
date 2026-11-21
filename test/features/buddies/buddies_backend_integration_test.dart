@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/datasource/remotedata/dio_client.dart';
 import 'package:travibe/root.dart';
 import 'package:travibe/features/buddies/widgets/buddies_traveler_skeleton.dart';
@@ -603,6 +604,7 @@ void main() {
       expect(find.widgetWithText(InputChip, 'مصر'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
+    skip: !kArabicEnabled, // Arabic is out of the MVP
   );
   test(
     'refresh retains cached search results and failed refresh retries page one',

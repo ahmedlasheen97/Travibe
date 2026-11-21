@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/error_retry_view.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:travibe/features/onboarding/data/models/app_locale.dart';
 import 'package:travibe/features/onboarding/data/onboarding_repo.dart';
+
+// Arabic is hidden, not shown disabled, while it is out of the MVP.
+bool _hiddenForMvp(String code) => code == 'ar' && !kArabicEnabled;
 
 class LanguageButton extends StatelessWidget {
   const LanguageButton({super.key, this.repo, this.onChanged});
@@ -40,39 +44,40 @@ class LanguageButton extends StatelessWidget {
                 return ListView(
                   children: [
                     for (final locale in snapshot.data!.locales)
-                      ListTile(
-                        enabled: !saving && locale.supported,
-                        title: Directionality(
-                          textDirection: locale.rtl
-                              ? TextDirection.rtl
-                              : TextDirection.ltr,
-                          child: Text(locale.name),
-                        ),
-                        trailing: preferences.getLanguage() == locale.code
-                            ? const Icon(Icons.check)
-                            : null,
-                        onTap: () async {
-                          if (saving || !locale.supported) return;
-                          update(() => saving = true);
-                          try {
-                            await preferences.saveLanguage(locale.code);
-                            if (context.mounted) {
-                              Navigator.of(context).pop(true);
-                            }
-                          } catch (_) {
-                            if (context.mounted) {
-                              update(() => saving = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Unable to save language. Please retry.',
+                      if (locale.supported || !_hiddenForMvp(locale.code))
+                        ListTile(
+                          enabled: !saving && locale.supported,
+                          title: Directionality(
+                            textDirection: locale.rtl
+                                ? TextDirection.rtl
+                                : TextDirection.ltr,
+                            child: Text(locale.name),
+                          ),
+                          trailing: preferences.getLanguage() == locale.code
+                              ? const Icon(Icons.check)
+                              : null,
+                          onTap: () async {
+                            if (saving || !locale.supported) return;
+                            update(() => saving = true);
+                            try {
+                              await preferences.saveLanguage(locale.code);
+                              if (context.mounted) {
+                                Navigator.of(context).pop(true);
+                              }
+                            } catch (_) {
+                              if (context.mounted) {
+                                update(() => saving = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Unable to save language. Please retry.',
+                                    ),
                                   ),
-                                ),
-                              );
+                                );
+                              }
                             }
-                          }
-                        },
-                      ),
+                          },
+                        ),
                   ],
                 );
               },

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/auth/screens/login_screen.dart';
 import 'package:flutter/services.dart';
@@ -159,6 +160,7 @@ void main() {
       expect(preferences.onboardingCompleted, false);
       await tester.pumpWidget(const SizedBox());
     },
+    skip: !kArabicEnabled, // Arabic is out of the MVP
   );
   testWidgets(
     'API failure offers retry and explicit skip without automatic completion',

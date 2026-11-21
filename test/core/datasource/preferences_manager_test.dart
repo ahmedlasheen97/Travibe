@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -43,6 +44,7 @@ void main() {
       expect(preferences.getString('private_history'), isNull);
       expect(preferences.sessionRevision, before + 1);
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'token changes preserve chosen language and reset account currency',
@@ -67,6 +69,7 @@ void main() {
       await preferences.completeOnboarding();
       expect(notifications, 1);
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'only current account can apply confirmed locale and currency',
@@ -90,6 +93,7 @@ void main() {
       expect(preferences.language.value, 'en');
       expect(preferences.currency.value, 'EUR');
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'late clear completion cannot remove a new session or its currency',

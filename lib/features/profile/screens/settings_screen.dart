@@ -25,6 +25,7 @@ import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:travibe/features/profile/screens/report_problem_screen.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
 import 'package:travibe/features/profile/widgets/language_bottom_sheet.dart';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/features/profile/widgets/logout_dialog_widget.dart';
 import '../cubit/current_user_cubit.dart';
 import 'package:travibe/features/buddies/widgets/show_in_buddies_sheet.dart';
@@ -227,11 +228,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Language',
                     detail: state.saving == 'locale'
                         ? 'Saving…'
-                        : profile?.locale == 'ar'
+                        : profile?.locale == null
+                        ? null
+                        : effectiveAppLanguage(profile!.locale) == 'ar'
                         ? 'العربية'
-                        : profile?.locale == 'en'
-                        ? 'English'
-                        : null,
+                        : 'English',
                     onTap: !ready || _saving
                         ? null
                         : () async {

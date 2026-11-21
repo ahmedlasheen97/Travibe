@@ -1,10 +1,12 @@
+import 'package:travibe/core/constants/app_languages.dart';
+
 class AppLocale {
   const AppLocale({required this.code, required this.name, required this.rtl});
   final String code, name;
   final bool rtl;
 
-  // These are the app's installed Material localization resources.
-  bool get supported => const {'en', 'ar'}.contains(code);
+  // Installed Material localizations the app may run in (Arabic gated).
+  bool get supported => kAppLanguageCodes.contains(code);
 }
 
 class LocaleCatalog {

@@ -1,6 +1,7 @@
 import 'package:travibe/features/chats/widgets/chat_reverb_host.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/routing/router_generator.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
@@ -54,8 +55,13 @@ class MyApp extends StatelessWidget {
           title: 'Travibe',
           theme: darkTheme,
           routerConfig: router ?? RouterGenerator.router,
-          locale: Locale(language),
-          supportedLocales: const [Locale('en'), Locale('ar')],
+          // The app language is always explicit, never the phone's locale.
+          locale: Locale(effectiveAppLanguage(language)),
+          supportedLocales: [
+            for (final code in kAppLanguageCodes) Locale(code),
+          ],
+          localeResolutionCallback: (_, _) =>
+              Locale(effectiveAppLanguage(language)),
           localizationsDelegates: GlobalMaterialLocalizations.delegates,
         ),
       ),
