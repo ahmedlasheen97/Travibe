@@ -22,34 +22,26 @@ class EmailExistsDialog extends StatelessWidget {
   Widget build(BuildContext context) => Dialog(
     backgroundColor: Colors.transparent,
     surfaceTintColor: Colors.transparent,
-    insetPadding: EdgeInsets.symmetric(
-      horizontal: AppSizes.adaptiveWidth(24),
-      vertical: AppSizes.adaptiveHeight(20),
-    ),
+    insetPadding: AppSizes.authDialogInset,
     child: ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: AppSizes.adaptiveWidth(340)),
+      constraints: BoxConstraints(maxWidth: AppSizes.authDialogMaxWidth),
       child: GlassSurface(
-        radius: AppSizes.adaptiveRadius(30),
+        radius: AppSizes.authDialogRadius,
         opacity: .82,
         surfaceKey: const ValueKey('email-exists-glass'),
         child: SingleChildScrollView(
           child: Padding(
-            padding: EdgeInsets.fromLTRB(
-              AppSizes.adaptiveWidth(24),
-              AppSizes.adaptiveHeight(24),
-              AppSizes.adaptiveWidth(24),
-              AppSizes.adaptiveHeight(16),
-            ),
+            padding: AppSizes.authDialogPadding,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 SvgPicture.asset(
                   warningAsset,
-                  width: AppSizes.adaptiveRadius(80),
-                  height: AppSizes.adaptiveRadius(80),
+                  width: AppSizes.authDialogArtSize,
+                  height: AppSizes.authDialogArtSize,
                   excludeFromSemantics: true,
                 ),
-                SizedBox(height: AppSizes.adaptiveHeight(18)),
+                SizedBox(height: AppSizes.authDialogArtGap),
                 Semantics(
                   header: true,
                   child: Text(
@@ -57,22 +49,22 @@ class EmailExistsDialog extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: AppSizes.adaptiveFont(20),
+                      fontSize: AppSizes.authDialogTitleFont,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
-                SizedBox(height: AppSizes.adaptiveHeight(12)),
+                SizedBox(height: AppSizes.authDialogTitleGap),
                 Text(
                   'An account with this email exists. Please log in or use another email.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: DarkColors.greyColor,
-                    fontSize: AppSizes.adaptiveFont(14),
+                    fontSize: AppSizes.authDialogBodyFont,
                     height: 1.5,
                   ),
                 ),
-                SizedBox(height: AppSizes.adaptiveHeight(24)),
+                SizedBox(height: AppSizes.authDialogActionsGap),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton(
@@ -83,16 +75,13 @@ class EmailExistsDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       shape: ActionButtonStyle.shape,
                       textStyle: ActionButtonStyle.label,
-                      minimumSize: Size(0, 48),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
+                      minimumSize: Size(0, AppSizes.buttonHeight),
+                      padding: AppSizes.authDialogButtonPadding,
                     ),
                     child: Text('Log In Instead', textAlign: TextAlign.center),
                   ),
                 ),
-                SizedBox(height: AppSizes.adaptiveHeight(8)),
+                SizedBox(height: AppSizes.authDialogButtonGap),
                 SizedBox(
                   width: double.infinity,
                   child: TextButton(
@@ -102,7 +91,7 @@ class EmailExistsDialog extends StatelessWidget {
                       foregroundColor: Colors.white,
                       shape: ActionButtonStyle.shape,
                       textStyle: ActionButtonStyle.label,
-                      minimumSize: Size(0, 48),
+                      minimumSize: Size(0, AppSizes.buttonHeight),
                     ),
                     child: Text(
                       'Try Another Email',

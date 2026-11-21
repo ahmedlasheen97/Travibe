@@ -11,19 +11,19 @@ class CustomOrLoginWidget extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         const Expanded(child: Divider(color: DarkColors.greyColor)),
-        SizedBox(width: AppSizes.adaptiveWidth(12)),
+        SizedBox(width: AppSizes.authDividerGap),
         Flexible(
           flex: 3,
           child: Text(
             "Or Login With",
             style: TextStyle(
-              fontSize: AppSizes.adaptiveFont(16),
+              fontSize: AppSizes.authBodyFont,
               fontWeight: FontWeight.w400,
               color: DarkColors.greyColor,
             ),
           ),
         ),
-        SizedBox(width: AppSizes.adaptiveWidth(12)),
+        SizedBox(width: AppSizes.authDividerGap),
         const Expanded(child: Divider(color: DarkColors.greyColor)),
       ],
     );

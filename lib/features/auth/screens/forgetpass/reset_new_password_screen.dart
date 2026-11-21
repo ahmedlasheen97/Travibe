@@ -1,6 +1,7 @@
 import 'package:travibe/core/constants/app_sizes.dart';
-import 'package:travibe/core/theme/action_button_style.dart';
-import 'package:travibe/core/widgets/back_button_widget.dart';
+import 'package:travibe/core/widgets/custom_button.dart';
+import 'package:travibe/features/auth/widgets/auth_heading.dart';
+import 'package:travibe/features/auth/widgets/auth_page.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
@@ -141,121 +142,70 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: DarkColors.backgroundColor,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: AppSizes.adaptiveWidth(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: AppSizes.adaptiveHeight(8)),
-                const BackButtonWidget(),
-                SizedBox(height: AppSizes.adaptiveHeight(40)),
-                Center(
-                  child: Text(
-                    'Verify your email',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: AppSizes.adaptiveFont(22),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                SizedBox(height: AppSizes.adaptiveHeight(12)),
-                Center(
-                  child: Column(
-                    children: [
-                      Text(
-                        'Please enter the 4-digit code we sent to your email',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.6),
-                          fontSize: AppSizes.adaptiveFont(14),
-                        ),
-                      ),
-                      SizedBox(height: AppSizes.adaptiveHeight(4)),
-                      Text(
-                        _maskedEmail,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: AppSizes.adaptiveFont(14),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: AppSizes.adaptiveHeight(40)),
-                Center(
-                  child: MaterialPinField(
-                    length: 4,
-                    pinController: _pinController,
-                    autoFocus: true,
-                    onChanged: (value) => _enteredOtp = value,
-                    onCompleted: (value) {
-                      _enteredOtp = value;
-                      _verify();
-                    },
-                    theme: MaterialPinTheme(
-                      shape: MaterialPinShape.circle,
-                      cellSize: Size.square(AppSizes.adaptiveRadius(60)),
-                      spacing: AppSizes.adaptiveWidth(16),
-                      borderWidth: 1,
-                      focusedBorderWidth: 1.5,
-                      borderColor: const Color(0xFF2E2E2E),
-                      focusedBorderColor: DarkColors.primaryColor,
-                      filledBorderColor: DarkColors.primaryColor,
-                      fillColor: const Color(0xFF1C1C1C),
-                      focusedFillColor: const Color(0xFF1C1C1C),
-                      filledFillColor: const Color(0xFF1C1C1C),
-                      textStyle: TextStyle(
-                        color: Colors.white,
-                        fontSize: AppSizes.adaptiveFont(22),
-                        fontWeight: FontWeight.w600,
-                      ),
-                      // Error state is a thin danger border, never a fill.
-                      cursorColor: Colors.white,
-                      errorColor: DarkColors.dangerColor,
-                      errorFillColor: const Color(0xFF1C1C1C),
-                      enableErrorShake: false,
-                    ),
-                  ),
-                ),
-                SizedBox(height: AppSizes.adaptiveHeight(40)),
-                _buildVerifyButton(),
-                SizedBox(height: AppSizes.adaptiveHeight(24)),
-                Center(child: _buildResendRow()),
-              ],
+    return AuthPage.recovery(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AuthHeading.small(
+            'Verify your email',
+            subtitle: 'Please enter the 4-digit code we sent to your email',
+          ),
+          SizedBox(height: AppSizes.authSubtitleGap),
+          SizedBox(
+            width: double.infinity,
+            child: Text(
+              _maskedEmail,
+              textAlign: TextAlign.center,
+              style: AuthHeading.smallSubtitleStyle.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVerifyButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: AppSizes.adaptiveHeight(56).clamp(56, 64),
-      child: ElevatedButton(
-        onPressed: _isVerifying || _attempts.locked ? null : _verify,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: DarkColors.primaryColor,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          shape: ActionButtonStyle.shape,
-        ),
-        child: _isVerifying
-            ? SizedBox(
-                width: AppSizes.adaptiveRadius(22),
-                height: AppSizes.adaptiveRadius(22),
-                child: CircularProgressIndicator(strokeWidth: 2.5),
-              )
-            : Text('Verify', style: ActionButtonStyle.label),
+          SizedBox(height: AppSizes.authTitleGap),
+          Center(
+            child: MaterialPinField(
+              length: 4,
+              pinController: _pinController,
+              autoFocus: true,
+              onChanged: (value) => _enteredOtp = value,
+              onCompleted: (value) {
+                _enteredOtp = value;
+                _verify();
+              },
+              theme: MaterialPinTheme(
+                shape: MaterialPinShape.circle,
+                cellSize: Size.square(AppSizes.authPinCellSize),
+                spacing: AppSizes.authPinSpacing,
+                borderWidth: AppSizes.authPinBorderWidth,
+                focusedBorderWidth: AppSizes.authPinFocusedBorderWidth,
+                borderColor: const Color(0xFF2E2E2E),
+                focusedBorderColor: DarkColors.primaryColor,
+                filledBorderColor: DarkColors.primaryColor,
+                fillColor: const Color(0xFF1C1C1C),
+                focusedFillColor: const Color(0xFF1C1C1C),
+                filledFillColor: const Color(0xFF1C1C1C),
+                textStyle: TextStyle(
+                  color: Colors.white,
+                  fontSize: AppSizes.authPinFont,
+                  fontWeight: FontWeight.w600,
+                ),
+                // Error state is a thin danger border, never a fill.
+                cursorColor: Colors.white,
+                errorColor: DarkColors.dangerColor,
+                errorFillColor: const Color(0xFF1C1C1C),
+                enableErrorShake: false,
+              ),
+            ),
+          ),
+          SizedBox(height: AppSizes.authActionGap),
+          CustomButton(
+            title: _isVerifying ? 'Verifying...' : 'Verify',
+            onPressed: _isVerifying || _attempts.locked ? null : _verify,
+          ),
+          SizedBox(height: AppSizes.authActionGap),
+          Center(child: _buildResendRow()),
+        ],
       ),
     );
   }
@@ -271,14 +221,14 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
               "Didn't get OTP? ",
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
-                fontSize: AppSizes.adaptiveFont(14),
+                fontSize: AppSizes.authCaptionFont,
               ),
             ),
             TextButton(
               onPressed: _resendOtp,
               style: TextButton.styleFrom(
                 padding: EdgeInsets.symmetric(
-                  horizontal: AppSizes.adaptiveWidth(2),
+                  horizontal: AppSizes.authResendPadding,
                 ),
                 minimumSize: const Size(
                   kMinInteractiveDimension,
@@ -291,19 +241,19 @@ class _ResetPasswordOtpScreenState extends State<ResetPasswordOtpScreen> {
                   color: _canResend
                       ? DarkColors.primaryColor
                       : DarkColors.primaryColor.withValues(alpha: 0.4),
-                  fontSize: AppSizes.adaptiveFont(14),
+                  fontSize: AppSizes.authCaptionFont,
                   fontWeight: FontWeight.w600,
                 ),
               ),
             ),
           ],
         ),
-        SizedBox(height: AppSizes.adaptiveHeight(6)),
+        SizedBox(height: AppSizes.authTimerGap),
         Text(
           _formattedTime,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.6),
-            fontSize: AppSizes.adaptiveFont(14),
+            fontSize: AppSizes.authCaptionFont,
           ),
         ),
       ],

@@ -54,7 +54,7 @@ class _TermsAndPrivacyCheckboxState extends State<TermsAndPrivacyCheckbox> {
     final style = TextStyle(
       fontFamily: 'Plus Jakarta Sans',
       color: Colors.white,
-      fontSize: AppSizes.adaptiveFont(14),
+      fontSize: AppSizes.authCaptionFont,
       fontWeight: FontWeight.w500,
       height: 1.4,
     );
@@ -76,11 +76,16 @@ class _TermsAndPrivacyCheckboxState extends State<TermsAndPrivacyCheckbox> {
                 setState(() => isChecked = value ?? false);
                 widget.onChanged?.call(isChecked);
               },
-              side: const BorderSide(color: Color(0xFFD3D1CF), width: 2),
+              side: const BorderSide(
+                color: Color(0xFFD3D1CF),
+                width: AppSizes.authCheckboxBorderWidth,
+              ),
               activeColor: const Color(0xFFE45C10),
               checkColor: Colors.white,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSizes.adaptiveRadius(2)),
+                borderRadius: BorderRadius.circular(
+                  AppSizes.authCheckboxRadius,
+                ),
               ),
             ),
           ),

@@ -12,7 +12,10 @@ abstract final class PasswordEye {
   /// Shown while the password is hidden.
   static const hidden = 'assets/images/icons/eye_slash.svg';
 
-  static Widget icon({required bool obscured, double size = 24}) =>
+  static Widget icon({
+    required bool obscured,
+    double size = AppSizes.fieldIconSize,
+  }) =>
       SvgPicture.asset(obscured ? hidden : visible, width: size, height: size);
 }
 
@@ -103,7 +106,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
   }
 
   Widget _eye() => SizedBox.square(
-    dimension: 48,
+    dimension: AppSizes.fieldEyeTapSize,
     child: Tooltip(
       message: _visible ? 'Hide password' : 'Show password',
       excludeFromSemantics: true,
@@ -113,11 +116,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
           onPressed: widget.enabled ? _toggle : null,
           icon: ExcludeSemantics(
             child: SizedBox.square(
-              dimension: 24,
+              dimension: AppSizes.fieldIconSize,
               child: SvgPicture.asset(
                 _visible ? PasswordEye.visible : PasswordEye.hidden,
-                width: 24,
-                height: 24,
+                width: AppSizes.fieldIconSize,
+                height: AppSizes.fieldIconSize,
               ),
             ),
           ),
@@ -133,7 +136,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
       children: [
         if (widget.title.isNotEmpty) ...[
           Text(widget.title, style: AppStyles.smallSubtitlesStyles),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSizes.fieldLabelGap),
         ],
 
         TextFormField(
@@ -152,7 +155,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
           autofocus: widget.autofocus,
           textCapitalization: widget.textCapitalization,
 
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: AppSizes.fieldFont,
+          ),
 
           cursorColor: Colors.white,
 
@@ -164,7 +170,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
 
             hintStyle: TextStyle(
               color: Colors.white.withValues(alpha: 0.55),
-              fontSize: 16,
+              fontSize: AppSizes.fieldFont,
             ),
 
             // Material 3 adds 4px after prefixIcon. Count it toward the gap,
@@ -179,14 +185,16 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 ? null
                 : Padding(
                     padding: widget.prefixIcon == null
-                        ? const EdgeInsets.all(16)
+                        ? const EdgeInsets.all(AppSizes.fieldPadding)
                         : EdgeInsetsDirectional.fromSTEB(
-                            16,
-                            16,
-                            (AppSizes.adaptiveWidth(8) -
-                                    (Theme.of(context).useMaterial3 ? 4 : 0))
+                            AppSizes.fieldPadding,
+                            AppSizes.fieldPadding,
+                            (AppSizes.fieldIconGap -
+                                    (Theme.of(context).useMaterial3
+                                        ? AppSizes.fieldM3PrefixInset
+                                        : 0))
                                 .clamp(0, double.infinity),
-                            16,
+                            AppSizes.fieldPadding,
                           ),
                     child: widget.prefixIcon,
                   ),
@@ -198,7 +206,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
             filled: true,
             fillColor: const Color(0xFF171717),
 
-            contentPadding: const EdgeInsets.all(16),
+            contentPadding: const EdgeInsets.all(AppSizes.fieldPadding),
           ),
         ),
       ],

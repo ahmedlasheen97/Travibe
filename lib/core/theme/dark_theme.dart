@@ -131,25 +131,40 @@ ThemeData darkTheme = ThemeData(
     fillColor: Color(0xFFFFFFFF),
     focusColor: Color(0xFFD1DAD6),
     errorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: DarkColors.dangerColor, width: 0.5),
+      borderRadius: BorderRadius.circular(AppSizes.fieldRadius),
+      borderSide: BorderSide(
+        color: DarkColors.dangerColor,
+        width: AppSizes.fieldBorderWidth,
+      ),
     ),
     focusedErrorBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: DarkColors.dangerColor, width: 0.5),
+      borderRadius: BorderRadius.circular(AppSizes.fieldRadius),
+      borderSide: BorderSide(
+        color: DarkColors.dangerColor,
+        width: AppSizes.fieldBorderWidth,
+      ),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: Color(0xFF595966), width: 0.5),
+      borderRadius: BorderRadius.circular(AppSizes.fieldRadius),
+      borderSide: BorderSide(
+        color: Color(0xFF595966),
+        width: AppSizes.fieldBorderWidth,
+      ),
     ),
     errorStyle: TextStyle(color: DarkColors.dangerColor),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: Color(0xFF595966), width: 0.5),
+      borderRadius: BorderRadius.circular(AppSizes.fieldRadius),
+      borderSide: BorderSide(
+        color: Color(0xFF595966),
+        width: AppSizes.fieldBorderWidth,
+      ),
     ),
     border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(35),
-      borderSide: BorderSide(color: Color(0xFF595966), width: 0.5),
+      borderRadius: BorderRadius.circular(AppSizes.fieldRadius),
+      borderSide: BorderSide(
+        color: Color(0xFF595966),
+        width: AppSizes.fieldBorderWidth,
+      ),
     ),
   ),
   // checkboxTheme: CheckboxThemeData(

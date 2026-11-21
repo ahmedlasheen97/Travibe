@@ -20,7 +20,7 @@ class SocialLoginButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: SizedBox(
-        height: AppSizes.adaptiveHeight(50).clamp(50, 58),
+        height: AppSizes.authSocialButtonHeight,
         child: ElevatedButton(
           onPressed: kEnableSocialAuthentication ? onPressed : null,
           style: ElevatedButton.styleFrom(
@@ -28,7 +28,7 @@ class SocialLoginButton extends StatelessWidget {
             foregroundColor: Colors.white,
             elevation: 0,
             padding: EdgeInsets.symmetric(
-              horizontal: AppSizes.adaptiveWidth(12),
+              horizontal: AppSizes.authSocialButtonPadding,
             ),
             shape: ActionButtonStyle.shape,
           ),
@@ -40,10 +40,10 @@ class SocialLoginButton extends StatelessWidget {
               children: [
                 SvgPicture.asset(
                   iconPath,
-                  width: AppSizes.adaptiveWidth(24),
-                  height: AppSizes.adaptiveHeight(24),
+                  width: AppSizes.authIconSize,
+                  height: AppSizes.authIconSize,
                 ),
-                SizedBox(width: AppSizes.adaptiveWidth(12)),
+                SizedBox(width: AppSizes.authSocialIconGap),
                 Text(
                   title,
                   style: TextStyle(

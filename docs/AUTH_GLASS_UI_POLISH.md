@@ -609,3 +609,49 @@ Logs: `/private/tmp/travibe-auth-cleanup-analysis.log`,
 Layout verification is automated widget rendering; no manual Simulator or live
 authentication verification is claimed. The prior native SwiftPM deployment
 mismatch remains outside this focused UI task; no native files were modified.
+
+## Forgot-password flow matches Login / Sign Up
+
+All six auth screens (Login, Sign Up, Forgot Password, reset code, Create New
+Password and its "Password updated!" view) now share one layout:
+
+- `AuthPage` (`features/auth/widgets/auth_page.dart`): `AuthAppBar` + one
+  `SingleChildScrollView` + `AppSizes.authPagePadding` (8 / 24 top / 8 / 8).
+  Login and Sign Up use the titled bar. Forgot Password, Verify Code, New
+  Password, "Password updated!" and Verify Email use `AuthPage.recovery`: the
+  bar shows only the back button (none on "Password updated!") and the heading
+  sits `AppSizes.authRecoveryHeaderGap` (40) below it. Back rules are unchanged
+  (see `AUTH_BACK_NAVIGATION.md`).
+- `AuthHeading`: `AppStyles.authTitleStyle` title, optional subtitle in
+  `grey16MediumStyle` (16) `AppSizes.authSubtitleGap` (8) below.
+- `AuthHeading.small` (forgot password, reset code, new password, "Password
+  updated!", email verification): title `AppSizes.authSmallTitleFont` (20,
+  same weight/line height as `authTitleStyle`), subtitle
+  `AppSizes.authSmallSubtitleFont` (14) in `DarkColors.greyColor` (#BDBCBB),
+  both centered. The masked email uses the same 14 size, centered, in white.
+  Login and Sign Up keep the 32 left-aligned `AuthHeading`.
+- Spacing tokens: `authTitleGap` 24, `authFieldGap` 20, `authActionGap` 32
+  (Login's values). Sign Up was checked to still fit 390×844 and 375×812 without
+  scrolling, so Sign Up's former 16/16/24 was replaced by these everywhere.
+- Fields are `CustomTextField` (sms/lock icons, `PasswordEye` toggle); main
+  buttons are `CustomButton`. The reset-code Verify button now shows
+  "Verifying..." instead of a spinner, like Login's "Logging in...".
+- The email-verification screen (`OtpVerificationScreen`) uses the same
+  `AuthPage` / `AuthHeading` / `CustomButton` with bar title "Verify Email"
+  (also when opened from Profile → change email). Wrong-code toast, the
+  5-attempt lock and resend are unchanged.
+- Tests: `forgot_password_ui_test.dart`; `auth_responsive_layout_test.dart`
+  checks the heading gap, inset and style on every forgot-password and
+  verification screen.
+
+### Sizes come from AppSizes
+
+Every size on the auth screens and their widgets (`features/auth/widgets/`) is a
+named `AppSizes` token (`auth*`): paddings, gaps, fonts, icons, PIN cells,
+success badge, social buttons, consent checkbox and the "Email already exists"
+dialog. The shared field/button/theme use fixed `field*` / `button*` constants
+with their previous values, so other screens are unchanged. Not tokenised on
+purpose: zeros, elevation, `flex`, `maxLines`, line-height ratios (1.25 / 1.4 /
+1.5), `kMinInteractiveDimension`, colors/alpha and non-size logic (attempts,
+timer, code length). `BackButtonWidget` (44/24) keeps its own app-wide
+constants. `auth_screen_sizes_test.dart` checks 375×667, 390×844 and 430×932.

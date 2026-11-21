@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
@@ -8,7 +9,7 @@ class CustomButton extends StatelessWidget {
     required this.title,
     required this.onPressed,
     this.isOutlined = false,
-    this.height = 48,
+    this.height = AppSizes.buttonHeight,
   });
 
   final String title;

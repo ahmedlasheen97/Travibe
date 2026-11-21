@@ -39,6 +39,14 @@ void main() {
     'Verification': () =>
         const OtpVerificationScreen(email: 'test@example.invalid'),
   };
+  const headings = {
+    'Login': 'Hey,\nWelcome Back!',
+    'Signup': 'Create\nyour account',
+    'Forgot password': 'Forgot your password?',
+    'Reset OTP': 'Verify your email',
+    'New password': 'Create new password',
+    'Verification': 'Verify your email',
+  };
   for (final size in const [
     Size(320, 568),
     Size(375, 667),
@@ -89,21 +97,41 @@ void main() {
               Directionality.of(tester.element(scroll)),
               language == 'ar' ? TextDirection.rtl : TextDirection.ltr,
             );
-            if (screen.key == 'Login' || screen.key == 'Signup') {
-              final heading = find.text(
-                screen.key == 'Login'
-                    ? 'Hey,\nWelcome Back!'
-                    : 'Create\nyour account',
-              );
+            final headingText = headings[screen.key];
+            if (headingText != null) {
+              final heading = find.text(headingText);
               final gap =
                   tester.getTopLeft(heading).dy -
                   tester.getBottomLeft(find.byType(AppBar)).dy;
-              // Login and Sign Up share one heading gap and title style.
-              expect(gap, inInclusiveRange(20.4 - .01, 27.6 + .01));
-              final style = tester.widget<Text>(heading).style!;
+              // Login/Sign Up: 24 under the titled bar, 32 start-aligned title.
+              // Recovery/verify: 40 under a back-only bar, 20 centered title.
+              final big = screen.key == 'Login' || screen.key == 'Signup';
+              final gapSize = big ? 24 : 40;
+              expect(
+                gap,
+                inInclusiveRange(gapSize * .85 - .01, gapSize * 1.15 + .01),
+              );
+              final text = tester.widget<Text>(heading);
+              final style = text.style!;
               expect(style.fontWeight, FontWeight.w700);
               expect(style.height, 1.25);
-              expect(style.fontSize, inInclusiveRange(32 * .9, 32 * 1.1));
+              final size = big ? 32 : 20;
+              expect(style.fontSize, inInclusiveRange(size * .9, size * 1.1));
+              expect(text.textAlign, big ? TextAlign.start : TextAlign.center);
+              // Same horizontal inset as Login/Sign Up (adaptiveWidth(8));
+              // centered headings span the body, so both edges are inset.
+              final scrollLeft = tester.getTopLeft(scroll).dx;
+              final scrollRight = tester.getTopRight(scroll).dx;
+              final inset = language == 'ar'
+                  ? scrollRight - tester.getTopRight(heading).dx
+                  : tester.getTopLeft(heading).dx - scrollLeft;
+              expect(inset, inInclusiveRange(8 * .85 - .01, 8 * 1.15 + .01));
+              if (!big) {
+                expect(
+                  tester.getCenter(heading).dx,
+                  closeTo(tester.getCenter(scroll).dx, .01),
+                );
+              }
             }
             tester.view.viewInsets = const FakeViewPadding(bottom: 270);
             await tester.pump();
