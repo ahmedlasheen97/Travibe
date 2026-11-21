@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 class AppSizes {
@@ -18,6 +19,133 @@ class AppSizes {
       value.r.clamp(value * .85, value * 1.15);
   static double adaptiveFont(double value) =>
       value.sp.clamp(value * .9, value * 1.1);
+
+  // ---------------------------------------------------------------------------
+  // Shared form controls (CustomTextField, CustomButton, input theme). Used
+  // app-wide, so these stay fixed logical sizes rather than adaptive ones.
+  // ---------------------------------------------------------------------------
+  static const double fieldFont = 16;
+  static const double fieldPadding = 16;
+  static const double fieldLabelGap = 8;
+  static const double fieldIconSize = 24;
+  static const double fieldEyeTapSize = 48;
+
+  /// Prefix icon → text gap; Material 3 already adds [fieldM3PrefixInset].
+  static double get fieldIconGap => adaptiveWidth(8);
+  static const double fieldM3PrefixInset = 4;
+  static const double fieldRadius = 35;
+  static const double fieldBorderWidth = 0.5;
+  static const double buttonHeight = 48;
+  static const double buttonLabelFont = 18;
+  static const double buttonRadius = 32;
+
+  // ---------------------------------------------------------------------------
+  // Auth screens: Login, Sign Up, Verify Email, Forgot Password, Verify Code,
+  // New Password and "Password updated!".
+  // ---------------------------------------------------------------------------
+
+  /// Body inset under the [AuthAppBar]; its top is the 24 gap below the bar.
+  static EdgeInsets get authPagePadding => EdgeInsets.fromLTRB(
+    adaptiveWidth(8),
+    adaptiveHeight(24),
+    adaptiveWidth(8),
+    adaptiveHeight(8),
+  );
+
+  /// Recovery/verification screens (title-less bar): back button → heading.
+  static double get authRecoveryHeaderGap => adaptiveHeight(40);
+
+  /// [authPagePadding] with the recovery header gap on top.
+  static EdgeInsets get authRecoveryPagePadding =>
+      authPagePadding.copyWith(top: authRecoveryHeaderGap);
+
+  // Headings and text.
+  static double get authTitleFont => adaptiveFont(32);
+  static double get authSmallTitleFont => adaptiveFont(20);
+  static double get authSmallSubtitleFont => adaptiveFont(14);
+  static double get authBodyFont => adaptiveFont(16);
+  static double get authCaptionFont => adaptiveFont(14);
+  static double get authHintFont => adaptiveFont(13);
+
+  // Vertical rhythm.
+  /// Auth title → subtitle.
+  static double get authSubtitleGap => adaptiveHeight(8);
+
+  /// Auth title (or subtitle) → first field.
+  static double get authTitleGap => adaptiveHeight(24);
+
+  /// Between stacked auth fields.
+  static double get authFieldGap => adaptiveHeight(20);
+
+  /// Last auth field (or its helper row) → main button; Login's footer gap.
+  static double get authActionGap => adaptiveHeight(32);
+
+  /// Field → small helper below it ("Forgot Password?", password hint).
+  static double get authHelperGap => adaptiveHeight(8);
+
+  /// Sign Up last field → consent checkbox.
+  static double get authConsentGap => adaptiveHeight(12);
+
+  /// Sign Up main button/social row → "Already have an account?".
+  static double get authSignUpFooterGap => adaptiveHeight(16);
+
+  // Icons.
+  static double get authIconSize => adaptiveRadius(24);
+  static double get authHintIconSize => adaptiveRadius(16);
+  static double get authHintIconGap => adaptiveWidth(6);
+
+  // Social sign-in.
+  static double get authDividerGap => adaptiveWidth(12);
+  static double get authSocialDividerGap => adaptiveHeight(20);
+  static double get authSocialButtonGap => adaptiveWidth(16);
+  static double get authSocialButtonHeight =>
+      adaptiveHeight(50).clamp(50.0, 58.0);
+  static double get authSocialButtonPadding => adaptiveWidth(12);
+  static double get authSocialIconGap => adaptiveWidth(12);
+
+  // Consent checkbox.
+  static double get authCheckboxRadius => adaptiveRadius(2);
+  static const double authCheckboxBorderWidth = 2;
+
+  // 4-digit code entry.
+  static double get authPinCellSize => adaptiveRadius(60);
+  static double get authPinSpacing => adaptiveWidth(16);
+  static double get authPinFont => adaptiveFont(22);
+  static const double authPinBorderWidth = 1;
+  static const double authPinFocusedBorderWidth = 1.5;
+  static double get authResendPadding => adaptiveWidth(2);
+  static double get authTimerGap => adaptiveHeight(6);
+
+  // "Password updated!" badge.
+  static double get authSuccessRingSize => adaptiveRadius(96);
+  static double get authSuccessDotSize => adaptiveRadius(72);
+  static double get authSuccessIconSize => adaptiveRadius(36);
+  static const double authSuccessRingWidth = 1.5;
+
+  // "Email already exists" dialog (Sign Up).
+  static EdgeInsets get authDialogInset => EdgeInsets.symmetric(
+    horizontal: adaptiveWidth(24),
+    vertical: adaptiveHeight(20),
+  );
+  static double get authDialogMaxWidth => adaptiveWidth(340);
+  static double get authDialogRadius => adaptiveRadius(30);
+  static EdgeInsets get authDialogPadding => EdgeInsets.fromLTRB(
+    adaptiveWidth(24),
+    adaptiveHeight(24),
+    adaptiveWidth(24),
+    adaptiveHeight(16),
+  );
+  static double get authDialogArtSize => adaptiveRadius(80);
+  static double get authDialogArtGap => adaptiveHeight(18);
+  static double get authDialogTitleFont => adaptiveFont(20);
+  static double get authDialogTitleGap => adaptiveHeight(12);
+  static double get authDialogBodyFont => adaptiveFont(14);
+  static double get authDialogActionsGap => adaptiveHeight(24);
+  static double get authDialogButtonGap => adaptiveHeight(8);
+  static const EdgeInsets authDialogButtonPadding = EdgeInsets.symmetric(
+    horizontal: 16,
+    vertical: 14,
+  );
 
   /// Font Sizes
   static final double sp8 = 8.sp;

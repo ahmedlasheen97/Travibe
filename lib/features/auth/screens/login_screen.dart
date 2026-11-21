@@ -5,7 +5,8 @@ import 'package:flutter_svg/svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/app_styles.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
-import 'package:travibe/features/auth/widgets/auth_app_bar.dart';
+import 'package:travibe/features/auth/widgets/auth_heading.dart';
+import 'package:travibe/features/auth/widgets/auth_page.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/custom_text_field.dart';
@@ -36,187 +37,163 @@ class LoginScreen extends StatelessWidget {
         builder: (context) {
           final cubit = context.read<AuthCubit>();
 
-          return ColoredBox(
-            color: DarkColors.backgroundColor,
-            child: SafeArea(
-              child: Scaffold(
-                backgroundColor: DarkColors.backgroundColor,
-                appBar: const AuthAppBar(title: 'Login', showBack: false),
-                body: BlocListener<AuthCubit, AuthState>(
-                  listener: (context, state) {
-                    if (state is AuthSuccess) {
-                      if (state.response?.emailVerificationRequired == true) {
-                        // Pushed so back returns to Login with the email.
+          return BlocListener<AuthCubit, AuthState>(
+            listener: (context, state) {
+              if (state is AuthSuccess) {
+                if (state.response?.emailVerificationRequired == true) {
+                  // Pushed so back returns to Login with the email.
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => OtpVerificationScreen(
+                        email: state.response!.user.email,
+                      ),
+                    ),
+                  );
+                } else {
+                  AuthNavigation.resetTo(
+                    context,
+                    (_) => Root(),
+                    name: AppRoutes.root,
+                  );
+                }
+              } else if (state is AuthFailure) {
+                TravibeToast.show(
+                  context,
+                  TravibeToastData.error(state.errorMessage),
+                );
+              }
+            },
+            child: AuthPage(
+              barTitle: 'Login',
+              showBack: false,
+              child: Form(
+                key: cubit.formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const AuthHeading('Hey,\nWelcome Back!'),
+                    SizedBox(height: AppSizes.authTitleGap),
+                    CustomTextField(
+                      controller: cubit.emailController,
+                      validator: cubit.validateEmail,
+                      title: 'Email',
+                      prefixIcon: SvgPicture.asset(
+                        'assets/images/auth/sms.svg',
+                        width: AppSizes.authIconSize,
+                        height: AppSizes.authIconSize,
+                      ),
+                      hintText: 'Enter your email',
+                    ),
+                    SizedBox(height: AppSizes.authFieldGap),
+                    CustomTextField(
+                      controller: cubit.passwordController,
+                      validator: cubit.validatePassword,
+                      title: 'Password',
+                      prefixIcon: SvgPicture.asset(
+                        'assets/images/auth/lock.svg',
+                        width: AppSizes.authIconSize,
+                        height: AppSizes.authIconSize,
+                      ),
+                      hintText: 'Enter your password',
+                      obscureText: true,
+                      passwordVisibilityToggle: true,
+                    ),
+                    SizedBox(height: AppSizes.authHelperGap),
+                    InkWell(
+                      onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute<void>(
-                            builder: (context) => OtpVerificationScreen(
-                              email: state.response!.user.email,
-                            ),
+                          MaterialPageRoute(
+                            builder: (context) => ForgotPasswordScreen(),
                           ),
                         );
-                      } else {
-                        AuthNavigation.resetTo(
-                          context,
-                          (_) => Root(),
-                          name: AppRoutes.root,
-                        );
-                      }
-                    } else if (state is AuthFailure) {
-                      TravibeToast.show(
-                        context,
-                        TravibeToastData.error(state.errorMessage),
-                      );
-                    }
-                  },
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        AppSizes.adaptiveWidth(8),
-                        AppSizes.adaptiveHeight(24),
-                        AppSizes.adaptiveWidth(8),
-                        AppSizes.adaptiveHeight(8),
-                      ),
-                      child: Form(
-                        key: cubit.formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Hey,\nWelcome Back!',
-                              style: AppStyles.authTitleStyle,
-                            ),
-                            SizedBox(height: AppSizes.adaptiveRadius(24)),
-                            CustomTextField(
-                              controller: cubit.emailController,
-                              validator: cubit.validateEmail,
-                              title: 'Email',
-                              prefixIcon: SvgPicture.asset(
-                                'assets/images/auth/sms.svg',
-                                width: AppSizes.adaptiveRadius(24),
-                                height: AppSizes.adaptiveRadius(24),
-                              ),
-                              hintText: 'Enter your email',
-                            ),
-                            SizedBox(height: AppSizes.adaptiveHeight(20)),
-                            CustomTextField(
-                              controller: cubit.passwordController,
-                              validator: cubit.validatePassword,
-                              title: 'Password',
-                              prefixIcon: SvgPicture.asset(
-                                'assets/images/auth/lock.svg',
-                                width: AppSizes.adaptiveRadius(24),
-                                height: AppSizes.adaptiveRadius(24),
-                              ),
-                              hintText: 'Enter your password',
-                              obscureText: true,
-                              passwordVisibilityToggle: true,
-                            ),
-                            SizedBox(height: AppSizes.adaptiveHeight(8)),
-                            InkWell(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        ForgotPasswordScreen(),
-                                  ),
-                                );
-                              },
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Text(
-                                  'Forgot Password?',
-                                  style: TextStyle(
-                                    color: DarkColors.primaryColor,
-                                    fontSize: AppSizes.adaptiveFont(16),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: AppSizes.adaptiveRadius(32)),
-                            BlocBuilder<AuthCubit, AuthState>(
-                              builder: (context, state) {
-                                final isLoading = state is AuthLoading;
-
-                                return CustomButton(
-                                  title: isLoading ? 'Logging in...' : 'Login',
-                                  onPressed: isLoading
-                                      ? null
-                                      : () {
-                                          if (cubit.formKey.currentState!
-                                              .validate()) {
-                                            cubit.login(
-                                              cubit.emailController.text.trim(),
-                                              cubit.passwordController.text,
-                                            );
-                                          }
-                                        },
-                                );
-                              },
-                            ),
-                            if (kEnableSocialAuthentication) ...[
-                              SizedBox(height: AppSizes.adaptiveHeight(32)),
-                              CustomOrLoginWidget(),
-                              SizedBox(height: AppSizes.adaptiveHeight(20)),
-                              Row(
-                                children: [
-                                  BlocBuilder<AuthCubit, AuthState>(
-                                    builder: (context, state) =>
-                                        SocialLoginButton(
-                                          title: 'Google',
-                                          iconPath:
-                                              'assets/images/auth/google.svg',
-                                          onPressed: state is AuthLoading
-                                              ? null
-                                              : cubit.loginWithGoogle,
-                                        ),
-                                  ),
-                                  SizedBox(width: AppSizes.adaptiveWidth(16)),
-                                  SocialLoginButton(
-                                    title: 'Apple',
-                                    iconPath: 'assets/images/auth/apple.svg',
-                                    onPressed: () {},
-                                  ),
-                                ],
-                              ),
-                            ],
-                            SizedBox(height: AppSizes.adaptiveHeight(32)),
-                            Center(
-                              child: Wrap(
-                                alignment: WrapAlignment.center,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                children: [
-                                  Text(
-                                    "Don't have an account?",
-                                    style: AppStyles.grey16MediumStyle.copyWith(
-                                      fontSize: AppSizes.adaptiveFont(16),
-                                    ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute<void>(
-                                        builder: (context) =>
-                                            const SignUpScreen(),
-                                      ),
-                                    ),
-                                    child: Text(
-                                      'Sign Up',
-                                      style: AppStyles.orange16MediumStyle
-                                          .copyWith(
-                                            fontSize: AppSizes.adaptiveFont(16),
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                      },
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Forgot Password?',
+                          style: TextStyle(
+                            color: DarkColors.primaryColor,
+                            fontSize: AppSizes.authBodyFont,
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                    SizedBox(height: AppSizes.authActionGap),
+                    BlocBuilder<AuthCubit, AuthState>(
+                      builder: (context, state) {
+                        final isLoading = state is AuthLoading;
+
+                        return CustomButton(
+                          title: isLoading ? 'Logging in...' : 'Login',
+                          onPressed: isLoading
+                              ? null
+                              : () {
+                                  if (cubit.formKey.currentState!.validate()) {
+                                    cubit.login(
+                                      cubit.emailController.text.trim(),
+                                      cubit.passwordController.text,
+                                    );
+                                  }
+                                },
+                        );
+                      },
+                    ),
+                    if (kEnableSocialAuthentication) ...[
+                      SizedBox(height: AppSizes.authActionGap),
+                      CustomOrLoginWidget(),
+                      SizedBox(height: AppSizes.authSocialDividerGap),
+                      Row(
+                        children: [
+                          BlocBuilder<AuthCubit, AuthState>(
+                            builder: (context, state) => SocialLoginButton(
+                              title: 'Google',
+                              iconPath: 'assets/images/auth/google.svg',
+                              onPressed: state is AuthLoading
+                                  ? null
+                                  : cubit.loginWithGoogle,
+                            ),
+                          ),
+                          SizedBox(width: AppSizes.authSocialButtonGap),
+                          SocialLoginButton(
+                            title: 'Apple',
+                            iconPath: 'assets/images/auth/apple.svg',
+                            onPressed: () {},
+                          ),
+                        ],
+                      ),
+                    ],
+                    SizedBox(height: AppSizes.authActionGap),
+                    Center(
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            "Don't have an account?",
+                            style: AppStyles.grey16MediumStyle.copyWith(
+                              fontSize: AppSizes.authBodyFont,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (context) => const SignUpScreen(),
+                              ),
+                            ),
+                            child: Text(
+                              'Sign Up',
+                              style: AppStyles.orange16MediumStyle.copyWith(
+                                fontSize: AppSizes.authBodyFont,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

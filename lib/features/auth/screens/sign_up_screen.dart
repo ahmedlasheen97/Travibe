@@ -1,9 +1,9 @@
-import 'package:travibe/core/theme/app_styles.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/routing/app_routes.dart';
-import 'package:travibe/features/auth/widgets/auth_app_bar.dart';
+import 'package:travibe/features/auth/widgets/auth_heading.dart';
+import 'package:travibe/features/auth/widgets/auth_page.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/auth/data/registration_error.dart';
 import 'package:travibe/features/auth/widgets/email_exists_dialog.dart';
@@ -176,202 +176,178 @@ class _SignUpScreenState extends State<SignUpScreen> {
           );
         }
       },
-      child: ColoredBox(
-        color: DarkColors.backgroundColor,
-        child: SafeArea(
-          child: Scaffold(
-            backgroundColor: DarkColors.backgroundColor,
-            appBar: AuthAppBar(
-              title: 'Sign Up',
-              onBack: () => AuthNavigation.backToLogin(context),
-            ),
-            body: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  AppSizes.adaptiveWidth(8),
-                  AppSizes.adaptiveHeight(24),
-                  AppSizes.adaptiveWidth(8),
-                  AppSizes.adaptiveHeight(8),
+      child: AuthPage(
+        barTitle: 'Sign Up',
+        onBack: () => AuthNavigation.backToLogin(context),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const AuthHeading('Create\nyour account'),
+              // CustomTextField(
+              //   controller: nameController,
+              //   validator: (value) {
+              //     if (value == null || value.trim().isEmpty) {
+              //       return 'Please enter your name';
+              //     }
+
+              //     return null;
+              //   },
+              //   title: 'Name',
+              //   prefixIcon: SvgPicture.asset(
+              //     'assets/images/auth/sms.svg',
+              //     width: 24,
+              //     height: 24,
+              //   ),
+              //   hintText: 'Enter your name',
+              // ),
+              SizedBox(height: AppSizes.authTitleGap),
+              CustomTextField(
+                controller: emailController,
+                focusNode: _emailFocus,
+                validator: (value) {
+                  final RegExp emailRegex = RegExp(
+                    r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$',
+                  );
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter your email';
+                  }
+
+                  if (!emailRegex.hasMatch(value.trim())) {
+                    return 'Please enter a valid email address';
+                  }
+
+                  return null;
+                },
+                title: 'Email',
+                prefixIcon: SvgPicture.asset(
+                  'assets/images/auth/sms.svg',
+                  width: AppSizes.authIconSize,
+                  height: AppSizes.authIconSize,
                 ),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Create\nyour account',
-                        style: AppStyles.authTitleStyle,
-                      ),
-                      // CustomTextField(
-                      //   controller: nameController,
-                      //   validator: (value) {
-                      //     if (value == null || value.trim().isEmpty) {
-                      //       return 'Please enter your name';
-                      //     }
+                hintText: 'Enter your email',
+              ),
+              SizedBox(height: AppSizes.authFieldGap),
+              CustomTextField(
+                controller: passwordController,
+                validator: (value) {
+                  final RegExp passwordRegex = RegExp(
+                    r'^(?=.*[A-Za-z])(?=.*\d).{8,}$',
+                  );
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a password';
+                  }
 
-                      //     return null;
-                      //   },
-                      //   title: 'Name',
-                      //   prefixIcon: SvgPicture.asset(
-                      //     'assets/images/auth/sms.svg',
-                      //     width: 24,
-                      //     height: 24,
-                      //   ),
-                      //   hintText: 'Enter your name',
-                      // ),
-                      SizedBox(height: AppSizes.adaptiveHeight(16)),
-                      CustomTextField(
-                        controller: emailController,
-                        focusNode: _emailFocus,
-                        validator: (value) {
-                          final RegExp emailRegex = RegExp(
-                            r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$',
-                          );
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter your email';
-                          }
+                  if (!passwordRegex.hasMatch(value)) {
+                    return 'Password must be at least 8 characters and contain a letter and a number';
+                  }
 
-                          if (!emailRegex.hasMatch(value.trim())) {
-                            return 'Please enter a valid email address';
-                          }
+                  return null;
+                },
+                title: 'Password',
+                prefixIcon: SvgPicture.asset(
+                  'assets/images/auth/lock.svg',
+                  width: AppSizes.authIconSize,
+                  height: AppSizes.authIconSize,
+                ),
+                hintText: 'Enter your password',
+                obscureText: true,
+                passwordVisibilityToggle: true,
+              ),
+              SizedBox(height: AppSizes.authFieldGap),
+              CustomTextField(
+                controller: confirmPasswordController,
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please confirm your password';
+                  }
 
-                          return null;
-                        },
-                        title: 'Email',
-                        prefixIcon: SvgPicture.asset(
-                          'assets/images/auth/sms.svg',
-                          width: AppSizes.adaptiveRadius(24),
-                          height: AppSizes.adaptiveRadius(24),
-                        ),
-                        hintText: 'Enter your email',
-                      ),
-                      SizedBox(height: AppSizes.adaptiveHeight(16)),
-                      CustomTextField(
-                        controller: passwordController,
-                        validator: (value) {
-                          final RegExp passwordRegex = RegExp(
-                            r'^(?=.*[A-Za-z])(?=.*\d).{8,}$',
-                          );
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter a password';
-                          }
+                  if (value != passwordController.text) {
+                    return 'Passwords do not match';
+                  }
 
-                          if (!passwordRegex.hasMatch(value)) {
-                            return 'Password must be at least 8 characters and contain a letter and a number';
-                          }
-
-                          return null;
-                        },
-                        title: 'Password',
-                        prefixIcon: SvgPicture.asset(
-                          'assets/images/auth/lock.svg',
-                          width: AppSizes.adaptiveRadius(24),
-                          height: AppSizes.adaptiveRadius(24),
-                        ),
-                        hintText: 'Enter your password',
-                        obscureText: true,
-                        passwordVisibilityToggle: true,
-                      ),
-                      SizedBox(height: AppSizes.adaptiveHeight(16)),
-                      CustomTextField(
-                        controller: confirmPasswordController,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please confirm your password';
-                          }
-
-                          if (value != passwordController.text) {
-                            return 'Passwords do not match';
-                          }
-
-                          return null;
-                        },
-                        title: 'Confirm Password',
-                        prefixIcon: SvgPicture.asset(
-                          'assets/images/auth/lock.svg',
-                          width: AppSizes.adaptiveRadius(24),
-                          height: AppSizes.adaptiveRadius(24),
-                        ),
-                        hintText: 'Re-enter your password',
-                        obscureText: true,
-                        passwordVisibilityToggle: true,
-                      ),
-                      SizedBox(height: AppSizes.adaptiveHeight(12)),
-                      TermsAndPrivacyCheckbox(
-                        onChanged: (value) {
-                          setState(() {
-                            _agreedToTerms = value;
-                          });
-                        },
-                      ),
-                      SizedBox(height: AppSizes.adaptiveHeight(24)),
-                      CustomButton(
-                        title: 'Sign Up',
-                        onPressed: _registering || _emailDialogOpen
+                  return null;
+                },
+                title: 'Confirm Password',
+                prefixIcon: SvgPicture.asset(
+                  'assets/images/auth/lock.svg',
+                  width: AppSizes.authIconSize,
+                  height: AppSizes.authIconSize,
+                ),
+                hintText: 'Re-enter your password',
+                obscureText: true,
+                passwordVisibilityToggle: true,
+              ),
+              SizedBox(height: AppSizes.authConsentGap),
+              TermsAndPrivacyCheckbox(
+                onChanged: (value) {
+                  setState(() {
+                    _agreedToTerms = value;
+                  });
+                },
+              ),
+              SizedBox(height: AppSizes.authActionGap),
+              CustomButton(
+                title: 'Sign Up',
+                onPressed: _registering || _emailDialogOpen ? null : _register,
+              ),
+              if (kEnableSocialAuthentication) ...[
+                SizedBox(height: AppSizes.authActionGap),
+                CustomOrLoginWidget(),
+                SizedBox(height: AppSizes.authSocialDividerGap),
+                Row(
+                  children: [
+                    BlocBuilder<AuthCubit, AuthState>(
+                      bloc: _googleCubit,
+                      builder: (_, state) => SocialLoginButton(
+                        title: 'Google',
+                        iconPath: 'assets/images/auth/google.svg',
+                        onPressed: _registering || state is AuthLoading
                             ? null
-                            : _register,
+                            : _googleCubit.loginWithGoogle,
                       ),
-                      if (kEnableSocialAuthentication) ...[
-                        SizedBox(height: AppSizes.adaptiveHeight(32)),
-                        CustomOrLoginWidget(),
-                        SizedBox(height: AppSizes.adaptiveHeight(20)),
-                        Row(
-                          children: [
-                            BlocBuilder<AuthCubit, AuthState>(
-                              bloc: _googleCubit,
-                              builder: (_, state) => SocialLoginButton(
-                                title: 'Google',
-                                iconPath: 'assets/images/auth/google.svg',
-                                onPressed: _registering || state is AuthLoading
-                                    ? null
-                                    : _googleCubit.loginWithGoogle,
-                              ),
-                            ),
+                    ),
 
-                            SizedBox(width: AppSizes.adaptiveWidth(16)),
+                    SizedBox(width: AppSizes.authSocialButtonGap),
 
-                            SocialLoginButton(
-                              title: 'Apple',
-                              iconPath: 'assets/images/auth/apple.svg',
-                              onPressed: () {
-                                // Apple login
-                              },
-                            ),
-                          ],
-                        ),
-                      ],
-                      SizedBox(height: AppSizes.adaptiveHeight(16)),
-                      Center(
-                        child: Wrap(
-                          alignment: WrapAlignment.center,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            Text(
-                              'Already have an account?',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: AppSizes.adaptiveFont(16),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  AuthNavigation.backToLogin(context),
-                              child: Text(
-                                'Login',
-                                style: TextStyle(
-                                  color: DarkColors.primaryColor,
-                                  fontSize: AppSizes.adaptiveFont(16),
-                                ),
-                              ),
-                            ),
-                          ],
+                    SocialLoginButton(
+                      title: 'Apple',
+                      iconPath: 'assets/images/auth/apple.svg',
+                      onPressed: () {
+                        // Apple login
+                      },
+                    ),
+                  ],
+                ),
+              ],
+              SizedBox(height: AppSizes.authSignUpFooterGap),
+              Center(
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      'Already have an account?',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: AppSizes.authBodyFont,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => AuthNavigation.backToLogin(context),
+                      child: Text(
+                        'Login',
+                        style: TextStyle(
+                          color: DarkColors.primaryColor,
+                          fontSize: AppSizes.authBodyFont,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            ],
           ),
         ),
       ),

@@ -6,7 +6,7 @@ class AppStyles {
   /// Big auth headings (Login, Sign Up): one size, weight and line height.
   static TextStyle get authTitleStyle => TextStyle(
     fontFamily: 'Plus Jakarta Sans',
-    fontSize: AppSizes.adaptiveFont(32),
+    fontSize: AppSizes.authTitleFont,
     fontWeight: FontWeight.w700,
     height: 1.25,
     color: DarkColors.whiteColor,
