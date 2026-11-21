@@ -55,6 +55,35 @@ class StoryReshareError extends ApiError {
   final bool reshareGone;
 }
 
+/// A failed `POST /stories/{id}/replies`, with plain wording for the toast.
+class StoryReplyError extends ApiError {
+  StoryReplyError({
+    required super.message,
+    super.statusCode,
+    super.fieldErrors,
+    super.isConnectionError,
+    super.isTimeout,
+  });
+
+  static const fallback = 'Unable to send your reply. Please try again.';
+
+  factory StoryReplyError.from(ApiError error, Response<dynamic>? response) =>
+      StoryReplyError(
+        statusCode: error.statusCode,
+        fieldErrors: error.fieldErrors,
+        isConnectionError: error.isConnectionError,
+        isTimeout: error.isTimeout,
+        message: switch (error.statusCode) {
+          403 => 'You can\'t reply to this story.',
+          404 => 'This story is no longer available.',
+          _ => response == null ? error.message : fallback,
+        },
+      );
+
+  /// The story expired or was deleted; replying can't succeed later.
+  bool get storyGone => statusCode == 404;
+}
+
 class StoriesRepo {
   StoriesRepo({DioClient? client}) : _dio = (client ?? DioClient()).dio {
     _dio.options.connectTimeout ??= const Duration(seconds: 15);
@@ -120,6 +149,36 @@ class StoriesRepo {
       }
     } on DioException catch (e) {
       throw StoryReshareError.from(ApiExceptions.handleError(e), e.response);
+    }
+  }
+
+  /// `POST /stories/{id}/replies`: sends [text] as a chat message to the
+  /// story's owner (the resharer, for a reshare). Tagged with the session
+  /// revision so a reply from a previous account is cancelled. Errors become
+  /// a [StoryReplyError] with a user-facing message.
+  Future<void> reply(int id, String text) async {
+    storyId(id);
+    final body = text.trim();
+    if (body.isEmpty || body.length > 5000) {
+      throw StoryReplyError(message: StoryReplyError.fallback);
+    }
+    try {
+      final response = await _dio.post(
+        'stories/$id/replies',
+        data: {'type': 'text', 'body': body},
+        options: Options(
+          receiveTimeout: const Duration(seconds: 15),
+          extra: {'sessionRevision': PreferencesManager().sessionRevision},
+        ),
+      );
+      if (response.statusCode != 201) {
+        throw StoryReplyError(
+          message: StoryReplyError.fallback,
+          statusCode: response.statusCode,
+        );
+      }
+    } on DioException catch (e) {
+      throw StoryReplyError.from(ApiExceptions.handleError(e), e.response);
     }
   }
 

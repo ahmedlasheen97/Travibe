@@ -81,6 +81,10 @@ class NotificationPresentationResolver {
     if (lead != null && excerpt != null && excerpt.isNotEmpty) {
       return '$lead: $excerpt';
     }
+    if (item.type == 'message_received' &&
+        item.data['is_story_reply'] == true) {
+      return 'replied to your story';
+    }
     if (item.type == 'message_received' && item.isRequest) {
       return 'sent you a message request';
     }

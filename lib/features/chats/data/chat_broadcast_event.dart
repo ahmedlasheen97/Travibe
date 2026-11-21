@@ -111,6 +111,8 @@ class ChatMessagesRead extends ChatBroadcastEvent {
           replyTo: message.replyTo,
           postId: message.postId,
           sharedPost: message.sharedPost,
+          story: message.story,
+          storyExpiresAt: message.storyExpiresAt,
           delivery: ChatDelivery.seen,
           readAt: readAt,
           deliveredAt: message.deliveredAt ?? readAt,
