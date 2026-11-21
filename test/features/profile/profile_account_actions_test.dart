@@ -1,5 +1,6 @@
 import '../../core/places/fake_city_places.dart';
 import 'dart:async';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -108,6 +109,7 @@ void main() {
       expect(preferences.currency.value, isNull);
       await cubit.close();
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'already invalid token safely exits locally and reports revoked false',
@@ -225,6 +227,7 @@ void main() {
       expect(preferences.getString('selected_language'), 'ar');
       await cubit.close();
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'disposing signout during a request ignores a late failure safely',

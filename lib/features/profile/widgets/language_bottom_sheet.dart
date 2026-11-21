@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
@@ -25,11 +26,16 @@ class LanguageBottomSheet extends StatefulWidget {
 }
 
 class _LanguageBottomSheetState extends State<LanguageBottomSheet> {
-  late String _selected = widget.selectedLanguageCode;
+  late String _selected = effectiveAppLanguage(widget.selectedLanguageCode);
 
-  static const _languages = [
+  static const _allLanguages = [
     {'code': 'en', 'label': 'English'},
     {'code': 'ar', 'label': 'العربية'},
+  ];
+
+  static final _languages = [
+    for (final lang in _allLanguages)
+      if (kAppLanguageCodes.contains(lang['code'])) lang,
   ];
 
   @override

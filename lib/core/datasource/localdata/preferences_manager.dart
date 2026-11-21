@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:travibe/core/constants/app_languages.dart';
 
 class PreferencesManager extends ChangeNotifier {
   static final PreferencesManager _instance = PreferencesManager._internal();
@@ -46,7 +47,8 @@ class PreferencesManager extends ChangeNotifier {
   Future<void> init() async {
     _preferences = await SharedPreferences.getInstance();
     _setSession(_preferences.getString(_token));
-    language.value = _preferences.getString(_languageKey) ?? 'en';
+    // A saved language the app can't run in (Arabic during the MVP) is English.
+    language.value = effectiveAppLanguage(_preferences.getString(_languageKey));
     currency.value = _preferences.getString(_currencyKey);
   }
 
@@ -71,6 +73,7 @@ class PreferencesManager extends ChangeNotifier {
   }
 
   Future<void> saveLanguage(String code) async {
+    code = effectiveAppLanguage(code);
     language.value = code;
     await _preferences.setString(_languageKey, code);
   }
@@ -100,6 +103,7 @@ class PreferencesManager extends ChangeNotifier {
     required int expectedSession,
   }) async {
     if (expectedSession != sessionRevision || !hasSession) return;
+    locale = effectiveAppLanguage(locale);
     final writes = [
       _preferences.setString(_languageKey, locale),
       currency == null

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -314,6 +315,7 @@ void main() {
       expect(session.language.value, 'ar');
       await cubit.close();
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'registration preserves selected locale and backend verification requirement',
@@ -334,5 +336,6 @@ void main() {
       expect(session.getLanguage(), 'ar');
       expect(await session.getToken(), 'travibe-test-token');
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -85,6 +86,7 @@ void main() {
       expect(preferences.onboardingCompleted, true);
       expect(preferences.getLanguage(), 'ar');
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test('logout then relaunch goes to login with completion intact', () async {
     await preferences.completeOnboarding();
@@ -113,6 +115,7 @@ void main() {
       expect(startup.state.decision!.target, StartupTarget.home);
       expect(preferences.language.value, 'ar');
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
   test(
     'forbidden session returns to login without claiming revocation',

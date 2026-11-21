@@ -1,3 +1,4 @@
+import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/permissions/device_settings.dart';
 import 'package:travibe/core/notifications/firebase_messaging_client.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -258,6 +259,7 @@ void main() {
       expect(api.patches.length, count);
       expect(user.state.error, isNotNull);
     },
+    skip: kArabicEnabled ? false : 'Arabic is out of the MVP',
   );
 
   test(
@@ -602,6 +604,7 @@ void main() {
       expect(find.text('Terms of Service'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     },
+    skip: !kArabicEnabled, // Arabic is out of the MVP
   );
 
   testWidgets(
@@ -670,6 +673,7 @@ void main() {
       router.dispose();
       await user.close();
     },
+    skip: !kArabicEnabled, // Arabic is out of the MVP
   );
 
   testWidgets('Settings controls fit a narrow viewport with enlarged text', (
