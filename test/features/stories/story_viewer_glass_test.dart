@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
+import 'package:travibe/features/stories/cubit/story_viewer_cubit.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -43,38 +47,43 @@ void main() {
     BlockCubit? blocks,
     double scale = 1,
     EdgeInsets insets = EdgeInsets.zero,
+    Future<void> Function(BuildContext context, int userId)? onOpenProfile,
   }) async {
     final photo = MemoryImage(photoBytes());
     await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(
-            padding: insets,
-            viewPadding: insets,
-            textScaler: TextScaler.linear(scale),
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              padding: insets,
+              viewPadding: insets,
+              textScaler: TextScaler.linear(scale),
+            ),
+            child: child!,
           ),
-          child: child!,
-        ),
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => StoryViewerScreen(
-                    groups: [
-                      viewerGroup(7, [1, 2]),
-                    ],
-                    initialAuthorId: 7,
-                    currentUserId: userId,
-                    repo: repo,
-                    follow: follow,
-                    blocks: blocks,
-                    imageProvider: (_) => photo,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StoryViewerScreen(
+                      groups: [
+                        viewerGroup(7, [1, 2]),
+                      ],
+                      initialAuthorId: 7,
+                      currentUserId: userId,
+                      repo: repo,
+                      follow: follow,
+                      blocks: blocks,
+                      imageProvider: (_) => photo,
+                      onOpenProfile: onOpenProfile,
+                    ),
                   ),
                 ),
+                child: const Text('Open viewer'),
               ),
-              child: const Text('Open viewer'),
             ),
           ),
         ),
@@ -158,6 +167,94 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  bool paused(WidgetTester tester) => tester
+      .widget<BlocConsumer<StoryViewerCubit, StoryViewerState>>(
+        find.byWidgetPredicate(
+          (w) => w is BlocConsumer<StoryViewerCubit, StoryViewerState>,
+        ),
+      )
+      .bloc!
+      .state
+      .paused;
+
+  testWidgets('viewers sheet uses the shared sheet style with radius 32', (
+    tester,
+  ) async {
+    final repo = OwnerRepo()
+      ..viewersHandler = (_) async =>
+          StoryViewersPage.fromJson(pageJson([viewerJson(8)]));
+    await open(tester, repo);
+    await tester.tap(find.byKey(const ValueKey('story-views')));
+    await tester.pumpAndSettle();
+    final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+    expect(sheet.backgroundColor, optionsSheetColor);
+    expect(sheet.clipBehavior, Clip.antiAlias);
+    final radius =
+        ((sheet.shape! as RoundedRectangleBorder).borderRadius as BorderRadius)
+            .topLeft
+            .x;
+    expect(radius, closeTo(32, 32 * .15 + .01));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets(
+    'tapping a viewer closes the sheet, pauses for their profile and resumes on return',
+    (tester) async {
+      final follow = FollowCubit();
+      final blocks = BlockCubit(follow: follow);
+      final opened = <int>[];
+      final back = Completer<void>();
+      final repo = OwnerRepo()
+        ..viewersHandler = (_) async => StoryViewersPage.fromJson(
+          pageJson([viewerJson(8)..['is_following'] = false, viewerJson(9)]),
+        );
+      await open(
+        tester,
+        repo,
+        follow: follow,
+        blocks: blocks,
+        onOpenProfile: (_, id) {
+          opened.add(id);
+          return back.future;
+        },
+      );
+      await tester.tap(find.byKey(const ValueKey('story-views')));
+      await tester.pumpAndSettle();
+
+      // Row buttons keep their own actions.
+      await tester.tap(find.text('Follow'));
+      await tester.pump();
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byType(StoryViewersSheet),
+              matching: find.byIcon(Icons.more_vert),
+            )
+            .first,
+      );
+      await tester.pumpAndSettle();
+      expect(opened, isEmpty);
+      expect(find.text('Block user'), findsOneWidget);
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+      expect(find.byType(StoryViewersSheet), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('story-viewer-row-9')));
+      await tester.pumpAndSettle();
+      expect(find.byType(StoryViewersSheet), findsNothing);
+      expect(opened, [9]);
+      expect(paused(tester), isTrue);
+
+      back.complete();
+      await tester.pumpAndSettle(const Duration(milliseconds: 20));
+      expect(paused(tester), isFalse);
+      expect(find.byType(StoryViewerScreen), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await blocks.close();
+      await follow.close();
+    },
+  );
+
   testWidgets(
     'views opens sheet with native eye and API-supported hearts/follow state only',
     (tester) async {
