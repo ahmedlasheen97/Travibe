@@ -6,6 +6,7 @@ import 'package:travibe/core/places/current_city_picker.dart';
 import 'package:travibe/core/theme/action_button_style.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
+import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
@@ -22,9 +23,10 @@ typedef CityPicker = Future<CitySelection?> Function(BuildContext context);
 /// "Show me in Buddies" sheet, shared by the Buddies visibility card, Settings
 /// and the Profile Setup switch. Only a city is ever sent to Travibe.
 ///
-/// Two buttons and no device location:
+/// No device location:
 /// - With a saved current city, **Turn On** only PATCHes
-///   `show_in_travel_buddy`.
+///   `show_in_travel_buddy`; **Change City** opens the shared city search
+///   ([pickCurrentCity]), saves the chosen city, then turns visibility on.
 /// - Without one, **Choose City** opens the same city search as Profile
 ///   Setup / Edit Profile; a chosen city is saved, then visibility turns on.
 ///   Closing the search changes nothing.
@@ -177,6 +179,18 @@ class _ShowInBuddiesSheetState extends State<ShowInBuddiesSheet> {
                               ? cubit.turnOn
                               : () => _searchCity(cubit)),
                   ),
+                  if (city != null) ...[
+                    SizedBox(height: AppSizes.adaptiveHeight(8)),
+                    CustomButton(
+                      key: const ValueKey('show-in-buddies-change-city'),
+                      title: 'Change City',
+                      isOutlined: true,
+                      height: AppSizes.adaptiveHeight(48),
+                      onPressed: state.busy || _picking
+                          ? null
+                          : () => _searchCity(cubit),
+                    ),
+                  ],
                   SizedBox(height: AppSizes.adaptiveHeight(8)),
                   TextButton(
                     onPressed: state.busy

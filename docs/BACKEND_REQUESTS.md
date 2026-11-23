@@ -238,3 +238,49 @@ from it (e.g. attempts made on another device, or after the app restarts).
 `otp_too_many_attempts` code, ideally with `attempts_remaining`) directly and
 drop the device counter. With `otp_expired` the app can show "Code expired.
 Tap Resend OTP" again.
+
+## Stories: list a user's active stories (`GET /users/{user}/stories`)
+
+Opening another user's profile should show their story ring and let the viewer
+open the stories whenever the viewer is allowed to see them, **even without
+following them**. Today the client can't do this: `GET /stories` only returns
+the caller and the accounts they follow, and `PublicProfileResource` has no
+story fields. So the client never learns the story ids of a public account it
+doesn't follow.
+
+**Ask:** add `GET /users/{user}/stories` (bearer token, same auth as
+`GET /stories`):
+
+- `200 {data: StoryBarGroupResource}`, with the same shape as one group of the
+  stories bar (`user`, `has_unseen`, `stories` newest first, up to 10 active
+  stories). Return an empty `stories` array (or `data: null`, as long as it is
+  documented) when the caller can see none. The existing viewer then works
+  unchanged.
+- Only active (unexpired) stories the **caller may view**:
+  - Public account + story visibility `public` → anyone signed in.
+  - Story visibility `followers` → only the author's accepted followers.
+  - Private account → only accepted followers, for every story (same as today).
+  - The author themselves → all of their own stories.
+  - A block in either direction → `403` (or an empty list; please document which).
+  - Reshares: the same original-author rules as `GET /stories` (hidden when the
+    original author blocks the caller or resharer, or their private account
+    hides it).
+- `has_seen` per story and `has_unseen` for the group, as in the bar.
+- `404` for an unknown user.
+
+Please also confirm that `GET /stories/{story}`, `POST /stories/{story}/view`
+and `POST /stories/{story}/replies` accept exactly the same callers, so that
+a non-follower opening a public story records a view and can reply. The spec
+implies this but doesn't say it outright.
+
+An acceptable lighter alternative is `has_active_story` / `has_unseen_story`
+on `PublicProfileResource`, but the client would still need the list above to
+open the stories.
+
+**Client today:** the profile ring appears only for the signed-in user and
+accounts they follow (from `GET /stories` via `StoriesCubit.groupOf`).
+
+**Client after:** `ProfileScreen` falls back to `GET /users/{user}/stories`
+when the user isn't in the stories bar, and shows the ring and opens the
+viewer with that group. Views and replies use the existing endpoints, and the
+reply bar stays hidden on the user's own stories.
