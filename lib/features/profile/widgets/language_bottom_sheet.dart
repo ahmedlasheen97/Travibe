@@ -3,6 +3,7 @@ import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 class LanguageBottomSheet extends StatefulWidget {
   final String selectedLanguageCode; // 'en' or 'ar'
@@ -10,13 +11,8 @@ class LanguageBottomSheet extends StatefulWidget {
   const LanguageBottomSheet({super.key, required this.selectedLanguageCode});
 
   static Future<String?> show(BuildContext context, String currentCode) {
-    return showModalBottomSheet<String>(
-      context: context,
-      // Same frame as the post ⋮ sheet (PostOptionsSheet).
-      backgroundColor: const Color(0xFF0A0A0A),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppSizes.r24)),
-      ),
+    return showOptionsSheet<String>(
+      context,
       builder: (_) => LanguageBottomSheet(selectedLanguageCode: currentCode),
     );
   }

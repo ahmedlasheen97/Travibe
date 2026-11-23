@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -141,11 +142,11 @@ void main() {
       await show(tester);
       expectDarkInput(tester);
       final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
-      expect(sheet.backgroundColor, DarkColors.backgroundColor);
+      expect(sheet.backgroundColor, optionsSheetColor);
       expect(sheet.clipBehavior, Clip.antiAlias);
       expect(
         (sheet.shape! as RoundedRectangleBorder).borderRadius,
-        const BorderRadius.vertical(top: Radius.circular(24)),
+        const BorderRadius.vertical(top: Radius.circular(32)),
       );
       expect(
         tester.widget<Text>(find.text('Current City')).style!.color,

@@ -5,18 +5,14 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'city_places_provider.dart';
 import 'city_autocomplete_cubit.dart';
 import 'city_autocomplete_results.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 /// Reuses the Photon selection contract. Opening/typing never mutates a profile.
 Future<CitySelection?> pickCurrentCity(BuildContext context) =>
-    showModalBottomSheet<CitySelection>(
-      context: context,
+    showOptionsSheet<CitySelection>(
+      context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: DarkColors.backgroundColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      clipBehavior: Clip.antiAlias,
       builder: (_) => BlocProvider(
         create: (_) => CityAutocompleteCubit(
           provider: context.read<CityPlacesProvider?>(),

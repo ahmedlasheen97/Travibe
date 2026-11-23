@@ -28,6 +28,7 @@ import 'package:travibe/core/media/media_upload_service.dart';
 import '../cubit/chat_audio_controller.dart';
 import '../widgets/chat_composer.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
@@ -1376,12 +1377,8 @@ class _ConversationScreenState extends State<ConversationScreen>
     if (_managing || _requestBusy || _requestDialogOpen || !_valid) return;
     _managing = true;
     try {
-      final operation = await showModalBottomSheet<ChatOption>(
-        context: context,
-        backgroundColor: Colors.black,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-        ),
+      final operation = await showOptionsSheet<ChatOption>(
+        context,
         builder: (_) => ChatOptionsSheet(canDelete: _repo.capabilities.remove),
       );
       if (!mounted || !_valid || operation == null) return;

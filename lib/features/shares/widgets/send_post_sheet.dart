@@ -13,6 +13,7 @@ import 'package:travibe/features/shares/cubit/send_post_cubit.dart';
 import 'package:travibe/features/shares/data/post_share_actions.dart';
 import 'package:travibe/features/shares/data/send_post_repo.dart';
 import 'package:travibe/features/shares/data/share_post_messenger.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 const _text = TextStyle(
   fontFamily: 'Plus Jakarta Sans',
@@ -57,15 +58,10 @@ class SendPostSheet extends StatefulWidget {
       );
       return;
     }
-    await showModalBottomSheet<void>(
-      context: context,
+    await showOptionsSheet<void>(
+      context,
       isScrollControlled: true,
       useSafeArea: true,
-      backgroundColor: DarkColors.backgroundColor,
-      clipBehavior: Clip.antiAlias,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => SendPostSheet(
         post: post,
         repo: repo,

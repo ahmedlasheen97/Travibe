@@ -11,6 +11,7 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/stories/data/story_elements.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/stories/data/mentions_repo.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 /// What the Mention sheet's "Add" returns.
 class StoryMentionSelection {
@@ -31,14 +32,10 @@ Future<StoryMentionSelection?> showStoryMentionSheet(
   List<PublicUserModel> selected = const [],
   bool allowReshare = true,
   bool showReshareToggle = false,
-}) => showModalBottomSheet<StoryMentionSelection>(
-  context: context,
+}) => showOptionsSheet<StoryMentionSelection>(
+  context,
   isScrollControlled: true,
   useSafeArea: true,
-  backgroundColor: DarkColors.backgroundColor,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-  ),
   builder: (_) => StoryMentionSheet(
     repo: repo ?? MentionsRepo(),
     selected: selected,

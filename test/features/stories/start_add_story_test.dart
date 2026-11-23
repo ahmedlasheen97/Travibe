@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
@@ -36,11 +37,14 @@ void main() {
       ),
     );
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData.dark(useMaterial3: true),
-        home: uploads == null
-            ? page
-            : BlocProvider.value(value: uploads, child: page),
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: ThemeData.dark(useMaterial3: true),
+          home: uploads == null
+              ? page
+              : BlocProvider.value(value: uploads, child: page),
+        ),
       ),
     );
   }

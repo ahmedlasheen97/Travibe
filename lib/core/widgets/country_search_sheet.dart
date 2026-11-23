@@ -5,6 +5,7 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/reference/countries_repo.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 /// Dark searchable country list (nationality pickers). [load] supplies the
 /// `/reference/countries` list; codes in [selected] show a check mark.
@@ -13,17 +14,10 @@ Future<ReferenceCountry?> showCountrySearchSheet(
   required Future<List<ReferenceCountry>> Function() load,
   Set<String> selected = const {},
   String title = 'Nationality',
-}) => showModalBottomSheet<ReferenceCountry>(
-  context: context,
+}) => showOptionsSheet<ReferenceCountry>(
+  context,
   isScrollControlled: true,
   useSafeArea: true,
-  backgroundColor: DarkColors.backgroundColor,
-  shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(
-      top: Radius.circular(AppSizes.adaptiveRadius(24)),
-    ),
-  ),
-  clipBehavior: Clip.antiAlias,
   builder: (_) =>
       CountrySearchSheet(load: load, selected: selected, title: title),
 );

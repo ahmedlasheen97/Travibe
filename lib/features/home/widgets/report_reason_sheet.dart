@@ -5,6 +5,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/custom_button.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/home/data/report_reason.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 export 'package:travibe/features/home/data/report_reason.dart';
 
@@ -13,19 +14,12 @@ class ReportReasonSheet extends StatefulWidget {
   const ReportReasonSheet({super.key});
 
   static Future<ReportSubmission?> show(BuildContext context) {
-    return showModalBottomSheet<ReportSubmission>(
-      context: context,
+    return showOptionsSheet<ReportSubmission>(
+      context,
       isScrollControlled: true,
-      backgroundColor: _sheetColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (_) => const ReportReasonSheet(),
     );
   }
-
-  // Same frame colour as the post menu sheet.
-  static const _sheetColor = Color(0xFF0A0A0A);
 
   @override
   State<ReportReasonSheet> createState() => _ReportReasonSheetState();

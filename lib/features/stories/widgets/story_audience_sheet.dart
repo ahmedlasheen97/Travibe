@@ -2,19 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/stories/data/story_audience.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 /// Uses existing Travibe sheet styling pending the current audience reference.
 Future<StoryAudience?> showStoryAudienceSheet(
   BuildContext context, {
   required StoryAudience selected,
-}) => showModalBottomSheet<StoryAudience>(
-  context: context,
+}) => showOptionsSheet<StoryAudience>(
+  context,
   isScrollControlled: true,
   useSafeArea: true,
-  backgroundColor: DarkColors.backgroundColor,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-  ),
   builder: (context) => SafeArea(
     top: false,
     child: SingleChildScrollView(

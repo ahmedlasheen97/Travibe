@@ -42,16 +42,10 @@ Future<bool> showShowInBuddiesSheet(
   if (user == null) return false;
   final places = context.read<CityPlacesProvider?>();
   final toast = TravibeToast.of(context);
-  final enabled = await showModalBottomSheet<bool>(
-    context: context,
+  final enabled = await showOptionsSheet<bool>(
+    context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: optionsSheetColor,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(
-        top: Radius.circular(AppSizes.adaptiveRadius(24)),
-      ),
-    ),
     builder: (_) => MultiBlocProvider(
       providers: [
         BlocProvider.value(value: user),
