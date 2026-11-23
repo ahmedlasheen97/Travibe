@@ -7,16 +7,24 @@ import 'package:travibe/core/widgets/sheet_handle.dart';
 /// Figma ⋮ menu frame shared by the post and profile option sheets.
 const optionsSheetColor = Color(0xFF0A0A0A);
 
-/// Opens a ⋮ menu: rounded top 24, handle bar, rows from [builder].
+/// Top corner radius of every options/list sheet (chat long-press, ⋮ menus,
+/// story viewers).
+double get optionsSheetRadius => AppSizes.adaptiveRadius(32);
+
+/// Opens a ⋮ menu: rounded top 32, handle bar, rows from [builder].
+/// [isScrollControlled] lets taller sheets (e.g. story viewers) size themselves.
 Future<T?> showOptionsSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
+  bool isScrollControlled = false,
 }) => showModalBottomSheet<T>(
   context: context,
+  isScrollControlled: isScrollControlled,
   backgroundColor: optionsSheetColor,
+  clipBehavior: Clip.antiAlias,
   shape: RoundedRectangleBorder(
     borderRadius: BorderRadius.vertical(
-      top: Radius.circular(AppSizes.adaptiveRadius(24)),
+      top: Radius.circular(optionsSheetRadius),
     ),
   ),
   builder: builder,

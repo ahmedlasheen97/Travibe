@@ -30,7 +30,8 @@ class StoryViewersSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = ColoredBox(color: Colors.black, child: _content());
+    // The shared options sheet (radius 32, clipped) paints the background.
+    final content = _content();
     if (follow == null && blocks == null) return content;
     return MultiBlocProvider(
       providers: [
@@ -159,14 +160,32 @@ class StoryViewersSheet extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-          HomeUserAvatar(url: user.author.avatarUrl, size: 44),
-          const SizedBox(width: 12),
+          // Avatar + name open the profile (the viewer screen pauses the story
+          // and opens it after the sheet closes); Follow and ⋮ keep their own.
           Expanded(
-            child: Text(
-              user.author.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white),
+            child: Semantics(
+              button: true,
+              label: 'Open ${user.author.name}\'s profile',
+              excludeSemantics: true,
+              child: InkWell(
+                key: ValueKey('story-viewer-row-${user.author.id}'),
+                borderRadius: BorderRadius.circular(24),
+                onTap: () => Navigator.of(context).pop<int>(user.author.id),
+                child: Row(
+                  children: [
+                    HomeUserAvatar(url: user.author.avatarUrl, size: 44),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        user.author.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           if (user.hasLiked) ...[

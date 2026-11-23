@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
@@ -489,33 +490,36 @@ void main() {
   }) async {
     final photo = MemoryImage(photoBytes());
     await tester.pumpWidget(
-      MaterialApp(
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(textScale)),
-          child: child!,
-        ),
-        home: Builder(
-          builder: (context) => Scaffold(
-            body: TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => StoryViewerScreen(
-                    groups: [
-                      viewerGroup(7, [1, 2]),
-                    ],
-                    initialAuthorId: 7,
-                    currentUserId: owner,
-                    repo: repo,
-                    imageProvider: (_) => photo,
-                    blocks: blocks,
-                    follow: follow,
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(textScale)),
+            child: child!,
+          ),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StoryViewerScreen(
+                      groups: [
+                        viewerGroup(7, [1, 2]),
+                      ],
+                      initialAuthorId: 7,
+                      currentUserId: owner,
+                      repo: repo,
+                      imageProvider: (_) => photo,
+                      blocks: blocks,
+                      follow: follow,
+                    ),
                   ),
                 ),
+                child: const Text('Open'),
               ),
-              child: const Text('Open'),
             ),
           ),
         ),

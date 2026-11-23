@@ -2,6 +2,7 @@ import 'package:travibe/core/widgets/swipe_down_dismiss.dart';
 import 'package:travibe/core/widgets/glass_confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/features/stories/widgets/story_reply_composer.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 import 'package:travibe/features/stories/widgets/story_other_options_sheet.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_like_button.dart';
@@ -169,13 +170,21 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   Future<void> _openMention(int userId) async {
     if (_openingMention || _closing) return;
     _openingMention = true;
-    _viewer.pause(true, reason: 'mention-profile');
+    try {
+      await _openProfile(userId);
+    } finally {
+      _openingMention = false;
+    }
+  }
+
+  /// Opens [userId]'s profile with the story paused; resumes on return.
+  Future<void> _openProfile(int userId) async {
+    _viewer.pause(true, reason: 'profile');
     try {
       await (widget.onOpenProfile?.call(context, userId) ??
           ProfileScreen.open(context, userId: userId));
     } finally {
-      _openingMention = false;
-      if (mounted) _viewer.pause(false, reason: 'mention-profile');
+      if (mounted) _viewer.pause(false, reason: 'profile');
     }
   }
 
@@ -287,15 +296,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           isOwner: currentOwner,
           blocks: widget.blocks,
         );
+        int? profileId;
         try {
           cubit.refresh();
-          await showModalBottomSheet<void>(
-            context: context,
+          // A tapped viewer row closes the sheet with that viewer's id.
+          profileId = await showOptionsSheet<int>(
+            context,
             isScrollControlled: true,
-            backgroundColor: Colors.black,
-            shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            ),
             builder: (_) => StoryViewersSheet(
               cubit: cubit,
               count: _viewer.state.visibleViewsCount ?? 0,
@@ -306,6 +313,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         } finally {
           await cubit.close();
         }
+        // Still paused by the owner sheet; back from the profile it resumes.
+        if (profileId != null && currentOwner()) await _openProfile(profileId);
       } else {
         final delete = await showModalBottomSheet<bool>(
           context: context,

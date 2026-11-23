@@ -140,7 +140,7 @@ void main() {
     expect(
       sheet.shape,
       const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
       ),
     );
     await tester.tapAt(const Offset(195, 100));

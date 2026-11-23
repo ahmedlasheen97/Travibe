@@ -542,7 +542,7 @@ void main() {
                   as BorderRadius)
               .topLeft
               .x;
-      expect(radius, closeTo(24, 24 * .15));
+      expect(radius, closeTo(32, 32 * .15 + .01));
       expect(find.byType(OptionSheetTile), findsNWidgets(5));
       final labels = [
         'Share profile',
