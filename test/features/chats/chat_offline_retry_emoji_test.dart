@@ -588,7 +588,6 @@ void main() {
                       onAttachment: () {},
                       onTyped: () {},
                       onSendVoice: () {},
-                      onDiscardMedia: () {},
                     ),
                   ],
                 ),
@@ -675,7 +674,6 @@ void main() {
         onAttachment: () {},
         onTyped: () {},
         onSendVoice: () {},
-        onDiscardMedia: () {},
       );
       await tester.pumpWidget(
         harness(
@@ -779,7 +777,6 @@ void main() {
                 onAttachment: () {},
                 onTyped: () {},
                 onSendVoice: () {},
-                onDiscardMedia: () {},
               ),
             ),
           ),
@@ -821,7 +818,6 @@ void main() {
                 onAttachment: () {},
                 onTyped: () {},
                 onSendVoice: () {},
-                onDiscardMedia: () {},
               ),
             ),
           ),
@@ -909,7 +905,6 @@ void main() {
               onAttachment: () {},
               onTyped: () {},
               onSendVoice: () {},
-              onDiscardMedia: () {},
             ),
           ),
         ),

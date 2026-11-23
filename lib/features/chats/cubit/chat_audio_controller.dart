@@ -6,11 +6,16 @@ import 'package:record/record.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import '../data/chat_models.dart';
 import '../data/chat_device_media.dart';
+import '../data/chat_voice_waveform.dart';
 
 class ChatVoiceDraft {
-  const ChatVoiceDraft(this.bytes, this.durationMs);
+  ChatVoiceDraft(this.bytes, this.durationMs, {List<double>? waveform})
+    : waveform = waveform ?? chatPlaceholderWaveform(durationMs);
   final Uint8List bytes;
   final int durationMs;
+
+  /// Captured levels (0–1), downsampled for the preview pill.
+  final List<double> waveform;
 }
 
 /// One lazy player and recorder per conversation; no background audio service.
@@ -21,7 +26,12 @@ class ChatAudioController extends ChangeNotifier {
     AudioPlayer? player,
     ChatDeviceMedia? deviceMedia,
     bool? recordingSupported,
-  }) : _deviceMedia = deviceMedia ?? const ChatDeviceMedia() {
+    Stopwatch? clock,
+    this.maxRecording = const Duration(minutes: 5),
+    this.minRecording = const Duration(seconds: 1),
+    this.resumeTimeout = const Duration(seconds: 3),
+  }) : _deviceMedia = deviceMedia ?? const ChatDeviceMedia(),
+       _clock = clock ?? Stopwatch() {
     _recorder = recorder;
     _player = player;
     _recordingSupported = recordingSupported;
@@ -30,6 +40,27 @@ class ChatAudioController extends ChangeNotifier {
   }
   final ChatDeviceMedia _deviceMedia;
   late final bool? _recordingSupported;
+
+  /// Recording stops itself here and becomes a preview.
+  final Duration maxRecording;
+
+  /// Shorter recordings are dropped with a [notice].
+  final Duration minRecording;
+
+  /// How long a start waits for the app to return from the system prompt.
+  final Duration resumeTimeout;
+
+  /// Id of the draft preview in [currentMessageId].
+  static const draftId = 'voice-draft';
+
+  /// One-shot hint for the composer (e.g. a recording that was too short).
+  String? notice;
+  String? takeNotice() {
+    final value = notice;
+    notice = null;
+    return value;
+  }
+
   ChatMicrophonePermission? permission;
 
   /// The last [startRecording] showed the system microphone prompt, so a
@@ -52,7 +83,12 @@ class ChatAudioController extends ChangeNotifier {
   Timer? _ticker;
   bool recordingPaused = false;
   Duration get recordingDuration => _clock.elapsed;
+
+  /// The latest 32 live levels for the recording pill.
   final List<double> levels = [];
+  final List<double> _capture = [];
+  String? _outputPath;
+  Completer<void>? _resumed;
   Directory? _previewDirectory;
   Future<void>? _shutdownJob;
   final _preferences = PreferencesManager();
@@ -63,13 +99,28 @@ class ChatAudioController extends ChangeNotifier {
   StreamSubscription<PlayerState>? _playState;
   StreamSubscription<PlayerException>? _errors;
   Directory? _directory;
-  final _clock = Stopwatch();
+  final Stopwatch _clock;
   bool _closed = false, _busy = false;
   bool _foreground = true;
   int _playbackGeneration = 0, _captureEpoch = 0;
   bool _previewing = false;
   void resume() {
     _foreground = true;
+    _resumed?.complete();
+    _resumed = null;
+  }
+
+  /// The system microphone prompt briefly backgrounds the app; wait for it to
+  /// come back so the first recording starts right after granting.
+  Future<bool> _awaitForeground() async {
+    if (_foreground) return true;
+    final resumed = _resumed ??= Completer<void>();
+    try {
+      await resumed.future.timeout(resumeTimeout);
+    } on TimeoutException {
+      // Still in the background; do not record.
+    }
+    return _foreground;
   }
 
   bool recording = false, playing = false;
@@ -202,10 +253,15 @@ class ChatAudioController extends ChangeNotifier {
           permission == ChatMicrophonePermission.denied) {
         promptedForPermission = true;
         permission = await _deviceMedia.microphone(request: true);
+        if (permission == ChatMicrophonePermission.granted &&
+            !await _awaitForeground()) {
+          return;
+        }
       }
       if (permission != ChatMicrophonePermission.granted) {
+        // Settings-blocked: the composer's single Settings sheet explains it.
         error = needsSettings
-            ? 'Allow microphone access in Settings to record a voice message.'
+            ? null
             : 'Microphone access is needed. Tap the microphone to try again.';
         return;
       }
@@ -216,14 +272,16 @@ class ChatAudioController extends ChangeNotifier {
       if (!_active || !_foreground || capture != _captureEpoch) return;
       _directory = await Directory.systemTemp.createTemp('travibe_voice_');
       if (!_active || !_foreground || capture != _captureEpoch) return;
+      final output = '${_directory!.path}/recording.m4a';
       await recorder.start(
         const RecordConfig(
           encoder: AudioEncoder.aacLc,
           bitRate: 64000,
           sampleRate: 44100,
         ),
-        path: '${_directory!.path}/recording.m4a',
+        path: output,
       );
+      _outputPath = output;
       if (!_active || !_foreground || capture != _captureEpoch) {
         await recorder.cancel();
         return;
@@ -234,16 +292,24 @@ class ChatAudioController extends ChangeNotifier {
       recording = true;
       recordingPaused = false;
       levels.clear();
+      _capture.clear();
       _ticker?.cancel();
       _ticker = Timer.periodic(const Duration(milliseconds: 100), (_) {
-        if (recording && _active) _notify();
+        if (!recording || !_active) return;
+        if (_clock.elapsed >= maxRecording) {
+          unawaited(stopRecording());
+        } else {
+          _notify();
+        }
       });
       await _amplitude?.cancel();
       _amplitude = recorder
           .onAmplitudeChanged(const Duration(milliseconds: 80))
           .listen((sample) {
             if (!_active || !recording || recordingPaused) return;
-            levels.add(((sample.current.clamp(-60, 0) + 60) / 60).toDouble());
+            final level = ((sample.current.clamp(-60, 0) + 60) / 60).toDouble();
+            levels.add(level);
+            _capture.add(level);
             if (levels.length > 32) levels.removeAt(0);
             _notify();
           }, onError: (Object _) {});
@@ -258,7 +324,8 @@ class ChatAudioController extends ChangeNotifier {
           recordingPaused = false;
           _clock.start();
         }
-        if (state == RecordState.stop) unawaited(cancelRecording());
+        // The OS stopped the recorder (e.g. a call): keep it as a preview.
+        if (state == RecordState.stop) unawaited(stopRecording());
         _notify();
       });
       error = null;
@@ -280,20 +347,33 @@ class ChatAudioController extends ChangeNotifier {
     await _amplitude?.cancel();
     recordingPaused = false;
     try {
-      final path = await _recorder?.stop();
+      String? path;
+      try {
+        path = await _recorder?.stop();
+      } catch (_) {
+        // Already stopped by the OS; the file is still at [_outputPath].
+      }
+      path ??= _outputPath;
       recording = false;
+      final elapsed = _clock.elapsed;
       if (path != null && _active && capture == _captureEpoch) {
         final file = File(path);
-        final size = await file.length();
-        if (size == 0 ||
-            size > 20 * 1024 * 1024 ||
-            _clock.elapsedMilliseconds < 1 ||
-            _clock.elapsedMilliseconds > 86400000) {
+        final size = await file.exists() ? await file.length() : 0;
+        if (elapsed < minRecording) {
+          notice =
+              'Voice note too short. Tap the mic and record at least '
+              '1 second.';
+        } else if (size == 0 || size > 20 * 1024 * 1024) {
           error = 'This recording is too large or too long.';
         } else {
           final bytes = await file.readAsBytes();
           if (_active && capture == _captureEpoch) {
-            draft = ChatVoiceDraft(bytes, _clock.elapsedMilliseconds);
+            final ms = elapsed.inMilliseconds;
+            draft = ChatVoiceDraft(
+              bytes,
+              ms,
+              waveform: chatDownsampleWaveform(_capture, durationMs: ms),
+            );
           }
         }
       }
@@ -301,27 +381,6 @@ class ChatAudioController extends ChangeNotifier {
       if (_active) error = 'Unable to finish this recording.';
     } finally {
       await _removeTemporary();
-      _busy = false;
-      _notify();
-    }
-  }
-
-  Future<void> pauseRecording() async {
-    if (!_active || !recording || _busy) return;
-    _busy = true;
-    try {
-      if (recordingPaused) {
-        await _recorder?.resume();
-        _clock.start();
-        recordingPaused = false;
-      } else {
-        await _recorder?.pause();
-        _clock.stop();
-        recordingPaused = true;
-      }
-    } catch (_) {
-      error = 'Unable to pause or resume recording.';
-    } finally {
       _busy = false;
       _notify();
     }
@@ -339,6 +398,7 @@ class ChatAudioController extends ChangeNotifier {
     } catch (_) {}
     await _removeTemporary();
     levels.clear();
+    _capture.clear();
     _notify();
   }
 
@@ -356,7 +416,7 @@ class ChatAudioController extends ChangeNotifier {
       if (!_active || !identical(voice, draft)) return;
       await toggle(
         ChatMessage(
-          id: 'voice-draft',
+          id: draftId,
           senderId: '',
           kind: ChatMessageKind.audio,
           mediaUrl: file.uri,
@@ -379,6 +439,22 @@ class ChatAudioController extends ChangeNotifier {
     unawaited(_removePreview());
     error = null;
     _notify();
+  }
+
+  /// Seeks the loaded message (or draft) to [fraction] of its length.
+  Future<void> seek(String messageId, double fraction) async {
+    final player = _player;
+    if (!_active || player == null || currentMessageId != messageId) return;
+    final total = duration.inMilliseconds;
+    if (total <= 0) return;
+    final target = Duration(
+      milliseconds: (total * fraction.clamp(0.0, 1.0)).round(),
+    );
+    position = target;
+    _notify();
+    try {
+      await player.seek(target);
+    } catch (_) {}
   }
 
   Future<void> stopPlayback() async {
@@ -405,6 +481,7 @@ class ChatAudioController extends ChangeNotifier {
   Future<void> _removeTemporary() async {
     final directory = _directory;
     _directory = null;
+    _outputPath = null;
     if (directory != null) {
       try {
         await directory.delete(recursive: true);
@@ -426,6 +503,10 @@ class ChatAudioController extends ChangeNotifier {
     _captureEpoch++;
     draft = null;
     levels.clear();
+    _capture.clear();
+    notice = null;
+    _resumed?.complete();
+    _resumed = null;
     error = null;
     currentMessageId = null;
     position = Duration.zero;

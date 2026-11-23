@@ -496,7 +496,6 @@ void main() {
                   onAttachment: () {},
                   onTyped: () {},
                   onSendVoice: () {},
-                  onDiscardMedia: () {},
                   onSendAttachments: () => sends++,
                   selectedMediaTray: selected
                       ? ChatSelectedMediaTray(

@@ -12,6 +12,8 @@ import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import '../data/chat_models.dart';
 import '../cubit/chat_audio_controller.dart';
 import 'chat_video_message.dart';
+import 'chat_waveform.dart';
+import '../data/chat_voice_waveform.dart';
 import 'chat_post_card.dart';
 import 'chat_reply_preview.dart';
 import 'package:travibe/features/shares/screens/open_shared_post.dart';
@@ -191,58 +193,89 @@ class ChatVoiceMessage extends StatelessWidget {
     this.progress = 0,
     this.playing = false,
     this.onToggle,
+    this.position,
+    this.waveform,
+    this.outgoing = false,
+    this.onSeek,
   });
   final Duration? duration;
   final double progress;
   final bool playing;
   final VoidCallback? onToggle;
+
+  /// Playback position when this message is loaded in the player; the label
+  /// then counts down.
+  final Duration? position;
+
+  /// Bars to draw; defaults to the stable placeholder for [duration].
+  final List<double>? waveform;
+  final bool outgoing;
+  final ValueChanged<double>? onSeek;
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-    width: 180,
-    child: Row(
-      children: [
-        IconButton(
-          tooltip: onToggle == null
-              ? 'Voice playback unavailable'
-              : playing
-              ? 'Pause voice message'
-              : 'Play voice message',
-          onPressed: onToggle,
-          style: IconButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: const Size.square(44),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          icon: Container(
-            width: 32,
-            height: 32,
-            decoration: const BoxDecoration(
-              color: DarkColors.primaryColor,
-              shape: BoxShape.circle,
+  Widget build(BuildContext context) {
+    final total = duration;
+    final at = position;
+    final label = total == null
+        ? 'Audio'
+        : at != null && (playing || at > Duration.zero)
+        ? formatVoiceClock(total - at)
+        : formatVoiceClock(total);
+    return SizedBox(
+      width: AppSizes.chatVoiceBubbleWidth,
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: onToggle == null
+                ? 'Voice playback unavailable'
+                : playing
+                ? 'Pause voice message'
+                : 'Play voice message',
+            onPressed: onToggle,
+            style: IconButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size.square(AppSizes.chatVoiceTapTarget),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            icon: Container(
+              key: const ValueKey('chat-voice-play'),
+              width: AppSizes.chatVoiceButtonSize,
+              height: AppSizes.chatVoiceButtonSize,
+              decoration: const BoxDecoration(
+                color: DarkColors.primaryColor,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: AppSizes.chatVoiceIconSize,
+              ),
+            ),
+          ),
+          SizedBox(width: AppSizes.chatVoiceGap / 2),
+          Expanded(
+            child: ChatWaveform(
+              samples:
+                  waveform ?? chatPlaceholderWaveform(total?.inMilliseconds),
+              progress: progress,
+              playedColor: outgoing ? Colors.white : DarkColors.primaryColor,
+              idleColor: outgoing ? Colors.white54 : Colors.white,
+              onSeek: onSeek,
+            ),
+          ),
+          SizedBox(width: AppSizes.chatVoiceGap),
+          Text(
+            label,
+            style: TextStyle(
               color: Colors.white,
-              size: 22,
+              fontSize: AppSizes.chatVoiceTimerFont,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-        ),
-        Expanded(
-          child: LinearProgressIndicator(
-            value: progress.clamp(0, 1),
-            backgroundColor: Colors.white24,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          duration == null
-              ? 'Audio'
-              : '${duration!.inMinutes}:${(duration!.inSeconds % 60).toString().padLeft(2, '0')}',
-          style: const TextStyle(color: Colors.white, fontSize: 12),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
 class ChatMessageBubble extends StatelessWidget {
@@ -329,7 +362,7 @@ class ChatMessageBubble extends StatelessWidget {
                       : _isPostCard
                       ? EdgeInsets.all(AppSizes.adaptiveWidth(8))
                       : message.kind == ChatMessageKind.audio
-                      ? const EdgeInsets.symmetric(horizontal: 8, vertical: 2)
+                      ? AppSizes.chatVoiceBubblePadding
                       : const EdgeInsets.symmetric(
                           horizontal: 14,
                           vertical: 10,
@@ -377,26 +410,45 @@ class ChatMessageBubble extends StatelessWidget {
                           ChatMessageKind.image => _image(context),
                           ChatMessageKind.audio =>
                             audio == null
-                                ? ChatVoiceMessage(duration: message.duration)
+                                ? ChatVoiceMessage(
+                                    duration: message.duration,
+                                    outgoing: outgoing,
+                                  )
                                 : AnimatedBuilder(
                                     animation: audio!,
-                                    builder: (_, _) => ChatVoiceMessage(
-                                      duration: message.duration,
-                                      playing:
-                                          audio!.currentMessageId ==
-                                              message.id &&
-                                          audio!.playing,
-                                      progress:
-                                          audio!.currentMessageId ==
-                                                  message.id &&
-                                              audio!.duration.inMilliseconds > 0
-                                          ? audio!.position.inMilliseconds /
-                                                audio!.duration.inMilliseconds
-                                          : 0,
-                                      onToggle: message.mediaUrl == null
-                                          ? null
-                                          : () => audio!.toggle(message),
-                                    ),
+                                    builder: (_, _) {
+                                      final current =
+                                          audio!.currentMessageId == message.id;
+                                      final total =
+                                          current &&
+                                              audio!.duration > Duration.zero
+                                          ? audio!.duration
+                                          : message.duration;
+                                      return ChatVoiceMessage(
+                                        duration: total,
+                                        outgoing: outgoing,
+                                        playing: current && audio!.playing,
+                                        position: current
+                                            ? audio!.position
+                                            : null,
+                                        waveform: chatPlaceholderWaveform(
+                                          message.duration?.inMilliseconds,
+                                        ),
+                                        progress:
+                                            current &&
+                                                audio!.duration.inMilliseconds >
+                                                    0
+                                            ? audio!.position.inMilliseconds /
+                                                  audio!.duration.inMilliseconds
+                                            : 0,
+                                        onToggle: message.mediaUrl == null
+                                            ? null
+                                            : () => audio!.toggle(message),
+                                        onSeek: current
+                                            ? (f) => audio!.seek(message.id, f)
+                                            : null,
+                                      );
+                                    },
                                   ),
                           ChatMessageKind.video => ChatVideoMessage(
                             url: message.mediaUrl,

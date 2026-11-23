@@ -147,6 +147,47 @@ class AppSizes {
     vertical: 14,
   );
 
+  // ---------------------------------------------------------------------------
+  // Chat voice notes (docs/figma/chat/voice_*.png): recording/preview pill,
+  // trash + send row, and voice message bubbles.
+  // ---------------------------------------------------------------------------
+  static double get chatVoicePillHeight => adaptiveHeight(48);
+  static double get chatVoicePillRadius => adaptiveRadius(24);
+  static EdgeInsetsDirectional get chatVoicePillPadding =>
+      EdgeInsetsDirectional.only(
+        start: adaptiveWidth(8),
+        end: adaptiveWidth(16),
+      );
+
+  /// Stop / play circle inside a pill or bubble.
+  static double get chatVoiceButtonSize => adaptiveRadius(32);
+  static double get chatVoiceIconSize => adaptiveRadius(20);
+  static double get chatVoiceStopSize => adaptiveRadius(12);
+
+  /// Trash glass circle and the send button under the pill.
+  static double get chatVoiceActionSize => adaptiveRadius(48);
+  static double get chatVoiceActionIconSize => adaptiveRadius(22);
+  static double get chatVoiceRowGap => adaptiveHeight(12);
+  static double get chatVoiceGap => adaptiveWidth(12);
+  static double get chatVoiceWaveHeight => adaptiveHeight(22);
+  static double get chatVoiceBarWidth => adaptiveWidth(2.5);
+  static double get chatVoiceBarGap => adaptiveWidth(2.5);
+  static double get chatVoiceTimerFont => adaptiveFont(16);
+  static double get chatVoiceLabelFont => adaptiveFont(12);
+
+  /// Voice message bubble.
+  static double get chatVoiceBubbleWidth => adaptiveWidth(200);
+  static EdgeInsetsDirectional get chatVoiceBubblePadding =>
+      EdgeInsetsDirectional.fromSTEB(
+        adaptiveWidth(4),
+        adaptiveHeight(2),
+        adaptiveWidth(16),
+        adaptiveHeight(2),
+      );
+
+  /// Play button tap target in a bubble (the visible circle is smaller).
+  static const double chatVoiceTapTarget = 44;
+
   /// Font Sizes
   static final double sp8 = 8.sp;
   static final double sp12 = 12.sp;
