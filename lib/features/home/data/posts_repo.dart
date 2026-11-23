@@ -164,27 +164,13 @@ class PostsRepo {
   }) async {
     final id = int.tryParse(postId);
     if (id == null || id < 1) throw ArgumentError.value(postId, 'postId');
-    final note = description?.trim() ?? '';
-    try {
-      final response = await _apiService.post('reports', {
-        'type': 'post',
-        'id': id,
-        'reason': reason.apiValue,
-        if (note.isNotEmpty)
-          'description': note.length > reportDescriptionMaxLength
-              ? note.substring(0, reportDescriptionMaxLength)
-              : note,
-      });
-      if (response is! Map || response['data'] is! Map) {
-        throw ApiError(message: 'Unable to confirm the report. Please retry.');
-      }
-    } on ApiError {
-      rethrow;
-    } on DioException catch (e) {
-      throw ApiExceptions.handleError(e);
-    } catch (_) {
-      throw ApiError(message: 'Unable to send the report. Please try again.');
-    }
+    await submitReport(
+      _apiService,
+      type: 'post',
+      id: id,
+      reason: reason,
+      description: description,
+    );
   }
 
   Future<HiddenPostResponse> setHidden(String postId, bool hidden) async {

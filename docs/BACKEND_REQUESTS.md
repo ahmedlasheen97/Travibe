@@ -284,3 +284,35 @@ accounts they follow (from `GET /stories` via `StoriesCubit.groupOf`).
 when the user isn't in the stories bar, and shows the ring and opens the
 viewer with that group. Views and replies use the existing endpoints, and the
 reply bar stays hidden on the user's own stories.
+
+## Chat: delete a message for me only
+
+Long-press → "Delete for me" should remove a message from my side only. The
+API's only option is `DELETE /messages/{message}`, which deletes for both
+participants and only works for the sender, so it can't be used for someone
+else's message or to tidy up my own without unsending it.
+
+**Ask:** add a per-viewer hide, e.g. `POST /messages/{message}/hide` (or
+`DELETE /messages/{message}?scope=me`), bearer token:
+
+- Allowed for any participant of the conversation, on any message, mine or
+  theirs, including already-deleted placeholders.
+- Idempotent: hiding twice is still `200`.
+- Responses: `200`, `401`, `404` (not a participant / unknown message, same
+  as `/reports`).
+- For that viewer only, hidden messages are left out of
+  `GET /conversations/{id}/messages` (including `updated_since` syncs) and
+  out of the conversation's `last_message` / inbox preview, which falls back
+  to the previous visible message, the way delete-for-both already does.
+- Optional: a `message.hidden` Reverb event to the viewer's private channel
+  so their other devices drop it too.
+
+**Client today:** `ChatHiddenMessages` keeps hidden message IDs on the device
+per account (SharedPreferences key `chat_hidden_messages_<userId>`, IDs
+only, kept across logout) and `ConversationScreen` filters them out. Gaps:
+hidden messages come back on another device or after reinstalling, and the
+chat list preview can still show a hidden last message.
+
+**Client after:** "Delete for me" calls the endpoint, then removes the
+message from the list. Existing local IDs are sent once in the background
+and then the local store is cleared.

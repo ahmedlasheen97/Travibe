@@ -1,4 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
+import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
+import 'package:travibe/core/datasource/remotedata/api_service.dart';
 
 /// `POST /reports` reasons (`ReportReason` schema in docs/openapi.json).
 enum ReportReason {
@@ -32,4 +35,37 @@ bool isAlreadyReported(ApiError error) {
     for (final messages in error.fieldErrors.values) ...messages,
   ].join(' ').toLowerCase();
   return text.contains('already') || text.contains('pending');
+}
+
+/// `POST /reports` for any target [type] (`post`, `comment`, `user`, `story`,
+/// `message`). Trims and caps [description]; throws [ApiError] on failure or
+/// when the response doesn't confirm the report.
+Future<void> submitReport(
+  ApiService api, {
+  required String type,
+  required int id,
+  required ReportReason reason,
+  String? description,
+}) async {
+  final note = description?.trim() ?? '';
+  try {
+    final response = await api.post('reports', {
+      'type': type,
+      'id': id,
+      'reason': reason.apiValue,
+      if (note.isNotEmpty)
+        'description': note.length > reportDescriptionMaxLength
+            ? note.substring(0, reportDescriptionMaxLength)
+            : note,
+    });
+    if (response is! Map || response['data'] is! Map) {
+      throw ApiError(message: 'Unable to confirm the report. Please retry.');
+    }
+  } on ApiError {
+    rethrow;
+  } on DioException catch (e) {
+    throw ApiExceptions.handleError(e);
+  } catch (_) {
+    throw ApiError(message: 'Unable to send the report. Please try again.');
+  }
 }
