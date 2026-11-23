@@ -10,9 +10,9 @@ import 'package:travibe/features/stories/data/story_model.dart';
 /// story. Names, absent expiry and stale session data are never ownership proof.
 ///
 /// Home's "You" bubble and my Profile picture share this menu. Profile renames
-/// the rows, adds [onViewPicture] ("View profile picture") and opens the
-/// picture instead of adding a story when there is no active story
-/// ([onTapWithoutStory]).
+/// the rows, hides the add row ([showAddStory]: its "+" badge adds a story),
+/// adds [onViewPicture] ("View profile picture") and opens the picture instead
+/// of adding a story when there is no active story ([onTapWithoutStory]).
 class YourStoryButton extends StatefulWidget {
   const YourStoryButton({
     super.key,
@@ -26,6 +26,7 @@ class YourStoryButton extends StatefulWidget {
     this.viewStoryLabel = 'View Story',
     this.addStoryLabel = 'Add to Story',
     this.semanticsLabel = 'Your Story',
+    this.showAddStory = true,
     this.now,
   });
   final Widget child;
@@ -39,6 +40,9 @@ class YourStoryButton extends StatefulWidget {
   /// Tap without an active story; defaults to [onAddStory].
   final VoidCallback? onTapWithoutStory;
   final String viewStoryLabel, addStoryLabel, semanticsLabel;
+
+  /// Shows the [addStoryLabel] row in the menu (Home); Profile hides it.
+  final bool showAddStory;
   final DateTime Function()? now;
 
   @override
@@ -238,20 +242,21 @@ class _YourStoryButtonState extends State<YourStoryButton> {
                 ],
               ),
             ),
-            MenuItemButton(
-              key: const ValueKey('add-new-story'),
-              style: rowStyle,
-              leadingIcon: SvgPicture.asset(
-                'assets/images/interactions/add.svg',
-                width: 24,
-                height: 24,
+            if (widget.showAddStory)
+              MenuItemButton(
+                key: const ValueKey('add-new-story'),
+                style: rowStyle,
+                leadingIcon: SvgPicture.asset(
+                  'assets/images/interactions/add.svg',
+                  width: 24,
+                  height: 24,
+                ),
+                onPressed: () {
+                  _menu.close();
+                  widget.onAddStory?.call();
+                },
+                child: Text(widget.addStoryLabel),
               ),
-              onPressed: () {
-                _menu.close();
-                widget.onAddStory?.call();
-              },
-              child: Text(widget.addStoryLabel),
-            ),
             if (widget.onViewPicture case final viewPicture?)
               MenuItemButton(
                 key: const ValueKey('view-profile-picture'),
@@ -271,8 +276,10 @@ class _YourStoryButtonState extends State<YourStoryButton> {
           child: Semantics(
             button: true,
             label: _hasActiveStory
-                ? '${widget.semanticsLabel}. ${widget.viewStoryLabel} or '
-                      '${widget.addStoryLabel}'
+                ? widget.showAddStory
+                      ? '${widget.semanticsLabel}. ${widget.viewStoryLabel} or '
+                            '${widget.addStoryLabel}'
+                      : '${widget.semanticsLabel}. ${widget.viewStoryLabel}'
                 : widget.onTapWithoutStory != null
                 ? widget.semanticsLabel
                 : '${widget.semanticsLabel}. ${widget.addStoryLabel}',

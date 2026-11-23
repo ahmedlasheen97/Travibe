@@ -75,17 +75,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  void expectOnlyTwoButtons({required bool hasCity}) {
+  /// No city: Choose City + Not Now. Saved city: Turn On + Change City
+  /// (outlined) + Not Now.
+  void expectButtons({required bool hasCity}) {
     expect(find.text('Turn On'), hasCity ? findsOneWidget : findsNothing);
     expect(find.text('Choose City'), hasCity ? findsNothing : findsOneWidget);
+    expect(find.text('Change City'), hasCity ? findsOneWidget : findsNothing);
     expect(find.text('Allow Location'), findsNothing);
     expect(find.text('Not Now'), findsOneWidget);
     expect(find.text('Use my location'), findsNothing);
     expect(find.text('Choose city manually'), findsNothing);
-    expect(find.text('Change city'), findsNothing);
     expect(find.text('Open Settings'), findsNothing);
     expect(find.byType(ElevatedButton), findsOneWidget);
-    expect(find.byType(OutlinedButton), findsNothing);
+    expect(
+      find.byType(OutlinedButton),
+      hasCity ? findsOneWidget : findsNothing,
+    );
   }
 
   testWidgets('no city: city copy with only Choose City and Not Now', (
@@ -105,7 +110,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.location_on_rounded), findsOneWidget);
-    expectOnlyTwoButtons(hasCity: false);
+    expectButtons(hasCity: false);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -142,7 +147,7 @@ void main() {
     expect(api.calls, ['city search']);
     expect(user.state.profile!.showInTravelBuddy, false);
     expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
-    expectOnlyTwoButtons(hasCity: false);
+    expectButtons(hasCity: false);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -182,12 +187,15 @@ void main() {
 
     testWidgets('shows the city and never asks for location', (tester) async {
       await openSheet(tester);
-      expect(find.text("You'll appear to travelers in Cairo, EG."), findsOneWidget);
+      expect(
+        find.text("You'll appear to travelers in Cairo, EG."),
+        findsOneWidget,
+      );
       expect(
         find.text("We'll show your city, not your exact location."),
         findsOneWidget,
       );
-      expectOnlyTwoButtons(hasCity: true);
+      expectButtons(hasCity: true);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -203,6 +211,83 @@ void main() {
         ]);
         expect(find.byType(ShowInBuddiesSheet), findsNothing);
         expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('Change City sits between Turn On and Not Now, same height', (
+      tester,
+    ) async {
+      await openSheet(tester);
+      final turnOn = tester.getRect(find.byType(ElevatedButton));
+      final change = tester.getRect(
+        find.byKey(const ValueKey('show-in-buddies-change-city')),
+      );
+      final notNow = tester.getRect(find.byType(TextButton).last);
+      expect(change.top, greaterThan(turnOn.bottom));
+      expect(change.bottom, lessThan(notNow.top));
+      expect(change.height, turnOn.height);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+      'Change City searches, saves the new city, turns on, closes and toasts',
+      (tester) async {
+        picked = CitySelection(
+          cityName: 'Alexandria',
+          countryName: 'Egypt',
+          countryCode: 'eg',
+          latitude: 31.2,
+          longitude: 29.92,
+        );
+        await openSheet(tester);
+        await tester.tap(find.text('Change City'));
+        await tester.pumpAndSettle();
+        expect(api.calls, [
+          'city search',
+          'PUT profile/location',
+          'PATCH settings',
+        ]);
+        expect(api.payloads, [
+          {'location': 'Alexandria, EG'},
+          {'show_in_travel_buddy': true},
+        ]);
+        expect(user.state.profile!.currentLocation, 'Alexandria, EG');
+        expect(user.state.profile!.showInTravelBuddy, true);
+        expect(find.byType(ShowInBuddiesSheet), findsNothing);
+        expect(find.text(showInBuddiesSuccessMessage), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+
+    testWidgets('Change City: closing the search changes nothing', (
+      tester,
+    ) async {
+      picked = null;
+      await openSheet(tester);
+      await tester.tap(find.text('Change City'));
+      await tester.pumpAndSettle();
+      expect(api.calls, ['city search']);
+      expect(user.state.profile!.currentLocation, 'Cairo, EG');
+      expect(user.state.profile!.showInTravelBuddy, false);
+      expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
+      expectButtons(hasCity: true);
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets(
+      'Change City opens the shared Profile Setup / Edit Profile city search',
+      (tester) async {
+        await openSheet(tester, realPicker: true);
+        await tester.tap(find.text('Change City'));
+        await tester.pumpAndSettle();
+        expect(find.text('Current City'), findsOneWidget);
+        expect(find.text('Search for your current city'), findsOneWidget);
+        await tester.tapAt(const Offset(20, 20));
+        await tester.pumpAndSettle();
+        expect(find.text('Current City'), findsNothing);
+        expect(find.byType(ShowInBuddiesSheet), findsOneWidget);
+        expect(api.calls, isEmpty);
         await tester.pumpWidget(const SizedBox());
       },
     );

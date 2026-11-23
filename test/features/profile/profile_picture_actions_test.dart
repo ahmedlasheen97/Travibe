@@ -109,9 +109,10 @@ void main() {
           findsOneWidget,
         );
         expect(find.byType(BottomSheet), findsNothing);
-        expect(find.byType(MenuItemButton), findsNWidgets(3));
+        expect(find.byType(MenuItemButton), findsNWidgets(2));
         expect(find.text('View my Story'), findsOneWidget);
-        expect(find.text('Add New Story'), findsOneWidget);
+        expect(find.text('Add New Story'), findsNothing);
+        expect(_addStory, findsNothing);
         expect(find.text('View profile picture'), findsOneWidget);
         // Anchored under the picture.
         expect(
@@ -138,16 +139,19 @@ void main() {
       });
     });
 
-    testWidgets('"Add New Story" opens the add-story sheet on Profile', (
+    testWidgets('menu has no add row; the "+" badge still adds a story', (
       tester,
     ) async {
       await withFakeNetworkImages(() async {
         final tab = await showMine(tester, story: true);
         await tester.tap(_myPicture);
         await _settle(tester);
-        await tester.tap(_addStory);
-        await _settle(tester);
+        expect(_viewStory, findsOneWidget);
         expect(_addStory, findsNothing);
+        await tester.tapAt(const Offset(10, 820));
+        await _settle(tester);
+        await tester.tap(find.byKey(const ValueKey('profile-add-story')));
+        await _settle(tester);
         expect(find.byType(PostStorySheet), findsOneWidget);
         expect(tab(), 4);
       });

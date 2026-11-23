@@ -349,7 +349,7 @@ class _ProfileViewState extends State<_ProfileView> {
 
   /// The picture, ringed (same as Home) while this user has an active Story I
   /// can see in the shared Stories source. Tapping it: my own with a story →
-  /// Home's "You" menu (View my Story / Add New Story / View profile
+  /// Home's "You" menu without its add row (View my Story / View profile
   /// picture); another user's with a story → their Stories; no story → the
   /// full-screen picture. My "+" badge always adds a story.
   Widget _avatar(ProfileModel profile) {
@@ -376,11 +376,10 @@ class _ProfileViewState extends State<_ProfileView> {
         group: group,
         currentUserId: int.tryParse(profile.id),
         onViewStory: story,
-        onAddStory: () => _addStory(profile),
         onViewPicture: picture,
         onTapWithoutStory: picture ?? () {},
         viewStoryLabel: 'View my Story',
-        addStoryLabel: 'Add New Story',
+        showAddStory: false,
         semanticsLabel: 'My profile picture',
         child: avatar,
       );
