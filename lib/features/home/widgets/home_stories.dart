@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
+import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 
 class HomeStories extends StatelessWidget {
   const HomeStories({
@@ -65,8 +66,12 @@ class HomeStories extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final own = stories.where((g) => g.user.id == currentUserId).firstOrNull;
-    final others = stories.where((g) => g.user.id != currentUserId).toList();
+    final ordered = storyPlayOrder(stories, currentUserId);
+    final own =
+        currentUserId != null && ordered.firstOrNull?.user.id == currentUserId
+        ? ordered.first
+        : null;
+    final others = own == null ? ordered : ordered.sublist(1);
     final initialLoading = loading && stories.isEmpty;
     return SizedBox(
       height: preferredHeight(context),

@@ -495,19 +495,16 @@ class _HomeViewState extends State<_HomeView> {
     _scrollController.addListener(_onScroll);
   }
 
-  Future<void> _openStoryViewer(List<StoryGroup> groups, int authorId) {
-    final revision = _storySession.sessionRevision;
-    return openStoryViewer(
-      context,
-      groups: groups,
-      authorId: authorId,
-      stories: _stories,
-      likes: _storyLikes,
-      currentUserId: _storyOwnerSession == revision
-          ? int.tryParse(_account.state.account?.id ?? '')
-          : null,
-    );
-  }
+  /// Same opener as Profile; the row's [groups] already follow its order.
+  Future<void> _openStoryViewer(List<StoryGroup> groups, int authorId) =>
+      openStoriesOf(
+        context,
+        authorId: authorId,
+        stories: _stories,
+        likes: _storyLikes,
+        fallbackOwnerId: _account.state.account?.id,
+        fallbackSession: _storyOwnerSession,
+      );
 
   /// Runs before the editor pops, so the toast is timed to the refresh end.
   Future<void> _onStoryPublished() async {

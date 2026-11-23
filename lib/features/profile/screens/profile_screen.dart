@@ -1,6 +1,5 @@
 import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
-import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
@@ -394,23 +393,15 @@ class _ProfileViewState extends State<_ProfileView> {
     );
   }
 
+  /// Same opener and order as Home's Stories row.
   Future<void> _openStories(ProfileModel profile, StoryGroup group) =>
-      openStoryViewer(
+      openStoriesOf(
         context,
-        groups: [group],
         authorId: group.user.id,
-        stories: context.read<StoriesCubit>(),
-        likes: context.read<StoryLikesCubit?>(),
-        currentUserId: int.tryParse(
-          viewerUserId(
-                context,
-                fallbackId: context.read<ProfileCubit>().userId == null
-                    ? profile.id
-                    : null,
-                fallbackSession: PreferencesManager().sessionRevision,
-              ) ??
-              '',
-        ),
+        fallbackOwnerId: context.read<ProfileCubit>().userId == null
+            ? profile.id
+            : null,
+        fallbackSession: PreferencesManager().sessionRevision,
       );
 
   /// The same picker → editor → upload flow as Home, opened over Profile.
