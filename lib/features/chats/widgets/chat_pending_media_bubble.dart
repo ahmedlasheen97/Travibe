@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/theme/dark_colors.dart';
 import '../data/chat_media_selection.dart';
 import '../data/chat_models.dart';
+import 'chat_waveform.dart';
 import 'chat_widgets.dart';
 
 class ChatPendingMediaBubble extends StatelessWidget {
@@ -11,6 +14,8 @@ class ChatPendingMediaBubble extends StatelessWidget {
     required this.onRetry,
     this.progress,
     this.onCancel,
+    this.error,
+    this.onDiscard,
   });
   final ChatMediaSelection media;
   final bool sending;
@@ -21,6 +26,17 @@ class ChatPendingMediaBubble extends StatelessWidget {
 
   /// Non-null while the upload can still be cancelled.
   final VoidCallback? onCancel;
+
+  /// Failure text; the bubble's retry is the only retry control.
+  final String? error;
+
+  /// Drops a failed voice note.
+  final VoidCallback? onDiscard;
+
+  /// "Voice note · 0:12" — never the upload filename.
+  static String voiceLabel(int? durationMs) => durationMs == null
+      ? 'Voice note'
+      : 'Voice note · ${formatVoiceClock(Duration(milliseconds: durationMs))}';
 
   @override
   Widget build(BuildContext context) => Align(
@@ -64,6 +80,8 @@ class ChatPendingMediaBubble extends StatelessWidget {
                     ],
                   ),
                 )
+              else if (media.kind == ChatMessageKind.audio)
+                _voice()
               else
                 Container(
                   padding: const EdgeInsets.all(4),
@@ -79,10 +97,8 @@ class ChatPendingMediaBubble extends StatelessWidget {
                           ? _ring()
                           : SizedBox.square(
                               dimension: 48,
-                              child: Icon(
-                                media.kind == ChatMessageKind.audio
-                                    ? Icons.mic
-                                    : Icons.videocam,
+                              child: const Icon(
+                                Icons.videocam,
                                 color: Colors.white,
                               ),
                             ),
@@ -92,17 +108,76 @@ class ChatPendingMediaBubble extends StatelessWidget {
               if (sending)
                 const ChatSendingLabel(fontSize: null)
               else
-                TextButton(
-                  onPressed: onRetry,
-                  child: const Text(
-                    'Failed to send. Tap to retry.',
-                    style: TextStyle(color: Colors.redAccent),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: TextButton(
+                        onPressed: onRetry,
+                        child: Text(
+                          error ?? 'Failed to send. Tap to retry.',
+                          style: const TextStyle(color: Colors.redAccent),
+                        ),
+                      ),
+                    ),
+                    if (onDiscard != null &&
+                        media.kind == ChatMessageKind.audio)
+                      IconButton(
+                        tooltip: 'Discard voice note',
+                        onPressed: onDiscard,
+                        icon: const Icon(Icons.close, color: Colors.white60),
+                      ),
+                  ],
                 ),
             ],
           ),
         ),
       ),
+    ),
+  );
+
+  Widget _voice() => Container(
+    key: const ValueKey('chat-pending-voice'),
+    padding: AppSizes.chatVoiceBubblePadding,
+    decoration: BoxDecoration(
+      color: const Color(0xFF9B3900),
+      borderRadius: BorderRadius.circular(AppSizes.chatVoicePillRadius),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (sending)
+          _ring()
+        else
+          SizedBox.square(
+            dimension: AppSizes.chatVoiceTapTarget,
+            child: Center(
+              child: Container(
+                width: AppSizes.chatVoiceButtonSize,
+                height: AppSizes.chatVoiceButtonSize,
+                decoration: const BoxDecoration(
+                  color: DarkColors.primaryColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.mic_rounded,
+                  color: Colors.white,
+                  size: AppSizes.chatVoiceIconSize,
+                ),
+              ),
+            ),
+          ),
+        SizedBox(width: AppSizes.chatVoiceGap / 2),
+        Flexible(
+          child: Text(
+            voiceLabel(media.durationMs),
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: AppSizes.chatVoiceTimerFont,
+            ),
+          ),
+        ),
+      ],
     ),
   );
 

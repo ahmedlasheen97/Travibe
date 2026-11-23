@@ -79,7 +79,6 @@ void main() {
                   onAttachment: () {},
                   onTyped: () {},
                   onSendVoice: () {},
-                  onDiscardMedia: () {},
                   mediaError:
                       'A retryable attachment error remains visible without covering the keyboard.',
                 ),
@@ -91,13 +90,13 @@ void main() {
       );
       await tester.pump();
       expect(tester.takeException(), isNull);
-      await tester.ensureVisible(find.byType(TextField));
+      // The preview pill replaces the text field; its send stays reachable.
+      expect(find.byType(TextField), findsNothing);
+      final send = find.byTooltip('Send voice note');
+      await tester.ensureVisible(send);
       await tester.pump();
       expect(tester.takeException(), isNull);
-      expect(
-        tester.getBottomRight(find.byType(TextField)).dy,
-        lessThanOrEqualTo(250),
-      );
+      expect(tester.getBottomRight(send).dy, lessThanOrEqualTo(250));
       await tester.pumpWidget(const SizedBox());
       audio.dispose();
       text.dispose();
@@ -317,7 +316,9 @@ void main() {
     );
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('voice message never simulates playback', (tester) async {
+  testWidgets('voice message without a player never simulates playback', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       harness(
         const Scaffold(body: ChatVoiceMessage(duration: Duration(seconds: 16))),

@@ -98,6 +98,30 @@ class RecorderFake implements AudioRecorder {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Recording clock the test advances by hand.
+class FakeStopwatch implements Stopwatch {
+  Duration value = Duration.zero;
+  bool running = false;
+  @override
+  Duration get elapsed => value;
+  @override
+  int get elapsedMilliseconds => value.inMilliseconds;
+  @override
+  int get elapsedMicroseconds => value.inMicroseconds;
+  @override
+  int get elapsedTicks => value.inMicroseconds;
+  @override
+  int get frequency => 1000000;
+  @override
+  bool get isRunning => running;
+  @override
+  void start() => running = true;
+  @override
+  void stop() => running = false;
+  @override
+  void reset() => value = Duration.zero;
+}
+
 class PreviewPlayerFake implements AudioPlayer {
   final states = StreamController<PlayerState>.broadcast(sync: true);
   String? url;
@@ -137,6 +161,12 @@ class PreviewPlayerFake implements AudioPlayer {
   @override
   Future<void> stop() async {
     states.add(PlayerState(false, ProcessingState.idle));
+  }
+
+  Duration? seeked;
+  @override
+  Future<void> seek(Duration? position, {int? index}) async {
+    seeked = position;
   }
 
   @override
@@ -236,24 +266,20 @@ void main() {
     );
   }
   test(
-    'records levels, pauses/resumes, keeps a preview draft and releases recording resources',
+    'records levels, keeps a preview draft and releases recording resources',
     () async {
       final recorder = RecorderFake();
+      final clock = FakeStopwatch();
       final audio = ChatAudioController(
         recorder: recorder,
         deviceMedia: PermissionsFake(),
         recordingSupported: true,
+        clock: clock,
       );
       await audio.startRecording();
       recorder.levels.add(Amplitude(current: -20, max: 0));
       expect(audio.levels.single, closeTo(2 / 3, .01));
-      await Future<void>.delayed(const Duration(milliseconds: 5));
-      await audio.pauseRecording();
-      expect(audio.recordingPaused, isTrue);
-      await audio.pauseRecording();
-      expect(audio.recordingPaused, isFalse);
-      expect(recorder.pauses, 1);
-      expect(recorder.resumes, 1);
+      clock.value = const Duration(seconds: 2);
       await audio.stopRecording();
       expect(audio.draft?.bytes, [1, 2, 3]);
       expect(audio.recording, isFalse);
@@ -297,13 +323,15 @@ void main() {
     'app interruption stops capture, retains finished draft and forbids a background restart',
     () async {
       final recorder = RecorderFake();
+      final clock = FakeStopwatch();
       final audio = ChatAudioController(
         recorder: recorder,
         deviceMedia: PermissionsFake(),
         recordingSupported: true,
+        clock: clock,
       );
       await audio.startRecording();
-      await Future<void>.delayed(const Duration(milliseconds: 5));
+      clock.value = const Duration(seconds: 2);
       await audio.pause();
       expect(audio.recording, isFalse);
       expect(audio.draft, isNotNull);
@@ -639,7 +667,6 @@ void main() {
                       onAttachment: () {},
                       onTyped: () {},
                       onSendVoice: () {},
-                      onDiscardMedia: () {},
                       selectedMediaTray: ChatSelectedMediaTray(
                         items: [media],
                         onRemove: (_) {},

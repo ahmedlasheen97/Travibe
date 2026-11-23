@@ -145,6 +145,11 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _uploading = false, _picking = false, _managing = false;
   bool _allowPop = false;
   String? _mediaError;
+
+  /// Failure text on the pending media bubble (its retry is the only one);
+  /// null there means the default "Failed to send. Tap to retry.".
+  String? _pendingError;
+  static const _uncertainLabel = 'Delivery unknown. Tap to check.';
   String? _expandedMessageId;
   late final _hidden = widget.hiddenMessages ?? ChatHiddenMessages.instance;
   late final _reports = widget.messageReports ?? ChatMessageReports();
@@ -844,6 +849,12 @@ class _ConversationScreenState extends State<ConversationScreen>
                                                     ? _sendSelections()
                                                     : _sendPendingMedia(),
                                               ),
+                                              error: _pendingError,
+                                              onDiscard:
+                                                  _uploading ||
+                                                      _sendingSelections
+                                                  ? null
+                                                  : _discardMedia,
                                             );
                                           }
                                           final index =
@@ -1115,18 +1126,7 @@ class _ConversationScreenState extends State<ConversationScreen>
                               onAttachment: _attachments,
                               onTyped: _typed,
                               onSendVoice: _sendVoice,
-                              onDiscardMedia: _discardMedia,
-                              mediaLabel: _selections.isEmpty
-                                  ? _pendingMedia?.filename
-                                  : null,
                               mediaError: _mediaError,
-                              onRetryMedia: _pendingMedia != null && !_uploading
-                                  ? () => unawaited(
-                                      _selections.isNotEmpty
-                                          ? _sendSelections()
-                                          : _sendPendingMedia(),
-                                    )
-                                  : null,
                             ),
                     ),
                   ],
@@ -1730,13 +1730,19 @@ class _ConversationScreenState extends State<ConversationScreen>
   void _sendVoice() {
     final draft = _audio.draft;
     if (draft == null || _uploading || !_canSend) return;
-    _pendingMedia ??= ChatMediaSelection(
+    if (_pendingMedia != null) {
+      _notice('Finish or discard the current attachment first.');
+      return;
+    }
+    // The pending bubble owns the bytes now; the composer returns to text.
+    _pendingMedia = ChatMediaSelection(
       draft.bytes,
       'recording.m4a',
       'audio/mp4',
       ChatMessageKind.audio,
       durationMs: draft.durationMs,
     );
+    _audio.discardDraft();
     unawaited(_sendPendingMedia());
   }
 
@@ -1745,6 +1751,7 @@ class _ConversationScreenState extends State<ConversationScreen>
     _selections.remove(selection);
     if (identical(selection, _pendingMedia)) {
       _pendingMedia = null;
+      _pendingError = null;
       _uploader?.close();
       _uploader = null;
     }
@@ -1781,6 +1788,7 @@ class _ConversationScreenState extends State<ConversationScreen>
       if (identical(_pendingMedia, media)) _pendingMedia = null;
       _uploadProgress = null;
       _mediaError = null;
+      _pendingError = null;
     });
     if (media.kind == ChatMessageKind.audio) _audio.discardDraft();
     _uploader?.close();
@@ -1790,7 +1798,10 @@ class _ConversationScreenState extends State<ConversationScreen>
   void _discardMedia() {
     if (_uploading || _sendingSelections) return;
     _selections.clear();
-    setState(() => _pendingMedia = null);
+    setState(() {
+      _pendingMedia = null;
+      _pendingError = null;
+    });
     _audio.discardDraft();
     _mediaError = null;
     _uploader?.close();
@@ -1801,6 +1812,7 @@ class _ConversationScreenState extends State<ConversationScreen>
     setState(() {
       _selections.remove(media);
       _pendingMedia = null;
+      _pendingError = null;
       _uploadProgress = null;
       _uploading = false;
     });
@@ -1830,6 +1842,7 @@ class _ConversationScreenState extends State<ConversationScreen>
     setState(() {
       _uploading = true;
       _mediaError = null;
+      _pendingError = null;
       _uploadProgress = null;
     });
     if (media.caption == null) {
@@ -1895,6 +1908,7 @@ class _ConversationScreenState extends State<ConversationScreen>
           'History could not confirm this attachment. Sending again may create a duplicate.',
           destructive: false,
         )) {
+          if (mounted) setState(() => _pendingError = _uncertainLabel);
           return;
         }
         if (!mounted || !_valid) return;
@@ -1929,9 +1943,7 @@ class _ConversationScreenState extends State<ConversationScreen>
       }
       if (mounted && _valid) {
         setState(
-          () => _mediaError = media.sendUncertain
-              ? 'Delivery unknown. Tap the attachment to check.'
-              : 'Attachment failed. Tap to retry.',
+          () => _pendingError = media.sendUncertain ? _uncertainLabel : null,
         );
       }
     } finally {

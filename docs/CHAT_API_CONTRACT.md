@@ -124,7 +124,9 @@ this stricter UI limit does not alter the API's video limit.
 
 The client supports camera images, mixed Gallery images/videos, and native AAC-LC
 M4A voice recording (`audio/mp4`). Voice duration comes from the recording clock;
-playback progress comes from the player. No fake waveform/progress is generated.
+playback progress comes from the player. The API stores no waveform, so the
+draft preview draws the captured mic levels and sent/pending bubbles draw a stable
+placeholder seeded by `duration_ms` (`chat_voice_waveform.dart`); progress is never faked.
 Temporary recordings are removed after conversion to a memory draft or disposal.
 No unclaimed-media cleanup endpoint is documented; none is invented on discard.
 

@@ -135,7 +135,7 @@ void main() {
               .items,
           hasLength(1),
         );
-        await tester.tap(find.text('Failed to send. Tap to retry.'));
+        await tester.tap(find.text('Delivery unknown. Tap to check.'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
         if (!recorded) {
@@ -144,7 +144,7 @@ void main() {
           await tester.tap(find.text('Cancel'));
           await tester.pumpAndSettle();
           expect(find.byType(ChatSelectedMediaTray), findsOneWidget);
-          await tester.tap(find.text('Failed to send. Tap to retry.'));
+          await tester.tap(find.text('Delivery unknown. Tap to check.'));
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 400));
           await tester.tap(find.text('Confirm'));

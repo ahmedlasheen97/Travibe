@@ -2,8 +2,9 @@ import 'package:travibe/core/permissions/app_permission.dart';
 import 'package:travibe/core/permissions/permission_flow.dart';
 import 'package:flutter/services.dart';
 import 'chat_emoji_picker.dart';
-import 'chat_recording_strip.dart';
 import 'chat_send_button.dart';
+import 'chat_voice_composer.dart';
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'chat_reply_preview.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
@@ -25,10 +26,7 @@ class ChatComposer extends StatefulWidget {
     required this.onAttachment,
     required this.onTyped,
     required this.onSendVoice,
-    required this.onDiscardMedia,
-    this.mediaLabel,
     this.mediaError,
-    this.onRetryMedia,
     this.selectedMediaTray,
     this.onSendAttachments,
     this.topAccessory,
@@ -44,9 +42,8 @@ class ChatComposer extends StatefulWidget {
   final GlobalKey? attachmentAnchor;
   final ChatAudioController audio;
   final bool canSend, uploading;
-  final VoidCallback onAttachment, onTyped, onSendVoice, onDiscardMedia;
-  final String? mediaLabel, mediaError;
-  final VoidCallback? onRetryMedia;
+  final VoidCallback onAttachment, onTyped, onSendVoice;
+  final String? mediaError;
   final String disabledReason;
   final Widget? selectedMediaTray, topAccessory;
   final VoidCallback? onSendAttachments;
@@ -75,7 +72,18 @@ class _ChatComposerState extends State<ChatComposer>
     super.initState();
     _session = widget.composer.state.session;
     WidgetsBinding.instance.addObserver(this);
+    widget.audio.addListener(_audioNotice);
   }
+
+  /// Shows the controller's one-shot hints (e.g. "too short") as a toast.
+  void _audioNotice() {
+    final message = widget.audio.notice;
+    if (message == null || !mounted) return;
+    widget.audio.takeNotice();
+    TravibeToast.show(context, TravibeToastData.info(message));
+  }
+
+  bool get _voiceMode => widget.audio.recording || widget.audio.draft != null;
 
   @override
   void didChangeMetrics() {
@@ -97,6 +105,10 @@ class _ChatComposerState extends State<ChatComposer>
   @override
   void didUpdateWidget(ChatComposer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.audio != widget.audio) {
+      oldWidget.audio.removeListener(_audioNotice);
+      widget.audio.addListener(_audioNotice);
+    }
     if (oldWidget.composer != widget.composer || !widget.canSend) {
       _emojiVisible = false;
     }
@@ -168,6 +180,7 @@ class _ChatComposerState extends State<ChatComposer>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.audio.removeListener(_audioNotice);
     _ownedFocus.dispose();
     super.dispose();
   }
@@ -201,11 +214,6 @@ class _ChatComposerState extends State<ChatComposer>
                       widget.audio.error!,
                   style: const TextStyle(color: Colors.white60),
                 ),
-              if (widget.audio.needsSettings)
-                TextButton(
-                  onPressed: widget.audio.openSettings,
-                  child: const Text('Open Settings'),
-                ),
               if (!widget.canSend)
                 Text(
                   widget.disabledReason,
@@ -237,196 +245,151 @@ class _ChatComposerState extends State<ChatComposer>
                   ),
                 ),
               ?widget.selectedMediaTray,
-              if (widget.audio.recording)
-                ChatRecordingStrip(audio: widget.audio),
-              if (widget.audio.draft != null || widget.mediaLabel != null)
-                Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
+              if (_voiceMode)
+                ChatVoiceComposer(
+                  audio: widget.audio,
+                  canSend: widget.canSend,
+                  uploading: widget.uploading,
+                  onSendVoice: widget.onSendVoice,
+                )
+              else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      widget.mediaLabel ??
-                          'Voice recording · ${(widget.audio.draft!.durationMs / 1000).ceil()}s',
-                      style: const TextStyle(color: Colors.white60),
-                    ),
-                    if (widget.audio.draft != null)
-                      IconButton(
-                        tooltip:
-                            widget.audio.currentMessageId == 'voice-draft' &&
-                                widget.audio.playing
-                            ? 'Pause recording preview'
-                            : 'Preview recording',
-                        onPressed: widget.uploading
-                            ? null
-                            : widget.audio.previewDraft,
-                        icon: Icon(
-                          widget.audio.currentMessageId == 'voice-draft' &&
-                                  widget.audio.playing
-                              ? Icons.pause
-                              : Icons.play_arrow,
-                          color: Colors.white,
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141414),
+                          border: Border.all(color: Colors.white12),
+                          borderRadius: BorderRadius.circular(28),
                         ),
-                      ),
-                    if (widget.audio.draft != null)
-                      TextButton(
-                        onPressed: widget.canSend && !widget.uploading
-                            ? widget.onSendVoice
-                            : null,
-                        child: const Text('Send recording'),
-                      ),
-                    if (widget.onRetryMedia != null)
-                      TextButton(
-                        onPressed: widget.uploading
-                            ? null
-                            : widget.onRetryMedia,
-                        child: const Text('Retry attachment'),
-                      ),
-                    IconButton(
-                      tooltip: 'Discard attachment',
-                      onPressed: widget.uploading
-                          ? null
-                          : widget.onDiscardMedia,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
-                ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF141414),
-                        border: Border.all(color: Colors.white12),
-                        borderRadius: BorderRadius.circular(28),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            key: widget.attachmentAnchor,
-                            tooltip: 'Attachments',
-                            onPressed:
-                                widget.uploading || widget.audio.recording
-                                ? null
-                                : _attachments,
-                            icon: const Icon(Icons.add, color: Colors.white70),
-                          ),
-                          Expanded(
-                            child: TextField(
-                              controller: widget.text,
-                              cursorColor: Colors.white,
-                              focusNode: _focus,
-                              keyboardType: _emojiVisible
-                                  ? TextInputType.none
-                                  : TextInputType.multiline,
-                              onTap: () {
-                                if (_emojiVisible) _keyboard();
-                              },
-                              readOnly: widget.audio.recording,
-                              minLines: 1,
-                              maxLines: MediaQuery.sizeOf(context).height < 500
-                                  ? 3
-                                  : 5,
-                              onChanged: (value) {
-                                widget.composer.edit(value);
-                                widget.onTyped();
-                              },
-                              textCapitalization: TextCapitalization.sentences,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            IconButton(
+                              key: widget.attachmentAnchor,
+                              tooltip: 'Attachments',
+                              onPressed:
+                                  widget.uploading || widget.audio.recording
+                                  ? null
+                                  : _attachments,
+                              icon: const Icon(
+                                Icons.add,
+                                color: Colors.white70,
                               ),
-                              decoration: const InputDecoration(
-                                hintText: 'Type Message',
-                                hintFadeDuration: Duration.zero,
-                                filled: false,
-                                hintStyle: TextStyle(color: Colors.white60),
-                                border: InputBorder.none,
-                                enabledBorder: InputBorder.none,
-                                focusedBorder: InputBorder.none,
-                                contentPadding: EdgeInsets.symmetric(
-                                  vertical: 13,
+                            ),
+                            Expanded(
+                              child: TextField(
+                                controller: widget.text,
+                                cursorColor: Colors.white,
+                                focusNode: _focus,
+                                keyboardType: _emojiVisible
+                                    ? TextInputType.none
+                                    : TextInputType.multiline,
+                                onTap: () {
+                                  if (_emojiVisible) _keyboard();
+                                },
+                                readOnly: widget.audio.recording,
+                                minLines: 1,
+                                maxLines:
+                                    MediaQuery.sizeOf(context).height < 500
+                                    ? 3
+                                    : 5,
+                                onChanged: (value) {
+                                  widget.composer.edit(value);
+                                  widget.onTyped();
+                                },
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                decoration: const InputDecoration(
+                                  hintText: 'Type Message',
+                                  hintFadeDuration: Duration.zero,
+                                  filled: false,
+                                  hintStyle: TextStyle(color: Colors.white60),
+                                  border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
+                                  contentPadding: EdgeInsets.symmetric(
+                                    vertical: 13,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          IconButton(
-                            tooltip: _emojiVisible
-                                ? 'Show keyboard'
-                                : 'Show emoji picker',
-                            onPressed: !widget.canSend || widget.audio.recording
-                                ? null
-                                : _toggleEmoji,
-                            icon: _emojiVisible
-                                ? const Icon(
-                                    Icons.keyboard_outlined,
-                                    color: Colors.white70,
-                                  )
-                                : SvgPicture.asset(
-                                    'assets/images/interactions/happyemoji.svg',
-                                    width: 20,
-                                    height: 20,
-                                  ),
-                          ),
-                        ],
+                            IconButton(
+                              tooltip: _emojiVisible
+                                  ? 'Show keyboard'
+                                  : 'Show emoji picker',
+                              onPressed:
+                                  !widget.canSend || widget.audio.recording
+                                  ? null
+                                  : _toggleEmoji,
+                              icon: _emojiVisible
+                                  ? const Icon(
+                                      Icons.keyboard_outlined,
+                                      color: Colors.white70,
+                                    )
+                                  : SvgPicture.asset(
+                                      'assets/images/interactions/happyemoji.svg',
+                                      width: 20,
+                                      height: 20,
+                                    ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (!widget.audio.recording &&
-                      (widget.selectedMediaTray != null ||
-                          state.draft.trim().isNotEmpty))
-                    // Sending state lives on each bubble ("Sending…"); the
-                    // button never spins and stays usable for the next message.
-                    ChatSendButton(
-                      // While an attachment uploads, the button sends text.
-                      tooltip:
-                          widget.selectedMediaTray != null && !widget.uploading
-                          ? 'Send attachments'
-                          : 'Send message',
-                      onPressed: !widget.canSend
-                          ? null
-                          : widget.selectedMediaTray != null &&
+                    const SizedBox(width: 8),
+                    if (!widget.audio.recording &&
+                        (widget.selectedMediaTray != null ||
+                            state.draft.trim().isNotEmpty))
+                      // Sending state lives on each bubble ("Sending…"); the
+                      // button never spins and stays usable for the next message.
+                      ChatSendButton(
+                        // While an attachment uploads, the button sends text.
+                        tooltip:
+                            widget.selectedMediaTray != null &&
                                 !widget.uploading
-                          ? widget.onSendAttachments
-                          : widget.composer.send,
-                    )
-                  else
-                    SizedBox.square(
-                      dimension: 48,
-                      child: IconButton(
-                        tooltip: widget.audio.recording
-                            ? 'Finish recording'
-                            : widget.audio.supported
-                            ? 'Record voice message'
-                            : 'Voice recording unavailable',
-                        style: IconButton.styleFrom(
-                          backgroundColor: DarkColors.primaryColor,
-                          disabledBackgroundColor: const Color(0xFF803D14),
-                        ),
-                        onPressed: !widget.canSend || widget.uploading
+                            ? 'Send attachments'
+                            : 'Send message',
+                        onPressed: !widget.canSend
                             ? null
-                            : widget.audio.recording
-                            ? widget.audio.stopRecording
-                            : widget.audio.supported &&
-                                  widget.audio.draft == null &&
-                                  widget.selectedMediaTray == null
-                            ? _startRecording
-                            : null,
-                        icon: Icon(
-                          widget.audio.recording
-                              ? Icons.stop
-                              : Icons.mic_none_rounded,
-                          color: Colors.white,
+                            : widget.selectedMediaTray != null &&
+                                  !widget.uploading
+                            ? widget.onSendAttachments
+                            : widget.composer.send,
+                      )
+                    else
+                      SizedBox.square(
+                        dimension: 48,
+                        child: IconButton(
+                          tooltip: widget.audio.supported
+                              ? 'Record voice message'
+                              : 'Voice recording unavailable',
+                          style: IconButton.styleFrom(
+                            backgroundColor: DarkColors.primaryColor,
+                            disabledBackgroundColor: const Color(0xFF803D14),
+                          ),
+                          onPressed: !widget.canSend || widget.uploading
+                              ? null
+                              : widget.audio.supported &&
+                                    widget.selectedMediaTray == null
+                              ? _startRecording
+                              : null,
+                          icon: const Icon(
+                            Icons.mic_none_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
+                  ],
+                ),
               if (_emojiVisible &&
                   widget.canSend &&
-                  !widget.audio.recording &&
+                  !_voiceMode &&
                   _keyboardInset(context) == 0)
                 ChatEmojiPicker(
                   height: _pickerHeight(context),
