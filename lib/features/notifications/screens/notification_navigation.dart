@@ -17,7 +17,6 @@ import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
 import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
-import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/follow/cubit/follow_cubit.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
@@ -26,6 +25,7 @@ import '../data/notification_model.dart';
 import '../data/notification_targets.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
 import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 /// Borrow existing Root state across Navigator routes; never dispose its owners.
 Widget notificationRouteScope(BuildContext context, Widget child) {
@@ -84,9 +84,9 @@ Future<void> openNotificationDestination(
       if (blocks?.state.isBlocked('${target.id}') == true) {
         throw ApiError(message: 'This profile is unavailable.');
       }
-      await ProfileScreen.open(
+      await openUserProfile(
         context,
-        userId: target.id,
+        target.id,
         profileRepo: profiles,
         postsRepo: posts,
       );

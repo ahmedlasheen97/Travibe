@@ -20,7 +20,6 @@ import '../widgets/chat_pull_to_refresh.dart';
 import '../widgets/chat_reverb_host.dart';
 import '../data/chat_reverb_service.dart';
 import '../data/chat_broadcast_event.dart';
-import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
@@ -49,6 +48,7 @@ import '../widgets/message_report_flow.dart';
 import 'dart:math' as math;
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/stories/screens/open_shared_story.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 class ConversationScreen extends StatefulWidget {
   const ConversationScreen({
@@ -709,10 +709,8 @@ class _ConversationScreenState extends State<ConversationScreen>
                                 participant.isBlocked == true ||
                                     int.tryParse(participant.id) == null
                                 ? null
-                                : () => ProfileScreen.open(
-                                    context,
-                                    userId: int.parse(participant.id),
-                                  ),
+                                : () =>
+                                      openUserProfile(context, participant.id),
                             child: HomeUserAvatar(
                               url: participant.avatarUrl,
                               size: 40,

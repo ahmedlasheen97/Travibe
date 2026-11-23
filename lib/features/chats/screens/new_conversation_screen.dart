@@ -12,12 +12,12 @@ import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
-import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 import '../cubit/chat_discovery_cubit.dart';
 import '../data/chat_repository.dart';
 import 'chat_navigation.dart';
 import 'conversation_screen.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 class NewConversationScreen extends StatefulWidget {
   const NewConversationScreen({super.key, this.repository, this.search});
@@ -213,10 +213,7 @@ class _NewConversationScreenState extends State<NewConversationScreen> {
                             onPressed: _creating
                                 ? null
                                 : () {
-                                    final id = int.tryParse(user.id);
-                                    if (id != null) {
-                                      ProfileScreen.open(context, userId: id);
-                                    }
+                                    openUserProfile(context, user.id);
                                   },
                             icon: HomeUserAvatar(url: user.avatarUrl, size: 44),
                           ),

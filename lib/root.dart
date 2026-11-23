@@ -24,6 +24,7 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/notifications/push_notifications_host.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
+import 'package:travibe/core/navigation/app_cubits.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/liquid_glass_bottom_nav.dart';
@@ -107,6 +108,21 @@ class _RootState extends State<Root> {
     super.initState();
     // Own-user rows in sheets and pushed screens open this Profile tab.
     MyProfileTab.attach(this, _showMyProfile);
+    // Profiles (and other screens) pushed outside Root's subtree still get
+    // these cubits through openUserProfile / ProfileScreen.open.
+    AppCubits.attach(this, (
+      current: context.read<CurrentUserCubit?>(),
+      saves: _saves,
+      savedPosts: _savedPosts,
+      likes: _likes,
+      activity: _activity,
+      hidden: _hidden,
+      follow: _followCubit,
+      block: _blockCubit,
+      incoming: _incoming,
+      stories: _stories,
+      storyLikes: _storyLikes,
+    ));
     if (widget.revalidateSession) {
       final revalidator = _revalidator =
           widget.sessionRevalidator ?? SessionRevalidator();
@@ -237,6 +253,7 @@ class _RootState extends State<Root> {
   @override
   void dispose() {
     MyProfileTab.detach(this);
+    AppCubits.detach(this);
     _lifecycle?.dispose();
     _revalidator?.dispose();
     _push?.detach(this);

@@ -2,7 +2,6 @@ import 'package:travibe/core/widgets/top_glow_background.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
-import 'package:travibe/features/stories/cubit/story_likes_cubit.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/core/widgets/profile_picture_viewer.dart';
@@ -11,7 +10,6 @@ import 'package:travibe/features/stories/widgets/your_story_button.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 import 'package:travibe/features/chats/data/chat_repository.dart';
-import 'package:travibe/features/follow_requests/cubit/incoming_requests_cubit.dart';
 import 'package:travibe/features/profile/widgets/other_profile_actions.dart';
 import 'package:travibe/core/widgets/back_button_widget.dart';
 import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
@@ -29,6 +27,7 @@ import 'package:flutter/foundation.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/navigation/app_cubits.dart';
 import 'package:travibe/core/navigation/bottom_nav_visibility.dart';
 import 'package:travibe/features/profile/screens/edit_profile_screen.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -92,59 +91,22 @@ class ProfileScreen extends StatelessWidget {
     final active = _openProfiles[navigator] ??= <int>{};
     final target = userId ?? -1;
     if (!active.add(target)) return Future.value();
-    final current = context.read<CurrentUserCubit?>();
-    final follow = context.read<FollowCubit?>();
-    final block = context.read<BlockCubit?>();
-    final saves = context.read<SavesCubit?>();
-    final savedPosts = context.read<SavedPostsCubit?>();
-    final likes = context.read<LikesCubit?>();
-    final activity = context.read<PostActivityCubit?>();
-    final hidden = context.read<HiddenPostsCubit?>();
-    final incoming = context.read<IncomingRequestsCubit?>();
-    final stories = context.read<StoriesCubit?>();
-    final storyLikes = context.read<StoryLikesCubit?>();
+    // Always the app's shared cubits (⋮, Message, Follow need them), even
+    // when [context] is above Root or inside another pushed route.
+    final provide = captureAppCubits(context);
     return navigator
         .push<void>(
           MaterialPageRoute(
             settings: RouteSettings(
               name: userId == null ? 'my-profile' : 'user-profile/$userId',
             ),
-            builder: (_) {
-              final screen = ProfileScreen(
+            builder: (_) => provide(
+              ProfileScreen(
                 userId: userId,
                 profileRepo: profileRepo,
                 postsRepo: postsRepo,
-              );
-              if (current == null &&
-                  follow == null &&
-                  block == null &&
-                  saves == null &&
-                  savedPosts == null &&
-                  likes == null &&
-                  activity == null &&
-                  hidden == null &&
-                  incoming == null &&
-                  stories == null &&
-                  storyLikes == null) {
-                return screen;
-              }
-              return MultiBlocProvider(
-                providers: [
-                  if (current != null) BlocProvider.value(value: current),
-                  if (saves != null) BlocProvider.value(value: saves),
-                  if (savedPosts != null) BlocProvider.value(value: savedPosts),
-                  if (likes != null) BlocProvider.value(value: likes),
-                  if (activity != null) BlocProvider.value(value: activity),
-                  if (hidden != null) BlocProvider.value(value: hidden),
-                  if (follow != null) BlocProvider.value(value: follow),
-                  if (block != null) BlocProvider.value(value: block),
-                  if (incoming != null) BlocProvider.value(value: incoming),
-                  if (stories != null) BlocProvider.value(value: stories),
-                  if (storyLikes != null) BlocProvider.value(value: storyLikes),
-                ],
-                child: screen,
-              );
-            },
+              ),
+            ),
           ),
         )
         .whenComplete(() => active.remove(target));
