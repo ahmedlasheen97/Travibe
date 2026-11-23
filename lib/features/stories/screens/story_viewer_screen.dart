@@ -28,6 +28,7 @@ import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/stories/data/story_audience.dart';
 import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/stories/widgets/story_mention_popover.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 class StoryViewerScreen extends StatefulWidget {
   const StoryViewerScreen({
@@ -182,7 +183,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     _viewer.pause(true, reason: 'profile');
     try {
       await (widget.onOpenProfile?.call(context, userId) ??
-          ProfileScreen.open(context, userId: userId));
+          openUserProfile(context, userId));
     } finally {
       if (mounted) _viewer.pause(false, reason: 'profile');
     }

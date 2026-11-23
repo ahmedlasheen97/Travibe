@@ -86,7 +86,7 @@ class _FollowRequestsScreenState extends State<FollowRequestsScreen> {
     if (open != null) {
       open(context, id);
     } else {
-      ProfileScreen.open(context, userId: id);
+      openUserProfile(context, id);
     }
   }
 

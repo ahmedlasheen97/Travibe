@@ -4,10 +4,10 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
-import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/features/home/widgets/report_reason_sheet.dart';
 import '../data/chat_models.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 enum ChatOption { profile, delete, report, block }
 
@@ -95,7 +95,7 @@ Future<void> chatUserAction(
   try {
     switch (action) {
       case ChatOption.profile:
-        await ProfileScreen.open(context, userId: id, profileRepo: profiles);
+        await openUserProfile(context, id, profileRepo: profiles);
       case ChatOption.report:
         final report = await ReportReasonSheet.show(context);
         if (!context.mounted || !active() || report == null) return;

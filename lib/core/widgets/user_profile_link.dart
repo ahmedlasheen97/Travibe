@@ -1,23 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:travibe/core/navigation/app_cubits.dart';
 import 'package:travibe/core/navigation/my_profile_tab.dart';
+import 'package:travibe/features/home/data/posts_repo.dart';
+import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/core/utils/viewer_identity.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
 
-/// The one profile destination for every user row, avatar and name. The
-/// signed-in user's own id opens their Profile tab (never a second profile
-/// page with Follow); a blocked user opens nothing.
-Future<void> openUserProfile(BuildContext context, Object? userId) async {
+/// The one way to open any user's profile (posts, comments, likes, lists,
+/// search, Buddies, chat, notifications, Story viewer, mentions, deep links,
+/// shared posts). The signed-in user's own id opens their Profile tab (never
+/// a second profile page with Follow); a blocked user opens nothing. The
+/// pushed profile always gets the app's shared cubits, so ⋮, Message and
+/// Follow/Following/Requested are there from every entry point.
+Future<void> openUserProfile(
+  BuildContext context,
+  Object? userId, {
+  ProfileRepo? profileRepo,
+  PostsRepo? postsRepo,
+}) async {
   final id = int.tryParse(userId?.toString() ?? '');
   if (id == null || id < 1) return;
   if (isViewer(context, id)) {
     if (MyProfileTab.show()) return;
-    await ProfileScreen.open(context);
+    await ProfileScreen.open(
+      context,
+      profileRepo: profileRepo,
+      postsRepo: postsRepo,
+    );
     return;
   }
-  if (context.read<BlockCubit?>()?.state.isBlocked('$id') == true) return;
-  await ProfileScreen.open(context, userId: id);
+  if (readAppCubit<BlockCubit>(context)?.state.isBlocked('$id') == true) {
+    return;
+  }
+  await ProfileScreen.open(
+    context,
+    userId: id,
+    profileRepo: profileRepo,
+    postsRepo: postsRepo,
+  );
 }
 
 /// One profile destination for avatars and names throughout existing features.

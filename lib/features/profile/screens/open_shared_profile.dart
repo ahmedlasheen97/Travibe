@@ -7,6 +7,7 @@ import 'package:travibe/features/profile/cubit/current_user_cubit.dart';
 import 'package:travibe/features/profile/data/profile_model.dart';
 import 'package:travibe/features/profile/data/profile_repo.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 const sharedProfileUnavailable = 'This profile is unavailable.';
 
@@ -59,9 +60,9 @@ Future<void> openSharedProfile(
     return;
   }
   if (profile.isMe == true) return openMine();
-  await ProfileScreen.open(
+  await openUserProfile(
     context,
-    userId: id,
+    id,
     profileRepo: profileRepo,
     postsRepo: postsRepo,
   );

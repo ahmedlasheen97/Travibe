@@ -1,4 +1,3 @@
-import 'package:travibe/features/profile/screens/profile_screen.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -279,10 +278,7 @@ class _SearchViewState extends State<_SearchView> {
                                   cubit.recordPerson(user);
                                   final open = widget.onOpenProfile;
                                   if (open != null) return open(user.id);
-                                  ProfileScreen.open(
-                                    context,
-                                    userId: int.parse(user.id),
-                                  );
+                                  openUserProfile(context, user.id);
                                 },
                           isFollowingPending: pending,
                           onFollowTap: onToggle,

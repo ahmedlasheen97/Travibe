@@ -11,7 +11,7 @@ import 'package:travibe/features/follow/data/follow_repo.dart';
 import 'package:travibe/features/follow/screens/follow_users_screen.dart';
 import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/search/widgets/person_result_tile.dart';
-import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'package:travibe/core/widgets/user_profile_link.dart';
 
 /// A people row: rounded card with the shared follow pill.
 /// Followers/Following lists drop the ⋮ menu (suggested rows keep it), show
@@ -52,7 +52,7 @@ class FollowUserTile extends StatelessWidget {
                   (follow.followsYou[user.id] ?? current.followsYou),
               onTap: id == null || id < 1
                   ? null
-                  : () => ProfileScreen.open(context, userId: id),
+                  : () => openUserProfile(context, id),
               onFollowTap: blocked || block.pending.contains(user.id)
                   ? null
                   : onToggle,
