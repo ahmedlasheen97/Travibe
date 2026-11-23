@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
@@ -26,21 +27,24 @@ void main() {
           .load();
     });
     await tester.pumpWidget(
-      MaterialApp(
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          useMaterial3: true,
-          fontFamily: 'Plus Jakarta Sans',
-        ),
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: TextScaler.linear(scale)),
-          child: child!,
-        ),
-        home: StoryEditorScreen(
-          draft: draft(),
-          avatarUrl: 'https://unused.invalid/avatar.png',
+      ScreenUtilInit(
+        designSize: const Size(390, 844),
+        builder: (_, _) => MaterialApp(
+          theme: ThemeData(
+            brightness: Brightness.dark,
+            useMaterial3: true,
+            fontFamily: 'Plus Jakarta Sans',
+          ),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: StoryEditorScreen(
+            draft: draft(),
+            avatarUrl: 'https://unused.invalid/avatar.png',
+          ),
         ),
       ),
     );
@@ -90,10 +94,12 @@ void main() {
       }
       // Aa, @, emoji and draw are active; Location is intentionally absent.
       expect(buttons.every((button) => button.onPressed != null), isTrue);
-      expect(
-        buttons.map((button) => button.tooltip),
-        ['Add text', 'Mention someone', 'Add emoji', 'Draw'],
-      );
+      expect(buttons.map((button) => button.tooltip), [
+        'Add text',
+        'Mention someone',
+        'Add emoji',
+        'Draw',
+      ]);
       expect(tester.takeException(), isNull);
     },
   );

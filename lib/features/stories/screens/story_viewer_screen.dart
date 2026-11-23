@@ -316,12 +316,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         // Still paused by the owner sheet; back from the profile it resumes.
         if (profileId != null && currentOwner()) await _openProfile(profileId);
       } else {
-        final delete = await showModalBottomSheet<bool>(
-          context: context,
-          backgroundColor: Colors.black,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
+        final delete = await showOptionsSheet<bool>(
+          context,
           builder: (sheetContext) => SafeArea(
             top: false,
             child: Column(
@@ -403,12 +399,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
         _viewer.state.request == request &&
         _viewer.state.detail?.id == detail.id;
     try {
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.black,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        ),
+      await showOptionsSheet<void>(
+        context,
         builder: (_) => StoryOtherOptionsSheet(
           userId: detail.userId.toString(),
           name: detail.user.name,

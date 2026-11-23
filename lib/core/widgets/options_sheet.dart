@@ -11,15 +11,20 @@ const optionsSheetColor = Color(0xFF0A0A0A);
 /// story viewers).
 double get optionsSheetRadius => AppSizes.adaptiveRadius(32);
 
-/// Opens a ⋮ menu: rounded top 32, handle bar, rows from [builder].
+/// Opens the app's one bottom-sheet style (⋮ menus, pickers, lists):
+/// [optionsSheetColor], rounded top 32, clipped content.
 /// [isScrollControlled] lets taller sheets (e.g. story viewers) size themselves.
 Future<T?> showOptionsSheet<T>(
   BuildContext context, {
   required WidgetBuilder builder,
   bool isScrollControlled = false,
+  bool useSafeArea = false,
+  Color? barrierColor,
 }) => showModalBottomSheet<T>(
   context: context,
   isScrollControlled: isScrollControlled,
+  useSafeArea: useSafeArea,
+  barrierColor: barrierColor,
   backgroundColor: optionsSheetColor,
   clipBehavior: Clip.antiAlias,
   shape: RoundedRectangleBorder(

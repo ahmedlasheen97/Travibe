@@ -6,6 +6,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/widgets/sheet_handle.dart';
 import 'package:travibe/features/stories/cubit/story_picker_cubit.dart';
 import 'package:travibe/features/stories/data/story_editor_draft.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 class PostStorySheet extends StatelessWidget {
   const PostStorySheet({super.key, required this.picker});
@@ -20,9 +21,12 @@ class PostStorySheet extends StatelessWidget {
     backgroundColor: DarkColors.backgroundColor,
     barrierColor: Colors.black.withValues(alpha: 0.75),
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      side: BorderSide(color: Color(0xFF292929)),
+    // Figma keeps this sheet's hairline border; only the radius is shared.
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(optionsSheetRadius),
+      ),
+      side: const BorderSide(color: Color(0xFF292929)),
     ),
     builder: (_) => PostStorySheet(picker: picker),
   );

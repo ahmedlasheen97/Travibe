@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/create_post/data/create_post_request.dart';
 import 'package:travibe/features/create_post/widgets/create_post_styles.dart';
+import 'package:travibe/core/widgets/options_sheet.dart';
 
 IconData audienceIcon(PostVisibility visibility) => switch (visibility) {
   PostVisibility.public => Icons.public,
@@ -12,12 +13,8 @@ IconData audienceIcon(PostVisibility visibility) => switch (visibility) {
 Future<PostVisibility?> showAudienceSheet(
   BuildContext context,
   PostVisibility selected,
-) => showModalBottomSheet<PostVisibility>(
-  context: context,
-  backgroundColor: createPostSurface,
-  shape: const RoundedRectangleBorder(
-    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-  ),
+) => showOptionsSheet<PostVisibility>(
+  context,
   builder: (context) => SafeArea(
     top: false,
     child: Padding(
