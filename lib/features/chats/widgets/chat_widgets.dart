@@ -13,6 +13,7 @@ import '../data/chat_models.dart';
 import '../cubit/chat_audio_controller.dart';
 import 'chat_video_message.dart';
 import 'chat_post_card.dart';
+import 'chat_reply_preview.dart';
 import 'package:travibe/features/shares/screens/open_shared_post.dart';
 import 'package:travibe/features/stories/screens/open_shared_story.dart';
 
@@ -258,8 +259,20 @@ class ChatMessageBubble extends StatelessWidget {
     this.onOpenStory,
     this.unavailableStoryIds = const {},
     this.now,
+    this.replySenderName,
+    this.replyOriginal,
+    this.onQuoteTap,
   });
   final ChatMessage message;
+
+  /// Name on the quoted box: "You" or the other person. Null shows "Reply".
+  final String Function(String senderId)? replySenderName;
+
+  /// The quoted message when it is loaded; gives fresher media previews.
+  final ChatMessage? replyOriginal;
+
+  /// Jumps to the quoted message; ignored when the original is deleted.
+  final VoidCallback? onQuoteTap;
 
   /// Opens a story-reply's story; defaults to [openSharedStory].
   final void Function(int storyId)? onOpenStory;
@@ -348,22 +361,7 @@ class ChatMessageBubble extends StatelessWidget {
                       if (message.replyTo != null && !message.isDeleted)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
-                          child: Text(
-                            message.replyTo!.isDeleted == true ||
-                                    deletedMessageIds.contains(
-                                      message.replyTo!.id,
-                                    )
-                                ? 'Deleted message'
-                                : message.replyTo!.type == 'post'
-                                ? 'Shared a post'
-                                : message.replyTo!.body ?? 'Attachment',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 12,
-                            ),
-                          ),
+                          child: _quote(),
                         ),
                       if (message.isDeleted)
                         const Text(
@@ -456,6 +454,36 @@ class ChatMessageBubble extends StatelessWidget {
   );
   bool get _isPostCard =>
       message.kind == ChatMessageKind.post && !message.isDeleted;
+
+  Widget _quote() {
+    final reply = message.replyTo!;
+    final deleted =
+        reply.isDeleted == true ||
+        replyOriginal?.isDeleted == true ||
+        deletedMessageIds.contains(reply.id);
+    final base = ChatReplyPreview.fromSnapshot(reply, original: replyOriginal);
+    final preview = deleted
+        ? ChatReplyPreview(
+            id: base.id,
+            senderId: base.senderId,
+            text: base.text,
+            deleted: true,
+          )
+        : base;
+    final orange = outgoing && !_isPostCard;
+    return ChatReplyQuote(
+      key: ValueKey('chat-reply-quote-${message.id}'),
+      title: replySenderName?.call(preview.senderId) ?? 'Reply',
+      preview: preview,
+      lineColor: orange ? Colors.white : chatReplyAccent,
+      titleColor: orange ? Colors.white : chatReplyAccent,
+      background: orange
+          ? Colors.black.withValues(alpha: .18)
+          : Colors.white.withValues(alpha: .08),
+      onTap: deleted || preview.id.isEmpty ? null : onQuoteTap,
+      absorbTaps: true,
+    );
+  }
 
   Radius get _corner => _isPostCard
       ? Radius.circular(AppSizes.adaptiveRadius(24))

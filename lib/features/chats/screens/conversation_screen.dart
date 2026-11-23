@@ -40,6 +40,13 @@ import '../cubit/chat_cubit.dart';
 import '../data/chat_models.dart';
 import '../data/chat_repository.dart';
 import '../widgets/chat_widgets.dart';
+import '../data/chat_hidden_messages.dart';
+import '../data/chat_message_reports.dart';
+import '../widgets/chat_message_options_sheet.dart';
+import '../widgets/chat_swipe_to_reply.dart';
+import '../widgets/message_report_flow.dart';
+import 'dart:math' as math;
+import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/features/stories/screens/open_shared_story.dart';
 
 class ConversationScreen extends StatefulWidget {
@@ -56,8 +63,16 @@ class ConversationScreen extends StatefulWidget {
     this.markReadOnOpen = true,
     this.loadStory,
     this.now,
+    this.hiddenMessages,
+    this.messageReports,
   });
   final ChatConversation conversation;
+
+  /// "Delete for me" store; defaults to [ChatHiddenMessages.instance].
+  final ChatHiddenMessages? hiddenMessages;
+
+  /// Message reports; defaults to a real [ChatMessageReports].
+  final ChatMessageReports? messageReports;
 
   /// Loads a story-reply's story before opening it; defaults to
   /// `StoriesRepo.getStory`.
@@ -130,6 +145,20 @@ class _ConversationScreenState extends State<ConversationScreen>
   bool _allowPop = false;
   String? _mediaError;
   String? _expandedMessageId;
+  late final _hidden = widget.hiddenMessages ?? ChatHiddenMessages.instance;
+  late final _reports = widget.messageReports ?? ChatMessageReports();
+
+  /// Bubble keys for jumping to a quoted message.
+  final _messageKeys = <String, GlobalKey>{};
+  GlobalKey _messageKey(String id) =>
+      _messageKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'msg-$id'));
+  String? _highlightId;
+  Timer? _highlightTimer;
+  bool _jumping = false;
+  void _hiddenChanged() {
+    if (mounted) setState(() {});
+  }
+
   Timer? _typingCooldown, _typingIdle;
   bool _retryBusy = false;
   bool _requestBusy = false, _accepting = false, _requestDialogOpen = false;
@@ -313,6 +342,7 @@ class _ConversationScreenState extends State<ConversationScreen>
     }
     _audio.addListener(_audioChanged);
     _preferences.addListener(_sessionChanged);
+    _hidden.addListener(_hiddenChanged);
     WidgetsBinding.instance.addObserver(this);
     unawaited(_refresh());
   }
@@ -582,6 +612,8 @@ class _ConversationScreenState extends State<ConversationScreen>
     _uploader?.close();
     _audio.removeListener(_audioChanged);
     _audio.dispose();
+    _hidden.removeListener(_hiddenChanged);
+    _highlightTimer?.cancel();
     _preferences.removeListener(_sessionChanged);
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_activity?.cancel() ?? Future<void>.value());
@@ -737,14 +769,22 @@ class _ConversationScreenState extends State<ConversationScreen>
                               bloc: _list,
                               builder: (context, state) {
                                 // Wire adapter returns server-authoritative chronological ordering.
+                                final hidden = _hidden.ids(user);
                                 final messages = [
                                   ...outbox.localMessages.reversed,
-                                  ...state.items.reversed,
+                                  ...state.items.reversed.where(
+                                    (m) => !hidden.contains(m.id),
+                                  ),
                                 ];
-                                final deletedIds = state.items
-                                    .where((m) => m.isDeleted)
-                                    .map((m) => m.id)
-                                    .toSet();
+                                final byId = {
+                                  for (final m in state.items) m.id: m,
+                                };
+                                final deletedIds = {
+                                  ...state.items
+                                      .where((m) => m.isDeleted)
+                                      .map((m) => m.id),
+                                  ...hidden,
+                                };
                                 _scheduleStoryExpiry(state.items);
                                 return NotificationListener<ScrollNotification>(
                                   onNotification: (event) {
@@ -903,45 +943,93 @@ class _ConversationScreenState extends State<ConversationScreen>
                                                     ),
                                                   ),
                                                 ),
-                                              GestureDetector(
-                                                onLongPress: () =>
-                                                    _messageOptions(
-                                                      message,
-                                                      user,
-                                                    ),
-                                                child: ChatMessageBubble(
-                                                  message: message,
-                                                  detailsExpanded:
-                                                      _expandedMessageId ==
-                                                      message.id,
-                                                  onDetailsTap: () => setState(
-                                                    () => _expandedMessageId =
-                                                        _expandedMessageId ==
-                                                            message.id
-                                                        ? null
-                                                        : message.id,
+                                              ChatSwipeToReply(
+                                                key: _messageKey(message.id),
+                                                enabled: _canReplyTo(message),
+                                                onReply: () =>
+                                                    _startReply(message),
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(
+                                                    milliseconds: 350,
                                                   ),
-                                                  onRetry:
-                                                      message.delivery ==
-                                                          ChatDelivery.failed
-                                                      ? () => _retryMessage(
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        _highlightId ==
+                                                            message.id
+                                                        ? DarkColors
+                                                              .primaryColor
+                                                              .withValues(
+                                                                alpha: .25,
+                                                              )
+                                                        : Colors.transparent,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  child: GestureDetector(
+                                                    onLongPress: () =>
+                                                        _messageOptions(
                                                           message,
-                                                        )
-                                                      : null,
-                                                  audio: _audio,
-                                                  deletedMessageIds: deletedIds,
-                                                  onOpenStory: _openStory,
-                                                  now: _now(),
-                                                  unavailableStoryIds:
-                                                      _goneStories,
-                                                  outgoing:
-                                                      message.id.startsWith(
-                                                        'local-',
-                                                      ) ||
-                                                      (user != null &&
-                                                          user.isNotEmpty &&
-                                                          message.senderId ==
-                                                              user),
+                                                          user,
+                                                        ),
+                                                    child: ChatMessageBubble(
+                                                      message: message,
+                                                      detailsExpanded:
+                                                          _expandedMessageId ==
+                                                          message.id,
+                                                      onDetailsTap: () => setState(
+                                                        () => _expandedMessageId =
+                                                            _expandedMessageId ==
+                                                                message.id
+                                                            ? null
+                                                            : message.id,
+                                                      ),
+                                                      onRetry:
+                                                          message.delivery ==
+                                                              ChatDelivery
+                                                                  .failed
+                                                          ? () => _retryMessage(
+                                                              message,
+                                                            )
+                                                          : null,
+                                                      audio: _audio,
+                                                      deletedMessageIds:
+                                                          deletedIds,
+                                                      onOpenStory: _openStory,
+                                                      now: _now(),
+                                                      unavailableStoryIds:
+                                                          _goneStories,
+                                                      replySenderName: (id) =>
+                                                          _replyName(
+                                                            id,
+                                                            user,
+                                                            participant.name,
+                                                          ),
+                                                      replyOriginal:
+                                                          byId[message
+                                                              .replyTo
+                                                              ?.id],
+                                                      onQuoteTap:
+                                                          message.replyTo?.id ==
+                                                              null
+                                                          ? null
+                                                          : () =>
+                                                                _jumpToMessage(
+                                                                  message
+                                                                      .replyTo!
+                                                                      .id!,
+                                                                ),
+                                                      outgoing:
+                                                          message.id.startsWith(
+                                                            'local-',
+                                                          ) ||
+                                                          (user != null &&
+                                                              user.isNotEmpty &&
+                                                              message.senderId ==
+                                                                  user),
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
                                             ],
@@ -994,6 +1082,8 @@ class _ConversationScreenState extends State<ConversationScreen>
                               composer: _composer,
                               text: _text,
                               focusNode: _textFocus,
+                              replySenderName: (id) =>
+                                  _replyName(id, user, participant.name),
                               attachmentAnchor: _attachmentAnchor,
                               audio: _audio,
                               canSend: _canSend,
@@ -1341,6 +1431,23 @@ class _ConversationScreenState extends State<ConversationScreen>
     }
   }
 
+  static String _replyName(String senderId, String? user, String name) =>
+      user != null && user.isNotEmpty && senderId == user ? 'You' : name;
+
+  bool _canReplyTo(ChatMessage message) =>
+      _canSend &&
+      _repo is ChatOperationsRepository &&
+      !message.id.startsWith('local-') &&
+      !message.isDeleted &&
+      message.delivery != ChatDelivery.failed &&
+      message.delivery != ChatDelivery.sending;
+
+  void _startReply(ChatMessage message) {
+    if (!_canReplyTo(message)) return;
+    _composer.setReply(message);
+    _textFocus.requestFocus();
+  }
+
   Future<void> _messageOptions(ChatMessage message, String? user) async {
     if (message.id.startsWith('local-') ||
         !_valid ||
@@ -1348,62 +1455,133 @@ class _ConversationScreenState extends State<ConversationScreen>
         message.isDeleted) {
       return;
     }
+    final mine = user != null && user.isNotEmpty && message.senderId == user;
+    final operations = _repo is ChatOperationsRepository;
+    final actions = {
+      if (message.kind == ChatMessageKind.text && message.text.isNotEmpty)
+        ChatMessageAction.copy,
+      if (user != null && user.isNotEmpty) ChatMessageAction.deleteForMe,
+      if (mine && operations) ChatMessageAction.deleteForEveryone,
+      if (!mine && user != null && user.isNotEmpty && operations)
+        ChatMessageAction.report,
+    };
+    if (actions.isEmpty) return;
     _managing = true;
     try {
-      final action = await showModalBottomSheet<String>(
-        context: context,
-        backgroundColor: const Color(0xFF171717),
-        builder: (context) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (message.text.isNotEmpty)
-                ListTile(
-                  title: const Text('Copy text'),
-                  onTap: () => Navigator.pop(context, 'copy'),
-                ),
-              if (_canSend && _repo is ChatOperationsRepository)
-                ListTile(
-                  title: const Text('Reply'),
-                  onTap: () => Navigator.pop(context, 'reply'),
-                ),
-              if (_repo is ChatOperationsRepository &&
-                  user != null &&
-                  user.isNotEmpty &&
-                  message.senderId == user)
-                ListTile(
-                  title: const Text('Delete message'),
-                  onTap: () => Navigator.pop(context, 'delete'),
-                ),
-            ],
-          ),
-        ),
+      unawaited(HapticFeedback.mediumImpact());
+      final action = await ChatMessageOptionsSheet.show(
+        context,
+        actions: actions,
       );
-      if (!_valid || !mounted) return;
-      if (action == 'copy') {
-        await Clipboard.setData(ClipboardData(text: message.text));
-      } else if (action == 'reply') {
-        _composer.setReply(message);
-      } else if (action == 'delete' &&
-          await _confirm(
-            'Delete message?',
-            'The message becomes a deleted placeholder for both participants.',
-          )) {
-        if (!_valid) return;
-        await (_repo as ChatOperationsRepository).deleteMessage(message.id);
-        if (_audio.currentMessageId == message.id) {
-          unawaited(_audio.stopPlayback());
-        }
-        if (mounted && _valid) {
-          _list.appendConfirmed(message.asDeleted(), session: _session);
-          await _refresh();
-        }
+      if (!_valid || !mounted || action == null) return;
+      switch (action) {
+        case ChatMessageAction.copy:
+          final toast = TravibeToast.of(context);
+          await Clipboard.setData(ClipboardData(text: message.text));
+          toast.present(const TravibeToastData.info('Copied'));
+        case ChatMessageAction.deleteForMe:
+          if (_audio.currentMessageId == message.id) {
+            unawaited(_audio.stopPlayback());
+          }
+          if (_composer.state.replyTo?.id == message.id) {
+            _composer.setReply(null);
+          }
+          await _hidden.hide(user, message.id);
+        case ChatMessageAction.deleteForEveryone:
+          final confirmed = await showGlassConfirmDialog(
+            context,
+            title: 'Delete for everyone?',
+            message: 'This message will be removed for both of you.',
+            confirmLabel: 'Delete',
+          );
+          if (!confirmed || !_valid) return;
+          await (_repo as ChatOperationsRepository).deleteMessage(message.id);
+          if (_audio.currentMessageId == message.id) {
+            unawaited(_audio.stopPlayback());
+          }
+          if (mounted && _valid) {
+            _list.appendConfirmed(message.asDeleted(), session: _session);
+            await _refresh();
+          }
+        case ChatMessageAction.report:
+          await reportMessageFlow(
+            context,
+            messageId: message.id,
+            repo: _reports,
+          );
       }
     } catch (_) {
       _notice('Unable to change this message. Refresh before retrying.');
     } finally {
       _managing = false;
     }
+  }
+
+  /// Scrolls to a quoted message, loading older pages until it is found,
+  /// then flashes it.
+  Future<void> _jumpToMessage(String id) async {
+    if (_jumping || !_valid || id.isEmpty) return;
+    _jumping = true;
+    final user =
+        widget.currentUserId ??
+        context.read<CurrentUserCubit?>()?.state.profile?.id;
+    final animate = !MediaQuery.disableAnimationsOf(context);
+    try {
+      for (var step = 0; step < 40 && mounted && _valid; step++) {
+        if (_hidden.ids(user).contains(id)) break;
+        final target = _messageKeys[id]?.currentContext;
+        if (target != null && target.mounted) {
+          await Scrollable.ensureVisible(
+            target,
+            alignment: .5,
+            duration: animate
+                ? const Duration(milliseconds: 250)
+                : Duration.zero,
+            curve: Curves.easeOut,
+          );
+          _flash(id);
+          return;
+        }
+        final loaded = _list.state.items.any((m) => m.id == id);
+        if (loaded && _scroll.hasClients) {
+          final position = _scroll.position;
+          if (position.pixels >= position.maxScrollExtent) {
+            if (_list.state.continuation == null) break;
+            await _list.load(more: true);
+          } else {
+            await _scroll.animateTo(
+              math.min(
+                position.pixels + position.viewportDimension * .8,
+                position.maxScrollExtent,
+              ),
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.linear,
+            );
+          }
+        } else if (!loaded && _list.state.continuation != null) {
+          await _list.load(more: true);
+        } else {
+          break;
+        }
+        await WidgetsBinding.instance.endOfFrame;
+      }
+      if (mounted && _valid) {
+        TravibeToast.of(context).present(
+          const TravibeToastData.info("Original message isn't available"),
+        );
+      }
+    } finally {
+      _jumping = false;
+    }
+  }
+
+  void _flash(String id) {
+    if (!mounted) return;
+    _highlightTimer?.cancel();
+    setState(() => _highlightId = id);
+    _highlightTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted) setState(() => _highlightId = null);
+    });
   }
 
   void _typed() {

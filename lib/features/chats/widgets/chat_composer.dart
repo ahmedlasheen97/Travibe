@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'chat_emoji_picker.dart';
 import 'chat_recording_strip.dart';
 import 'chat_send_button.dart';
+import 'chat_reply_preview.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,7 +33,11 @@ class ChatComposer extends StatefulWidget {
     this.onSendAttachments,
     this.topAccessory,
     this.disabledReason = 'Sending is currently unavailable.',
+    this.replySenderName,
   });
+
+  /// "You" or the other person's name for the reply bar.
+  final String Function(String senderId)? replySenderName;
   final ChatComposerCubit composer;
   final TextEditingController text;
   final FocusNode? focusNode;
@@ -156,7 +161,7 @@ class _ChatComposerState extends State<ChatComposer>
         72 * MediaQuery.textScalerOf(context).scale(14) / 14 +
         (widget.topAccessory == null ? 0 : 52) +
         (widget.selectedMediaTray == null ? 0 : 110) +
-        (widget.composer.state.replyTo == null ? 0 : 50);
+        (widget.composer.state.replyTo == null ? 0 : 60);
     return (height - safe - 96 - controls).clamp(90.0, 220.0);
   }
 
@@ -207,22 +212,29 @@ class _ChatComposerState extends State<ChatComposer>
                   style: const TextStyle(color: Colors.white60, fontSize: 12),
                 ),
               if (state.replyTo != null)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Replying: ${state.replyTo!.isDeleted ? 'Deleted message' : state.replyTo!.text}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: Colors.white60),
+                Padding(
+                  key: const ValueKey('chat-reply-bar'),
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ChatReplyQuote(
+                          title:
+                              'Replying to ${widget.replySenderName?.call(state.replyTo!.senderId) ?? 'message'}',
+                          preview: ChatReplyPreview.fromMessage(state.replyTo!),
+                          lineColor: chatReplyAccent,
+                          titleColor: chatReplyAccent,
+                          background: Colors.white.withValues(alpha: .06),
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'Cancel reply',
-                      onPressed: () => widget.composer.setReply(null),
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
+                      IconButton(
+                        key: const ValueKey('chat-reply-cancel'),
+                        tooltip: 'Cancel reply',
+                        onPressed: () => widget.composer.setReply(null),
+                        icon: const Icon(Icons.close, color: Colors.white70),
+                      ),
+                    ],
+                  ),
                 ),
               ?widget.selectedMediaTray,
               if (widget.audio.recording)

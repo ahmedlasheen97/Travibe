@@ -35,6 +35,10 @@ class PreferencesManager extends ChangeNotifier {
   static const pushDeviceRecordsKey = 'push_device_records_v1';
   static const notificationSoftAskPrefix = 'notification_soft_ask_';
 
+  /// Per-account "Delete for me" message IDs (`ChatHiddenMessages`); kept on
+  /// logout so they stay hidden when the same account signs back in.
+  static const chatHiddenMessagesPrefix = 'chat_hidden_messages_';
+
   bool get onboardingCompleted =>
       _preferences.getBool(onboardingCompletedKey) ?? false;
 
@@ -154,8 +158,8 @@ class PreferencesManager extends ChangeNotifier {
   }
 
   /// Remove account-scoped values, retaining app language, onboarding,
-  /// non-secret push cleanup IDs, per-account setup skips and the device-wide
-  /// notifications soft-ask history.
+  /// non-secret push cleanup IDs, per-account setup skips, per-account hidden
+  /// chat message IDs and the device-wide notifications soft-ask history.
   /// Removal calls update SharedPreferences' memory synchronously before yielding,
   /// so a later account cannot be cleared by an old session's completion.
   Future<void> clearSession() async {
@@ -165,7 +169,8 @@ class PreferencesManager extends ChangeNotifier {
             key != onboardingCompletedKey &&
             key != pushDeviceRecordsKey &&
             !key.startsWith(_setupSkippedPrefix) &&
-            !key.startsWith(notificationSoftAskPrefix))
+            !key.startsWith(notificationSoftAskPrefix) &&
+            !key.startsWith(chatHiddenMessagesPrefix))
           _preferences.remove(key),
     ];
     _setSession(null);
