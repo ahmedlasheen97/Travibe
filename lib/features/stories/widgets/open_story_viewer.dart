@@ -25,6 +25,11 @@ List<StoryGroup> storyPlayOrder(List<StoryGroup> groups, int? currentUserId) {
 ///
 /// "Me" is the shared current user; [fallbackOwnerId] (Home's account, or my
 /// own profile's id) is only used for the session in [fallbackSession].
+///
+/// When [authorId] isn't in the shared source (a profile of someone I don't
+/// follow), [fallback] — their group from `GET /users/{user}/stories` — plays
+/// alone and the viewer closes after its last Story. Views still go through
+/// the shared source, so every ring updates.
 Future<void> openStoriesOf(
   BuildContext context, {
   required int authorId,
@@ -32,6 +37,7 @@ Future<void> openStoriesOf(
   StoryLikesCubit? likes,
   Object? fallbackOwnerId,
   int? fallbackSession,
+  StoryGroup? fallback,
 }) {
   final source = stories ?? context.read<StoriesCubit>();
   final me = int.tryParse(
@@ -42,9 +48,14 @@ Future<void> openStoriesOf(
         ) ??
         '',
   );
-  final groups = storyPlayOrder(source.state.groups, me);
+  var groups = storyPlayOrder(source.state.groups, me);
   if (!groups.any((g) => g.user.id == authorId && g.stories.isNotEmpty)) {
-    return Future.value();
+    if (fallback == null ||
+        fallback.user.id != authorId ||
+        fallback.stories.isEmpty) {
+      return Future.value();
+    }
+    groups = [fallback];
   }
   return openStoryViewer(
     context,

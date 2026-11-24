@@ -100,11 +100,24 @@ class StoryGroup {
     if (map['stories'] is! List) {
       throw const FormatException('Invalid Story list');
     }
+    // The API lists a group newest first; the app plays oldest → newest.
     stories = List.unmodifiable(
-      (map['stories'] as List).map(StorySummary.fromJson),
+      (map['stories'] as List).map(StorySummary.fromJson).toList().reversed,
     );
   }
   StoryGroup._(this.user, this.hasUnseen, this.stories);
+
+  /// [user]'s group built from a flat Story list in the API's newest-first
+  /// order (`GET /users/{user}/stories`), played oldest → newest.
+  factory StoryGroup.ofNewestFirst(
+    StoryAuthor user,
+    Iterable<StorySummary> newestFirst,
+  ) {
+    final items = List<StorySummary>.unmodifiable(
+      newestFirst.toList().reversed,
+    );
+    return StoryGroup._(user, items.any((s) => !s.hasSeen), items);
+  }
   StoryGroup reconcile(Map<int, int> seen, Set<int> deleted) {
     if (!stories.any((s) => seen.containsKey(s.id) || deleted.contains(s.id))) {
       return this;
@@ -146,10 +159,11 @@ class StoryGroup {
     for (final story in stories) {
       merged[story.id] = story;
     }
+    // Story ids grow with creation time: keep oldest → newest.
     return StoryGroup._(
       user,
       hasUnseen || previous.hasUnseen,
-      List.unmodifiable(merged.values),
+      List.unmodifiable(merged.values.toList()..sort((a, b) => a.id - b.id)),
     );
   }
 

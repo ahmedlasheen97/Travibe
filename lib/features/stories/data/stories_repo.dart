@@ -109,6 +109,34 @@ class StoriesRepo {
     }
   }
 
+  /// `GET /users/{user}/stories`: [author]'s active Stories the caller may
+  /// open, as a group played oldest → newest. Null when there are none to
+  /// show (empty list, a block, `403` or `404`). Tagged with the session
+  /// revision so a response for a previous account is cancelled.
+  Future<StoryGroup?> getUserStories(StoryAuthor author) async {
+    storyId(author.id);
+    try {
+      final response = await _dio.get(
+        'users/${author.id}/stories',
+        options: Options(
+          receiveTimeout: const Duration(seconds: 15),
+          extra: {'sessionRevision': PreferencesManager().sessionRevision},
+        ),
+      );
+      if (response.statusCode != 200) throw const FormatException();
+      final data = storyObject(response.data)['data'];
+      if (data is! List) throw const FormatException('Invalid Stories list');
+      if (data.isEmpty) return null;
+      return StoryGroup.ofNewestFirst(author, data.map(StorySummary.fromJson));
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 403 || status == 404) return null;
+      throw ApiExceptions.handleError(e);
+    } on FormatException {
+      throw ApiError(message: 'Unable to read Stories. Please retry.');
+    }
+  }
+
   Future<StoryDetail> getStory(int id) async {
     storyId(id);
     try {
