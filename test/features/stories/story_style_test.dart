@@ -8,6 +8,7 @@ import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/home/widgets/home_stories.dart';
 import 'package:travibe/features/profile/screens/settings_screen.dart';
+import 'package:travibe/features/profile/widgets/story_style_bottom_sheet.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/data/story_style.dart';
 import 'package:travibe/features/stories/widgets/story_ring.dart';
@@ -133,9 +134,7 @@ void main() {
     StoryRing ring(WidgetTester tester, Object id) =>
         tester.widget<StoryRing>(find.byKey(ValueKey('story-segments-$id')));
 
-    testWidgets('circle is the default and keeps circular 64px avatars', (
-      tester,
-    ) async {
+    testWidgets('circle style keeps circular 64px avatars', (tester) async {
       await show(tester, null);
       expect(ring(tester, 7).cornerRadius, isNull);
       expect(ring(tester, 8).cornerRadius, isNull);
@@ -224,32 +223,33 @@ void main() {
 
   group('story style preference', () {
     test(
-      'defaults to circle, persists, survives logout, resets on clear',
+      'defaults to rectangle, persists, survives logout, resets on clear',
       () async {
-        expect(preferences.storyStyle.value, StoryStyle.circle);
-        await preferences.saveStoryStyle(StoryStyle.rectangle);
+        expect(preferences.storyStyle.value, StoryStyle.rectangle);
+        await preferences.saveStoryStyle(StoryStyle.circle);
         expect(
           preferences.getString(PreferencesManager.storyStyleKey),
-          'rectangle',
+          'circle',
         );
         await preferences.init();
-        expect(preferences.storyStyle.value, StoryStyle.rectangle);
+        expect(preferences.storyStyle.value, StoryStyle.circle);
         await preferences.clearSession();
         await preferences.init();
-        expect(preferences.storyStyle.value, StoryStyle.rectangle);
-        await preferences.clear();
         expect(preferences.storyStyle.value, StoryStyle.circle);
+        await preferences.clear();
+        expect(preferences.storyStyle.value, StoryStyle.rectangle);
       },
     );
 
-    test('unknown stored values fall back to circle', () {
-      expect(StoryStyle.parse('hexagon'), StoryStyle.circle);
-      expect(StoryStyle.parse(null), StoryStyle.circle);
+    test('unchosen or unknown stored values fall back to rectangle', () {
+      expect(StoryStyle.parse('hexagon'), StoryStyle.rectangle);
+      expect(StoryStyle.parse(null), StoryStyle.rectangle);
+      expect(StoryStyle.parse('circle'), StoryStyle.circle);
     });
   });
 
-  group('Settings debug row', () {
-    Future<void> show(WidgetTester tester, {required bool debugRow}) async {
+  group('Settings Story Style row', () {
+    Future<void> show(WidgetTester tester) async {
       tester.view.physicalSize = const Size(390, 2400);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
@@ -261,39 +261,142 @@ void main() {
           designSize: const Size(390, 844),
           builder: (_, _) => MaterialApp(
             theme: darkTheme,
-            home: SettingsScreen(currentUser: user, showStoryStyle: debugRow),
+            home: SettingsScreen(currentUser: user),
           ),
         ),
       );
       await tester.pumpAndSettle();
     }
 
-    testWidgets('switches the Home story style and saves it', (tester) async {
-      await show(tester, debugRow: true);
-      expect(find.text('Story style'), findsOneWidget);
-      ChoiceChip chip(StoryStyle style) => tester.widget<ChoiceChip>(
-        find.byKey(ValueKey('story-style-${style.name}')),
-      );
-      expect(chip(StoryStyle.circle).selected, isTrue);
-      await tester.tap(find.byKey(const ValueKey('story-style-rectangle')));
-      await tester.pump();
-      expect(preferences.storyStyle.value, StoryStyle.rectangle);
-      expect(chip(StoryStyle.rectangle).selected, isTrue);
+    final row = find.byKey(const ValueKey('settings-story-style'));
+    Finder rowValue(String value) =>
+        find.descendant(of: row, matching: find.text(value));
+
+    testWidgets('shows the current value (Rectangle by default) beside a '
+        'chevron, and no debug chips remain', (tester) async {
+      await show(tester);
       expect(
-        preferences.getString(PreferencesManager.storyStyleKey),
-        'rectangle',
+        find.descendant(of: row, matching: find.text('Story Style')),
+        findsOneWidget,
       );
-      await tester.tap(find.byKey(const ValueKey('story-style-circle')));
-      await tester.pump();
-      expect(preferences.storyStyle.value, StoryStyle.circle);
+      expect(rowValue('Rectangle'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.byIcon(Icons.chevron_right_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(find.byType(ChoiceChip), findsNothing);
+      // Sits in App Preferences right after Language.
+      expect(
+        tester.getTopLeft(row).dy,
+        greaterThan(tester.getTopLeft(find.text('Language')).dy),
+      );
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('is hidden when not a debug build', (tester) async {
-      await show(tester, debugRow: false);
-      expect(find.text('Story style'), findsNothing);
-      expect(find.byKey(const ValueKey('settings-story-style')), findsNothing);
+    testWidgets('sheet shows both shapes with previews; picking one closes '
+        'it, saves it and updates the row', (tester) async {
+      await show(tester);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.byType(StoryStyleBottomSheet), findsOneWidget);
+      final sheet = find.byType(StoryStyleBottomSheet);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Story Style')),
+        findsOneWidget,
+      );
+      for (final style in StoryStyle.values) {
+        expect(
+          find.byKey(ValueKey('story-style-preview-${style.name}')),
+          findsOneWidget,
+        );
+      }
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('story-style-preview-rectangle')),
+        ),
+        const Size(24, 30),
+      );
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('story-style-preview-circle')),
+        ),
+        const Size(24, 24),
+      );
+      // Rectangle is listed first and checked.
+      expect(
+        tester.getTopLeft(find.text('Rectangle').last).dy,
+        lessThan(tester.getTopLeft(find.text('Circle')).dy),
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('story-style-option-rectangle')),
+          matching: find.byIcon(Icons.check_rounded),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('story-style-option-circle')));
+      await tester.pumpAndSettle();
+      expect(find.byType(StoryStyleBottomSheet), findsNothing);
+      expect(preferences.storyStyle.value, StoryStyle.circle);
+      expect(preferences.getString(PreferencesManager.storyStyleKey), 'circle');
+      expect(rowValue('Circle'), findsOneWidget);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('story-style-option-circle')),
+          matching: find.byIcon(Icons.check_rounded),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('story-style-option-rectangle')),
+      );
+      await tester.pumpAndSettle();
+      expect(rowValue('Rectangle'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
+
+    testWidgets('dismissing the sheet keeps the current style', (tester) async {
+      await show(tester);
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(195, 20));
+      await tester.pumpAndSettle();
+      expect(find.byType(StoryStyleBottomSheet), findsNothing);
+      expect(preferences.storyStyle.value, StoryStyle.rectangle);
+      expect(preferences.getString(PreferencesManager.storyStyleKey), isNull);
+      await tester.pumpWidget(const SizedBox());
+    });
+  });
+
+  testWidgets('Home updates immediately when the preference changes', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ValueListenableBuilder(
+            valueListenable: preferences.storyStyle,
+            builder: (_, style, _) => HomeStories(
+              stories: [StoryGroup.fromJson(groupJson(8))],
+              style: style,
+            ),
+          ),
+        ),
+      ),
+    );
+    StoryRing ring() => tester.widget<StoryRing>(
+      find.byKey(const ValueKey('story-segments-8')),
+    );
+    expect(ring().cornerRadius, 16);
+    await preferences.saveStoryStyle(StoryStyle.circle);
+    await tester.pump();
+    expect(ring().cornerRadius, isNull);
   });
 }

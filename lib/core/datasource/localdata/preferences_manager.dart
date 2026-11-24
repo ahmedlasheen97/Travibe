@@ -21,8 +21,10 @@ class PreferencesManager extends ChangeNotifier {
   final ValueNotifier<String> language = ValueNotifier('en');
   final ValueNotifier<String?> currency = ValueNotifier(null);
 
-  /// Debug-only Home stories shape experiment; release builds stay circle.
-  final ValueNotifier<StoryStyle> storyStyle = ValueNotifier(StoryStyle.circle);
+  /// Home stories row shape (Settings → Story Style); saved on this device.
+  final ValueNotifier<StoryStyle> storyStyle = ValueNotifier(
+    StoryStyle.fallback,
+  );
 
   void _setSession(String? token) {
     if (_sessionToken == token) return;
@@ -39,8 +41,8 @@ class PreferencesManager extends ChangeNotifier {
   static const pushDeviceRecordsKey = 'push_device_records_v1';
   static const notificationSoftAskPrefix = 'notification_soft_ask_';
 
-  /// Device-wide debug preference; kept across logout.
-  static const storyStyleKey = 'debug_story_style';
+  /// Device-wide display preference; kept across logout.
+  static const storyStyleKey = 'story_style';
 
   /// Per-account "Delete for me" message IDs (`ChatHiddenMessages`); kept on
   /// logout so they stay hidden when the same account signs back in.
@@ -61,13 +63,10 @@ class PreferencesManager extends ChangeNotifier {
     // A saved language the app can't run in (Arabic during the MVP) is English.
     language.value = effectiveAppLanguage(_preferences.getString(_languageKey));
     currency.value = _preferences.getString(_currencyKey);
-    storyStyle.value = kDebugMode
-        ? StoryStyle.parse(_preferences.getString(storyStyleKey))
-        : StoryStyle.circle;
+    storyStyle.value = StoryStyle.parse(_preferences.getString(storyStyleKey));
   }
 
   Future<void> saveStoryStyle(StoryStyle style) async {
-    if (!kDebugMode) return;
     storyStyle.value = style;
     await _preferences.setString(storyStyleKey, style.name);
   }
@@ -200,7 +199,7 @@ class PreferencesManager extends ChangeNotifier {
     final clearing = _preferences.clear();
     language.value = 'en';
     currency.value = null;
-    storyStyle.value = StoryStyle.circle;
+    storyStyle.value = StoryStyle.fallback;
     _setSession(null);
     await clearing;
   }
