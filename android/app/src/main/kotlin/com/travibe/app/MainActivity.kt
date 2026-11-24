@@ -120,11 +120,9 @@ class MainActivity : FlutterActivity() {
     private var pendingPermission: MethodChannel.Result? = null
     private var pendingImage: ByteArray? = null
     private var pendingVideo: Pair<String, String>? = null
+    // Android has no public API to detect a policy-fixed permission, so
+    // "restricted" is reported on iOS only.
     private fun microphoneStatus(): String {
-        try {
-            val flags = packageManager.getPermissionFlags(Manifest.permission.RECORD_AUDIO, packageName, android.os.Process.myUserHandle())
-            if (flags and (PackageManager.FLAG_PERMISSION_POLICY_FIXED or PackageManager.FLAG_PERMISSION_SYSTEM_FIXED) != 0 && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) return "restricted"
-        } catch (_: Exception) {}
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) return "granted"
         val asked = getPreferences(0).getBoolean("chat_microphone_asked", false)
         return if (!asked) "notDetermined" else if (shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO)) "denied" else "permanentlyDenied"
