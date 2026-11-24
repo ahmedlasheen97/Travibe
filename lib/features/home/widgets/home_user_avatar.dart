@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/display_sized_image.dart';
 
 /// Uses the existing people-list fallback, including when a remote image fails.
 class HomeUserAvatar extends StatelessWidget {
@@ -20,8 +21,13 @@ class HomeUserAvatar extends StatelessWidget {
           dimension: size,
           child: url == null || url!.isEmpty
               ? fallback
-              : Image.network(
-                  url!,
+              : Image(
+                  image: DisplaySizedImage.of(
+                    context,
+                    NetworkImage(url!),
+                    logicalWidth: size,
+                    logicalHeight: size,
+                  ),
                   fit: BoxFit.cover,
                   // A grey disc until the first frame, never an empty hole.
                   frameBuilder: (_, image, frame, sync) => sync || frame != null

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
+import 'package:travibe/core/widgets/display_sized_image.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/widgets/story_ring.dart';
@@ -43,7 +44,14 @@ class ProfileAvatar extends StatelessWidget {
       key: const ValueKey('profile-avatar'),
       radius: diameter / 2,
       backgroundColor: const Color(0xFF2A2A2A),
-      backgroundImage: hasImage ? NetworkImage(url) : null,
+      backgroundImage: hasImage
+          ? DisplaySizedImage.of(
+              context,
+              NetworkImage(url),
+              logicalWidth: diameter,
+              logicalHeight: diameter,
+            )
+          : null,
       child: hasImage
           ? null
           : Icon(

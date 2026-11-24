@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/display_sized_image.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -356,7 +357,9 @@ void main() {
           )
           .elementAt(index)
           .foregroundImage;
-      return image is NetworkImage ? image.url : null;
+      // Avatars are decoded at their drawn size around the network image.
+      final source = image is DisplaySizedImage ? image.imageProvider : image;
+      return source is NetworkImage ? source.url : null;
     }
 
     await show(tester, Column(children: [withAvatar(7), withAvatar(8)]));

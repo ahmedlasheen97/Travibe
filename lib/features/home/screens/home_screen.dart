@@ -11,6 +11,7 @@ import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/widgets/travibe_loading_indicator.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
+import 'package:travibe/core/widgets/lazy_keyed_sliver_list.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
 import 'package:travibe/features/stories/data/stories_repo.dart';
@@ -794,6 +795,9 @@ class _HomeViewState extends State<_HomeView> {
                         BlocBuilder<PostsCubit, PostsState>(
                           key: const ValueKey('home-feed-content'),
                           bloc: _activeFeed,
+                          // A change inside one post (like, comment count)
+                          // rebuilds only that card (see _buildPostCard).
+                          buildWhen: (a, b) => !a.sameShapeAs(b),
                           builder: (context, state) {
                             // Figma: an empty feed under the error toast
                             // (never inline error text), kept while quiet
@@ -834,11 +838,7 @@ class _HomeViewState extends State<_HomeView> {
                                 padding: EdgeInsets.symmetric(
                                   horizontal: AppSizes.adaptiveWidth(10),
                                 ),
-                                sliver: SliverList(
-                                  delegate: SliverChildListDelegate(
-                                    _buildFeed(state),
-                                  ),
-                                ),
+                                sliver: _buildFeed(state),
                               );
                             }
 
@@ -924,18 +924,14 @@ class _HomeViewState extends State<_HomeView> {
         // the zero-relationships introduction instead of discarding their data.
         return SliverPadding(
           padding: EdgeInsets.symmetric(horizontal: AppSizes.adaptiveWidth(10)),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate(
-              _buildFeed(
-                posts,
-                showFollowingIntro:
-                    account.followsNobody &&
-                    !posts.isRefreshing &&
-                    !posts.isLoadingMore &&
-                    posts.refreshError == null &&
-                    posts.paginationError == null,
-              ),
-            ),
+          sliver: _buildFeed(
+            posts,
+            showFollowingIntro:
+                account.followsNobody &&
+                !posts.isRefreshing &&
+                !posts.isLoadingMore &&
+                posts.refreshError == null &&
+                posts.paginationError == null,
           ),
         );
       }
@@ -1005,46 +1001,55 @@ class _HomeViewState extends State<_HomeView> {
     ),
   );
 
-  List<Widget> _buildFeed(
-    PostsLoaded state, {
-    bool showFollowingIntro = false,
-  }) {
+  /// The feed, built lazily: cards are created as they scroll into view.
+  Widget _buildFeed(PostsLoaded state, {bool showFollowingIntro = false}) {
+    final feed = _activeFeed;
     final posts = state.posts;
     // Suggested users after the 2nd post (or after the last post if the
     // feed is shorter than that).
     final suggestedAt = posts.length > 1 ? 1 : posts.length - 1;
+    final suggestedAfter = suggestedAt < 0 ? null : posts[suggestedAt].id;
 
-    final items = <Widget>[
-      SizedBox(height: AppSizes.adaptiveHeight(16)),
-      if (showFollowingIntro)
-        FollowingEmptyState(onExplorePeople: _explorePeople),
-    ];
-
-    for (var i = 0; i < posts.length; i++) {
-      items.add(_buildPostCard(posts[i]));
-
-      if (i == suggestedAt) {
-        items.add(_homeSuggestions(inFeed: true));
-        items.add(SizedBox(height: AppSizes.adaptiveHeight(20)));
-      }
-    }
-
-    if (state.isLoadingMore && !_explicitRefreshes.containsKey(_activeFeed)) {
-      items.add(
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 16),
-          child: Center(
-            child: TravibeLoadingIndicator(
-              size: 32,
-              semanticsLabel: 'Loading more posts',
+    return LazyKeyedSliverList(
+      keyPrefix: 'home-feed-item-',
+      ids: [for (final post in posts) post.id],
+      itemBuilder: (context, id) {
+        // Keyed on the card alone: the in-feed suggestions aren't part of it.
+        final card = KeyedSubtree(
+          key: ValueKey('home-post-$id'),
+          child: _buildPostCard(id, feed),
+        );
+        if (id != suggestedAfter) return card;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            card,
+            _homeSuggestions(inFeed: true),
+            SizedBox(height: AppSizes.adaptiveHeight(20)),
+          ],
+        );
+      },
+      leading: [
+        SizedBox(height: AppSizes.adaptiveHeight(16)),
+        if (showFollowingIntro)
+          FollowingEmptyState(onExplorePeople: _explorePeople),
+      ],
+      // Refresh/pagination errors are shown by Home's shared error handling
+      // (_syncHomeError), not as rows in the feed.
+      trailing: [
+        if (state.isLoadingMore && !_explicitRefreshes.containsKey(feed))
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: TravibeLoadingIndicator(
+                size: 32,
+                semanticsLabel: 'Loading more posts',
+              ),
             ),
           ),
-        ),
-      );
-    }
-
-    items.add(SizedBox(height: AppSizes.adaptiveHeight(100)));
-    return items;
+        SizedBox(height: AppSizes.adaptiveHeight(100)),
+      ],
+    );
   }
 
   Future<void> _openComments(PostModel post) => CommentsScreen.open(
@@ -1139,13 +1144,22 @@ class _HomeViewState extends State<_HomeView> {
     return url;
   }
 
-  Widget _buildPostCard(PostModel post) {
+  /// One feed card. It rebuilds only when its own post, like, save or
+  /// hide-pending state changes, never when another post is liked or saved.
+  Widget _buildPostCard(String id, PostsCubit feed) =>
+      BlocSelector<PostsCubit, PostsState, PostModel?>(
+        bloc: feed,
+        selector: (state) => state.postById(id),
+        builder: (context, post) =>
+            post == null ? const SizedBox.shrink() : _postCard(post),
+      );
+
+  Widget _postCard(PostModel post) {
     final mediaUrls = post.media.map((m) => m.displayUrl).toList();
     final postId = int.tryParse(post.id);
     final target = postId == null ? null : LikeTarget.post(postId);
 
     return BlocBuilder<HomeAccountCubit, HomeAccountState>(
-      key: ValueKey('home-post-${post.id}'),
       bloc: _account,
       builder: (context, account) => Padding(
         padding: EdgeInsets.only(bottom: AppSizes.adaptiveHeight(16)),
@@ -1154,18 +1168,41 @@ class _HomeViewState extends State<_HomeView> {
           initialFollowing: post.user.isFollowing,
           initialRequested: post.user.followRequested,
           builder: (context, relation, pending, onToggle) =>
-              BlocBuilder<HiddenPostsCubit, HiddenPostsState>(
+              BlocSelector<HiddenPostsCubit, HiddenPostsState, bool>(
                 bloc: _hiddenPosts,
-                builder: (context, hiddenState) =>
-                    BlocBuilder<LikesCubit, LikesState>(
+                selector: (hidden) => hidden.pending.contains(post.id),
+                builder: (context, hidePending) =>
+                    BlocSelector<LikesCubit, LikesState, (bool, int, bool)?>(
                       bloc: _likes,
-                      builder: (context, likeState) {
-                        final value = target == null
+                      selector: (likes) => switch (target == null
+                          ? null
+                          : likes.values[target]) {
+                        final value? => (
+                          value.isLiked,
+                          value.count,
+                          value.pending,
+                        ),
+                        null => null,
+                      },
+                      builder: (context, like) {
+                        final value = like == null
                             ? null
-                            : likeState.values[target];
-                        return BlocBuilder<SavesCubit, SavesState>(
+                            : LikeValue(
+                                isLiked: like.$1,
+                                count: like.$2,
+                                pending: like.$3,
+                              );
+                        return BlocSelector<
+                          SavesCubit,
+                          SavesState,
+                          (bool?, bool)
+                        >(
                           bloc: _saves,
-                          builder: (context, savesState) => PostCard(
+                          selector: (saves) => (
+                            saves.values[post.id],
+                            saves.pending.contains(post.id),
+                          ),
+                          builder: (context, save) => PostCard(
                             responsive: true,
                             homePresentation: true,
                             postId: post.id,
@@ -1176,8 +1213,8 @@ class _HomeViewState extends State<_HomeView> {
                                 ? account.account?.id
                                 : null,
                             currentUserSessionRevision: _storyOwnerSession,
-                            isSaved: savesState.values[post.id] ?? post.isSaved,
-                            isSavePending: savesState.pending.contains(post.id),
+                            isSaved: save.$1 ?? post.isSaved,
+                            isSavePending: save.$2,
                             onSaveTap: () async {
                               final error = await _saves.toggle(post);
                               if (error != null && context.mounted) {
@@ -1228,7 +1265,7 @@ class _HomeViewState extends State<_HomeView> {
                             isFollowRequested: relation.isRequested,
                             isFollowPending: pending,
                             onFollowTap: post.user.isBlocked ? null : onToggle,
-                            onMoreTap: hiddenState.pending.contains(post.id)
+                            onMoreTap: hidePending
                                 ? null
                                 : () => _showPostOptions(post),
                           ),

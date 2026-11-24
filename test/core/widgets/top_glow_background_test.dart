@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:travibe/core/widgets/display_sized_image.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -630,8 +631,10 @@ void main() {
       final author = find.byKey(const ValueKey('post-author-avatar'));
       expect(author, findsOneWidget);
       final avatar = tester.widget<CircleAvatar>(author);
+      // Decoded at its drawn size around the network image.
+      final sized = avatar.foregroundImage! as DisplaySizedImage;
       expect(
-        (avatar.foregroundImage! as NetworkImage).url,
+        (sized.imageProvider as NetworkImage).url,
         'https://example.invalid/author2.png',
       );
       expect(author, paints..drawImageRect());

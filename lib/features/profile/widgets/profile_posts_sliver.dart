@@ -6,6 +6,7 @@ import 'package:travibe/features/profile/widgets/profile_shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
+import 'package:travibe/core/widgets/lazy_keyed_sliver_list.dart';
 import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/block/cubit/block_cubit.dart';
 import 'package:travibe/features/block/widgets/block_user_button.dart';
@@ -62,6 +63,8 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
   );
   @override
   Widget build(BuildContext context) => BlocBuilder<PostsCubit, PostsState>(
+    // Changes inside one post rebuild only that card (see _card).
+    buildWhen: (a, b) => !a.sameShapeAs(b),
     builder: (context, state) {
       final posts = context.read<PostsCubit>();
       if (state is PostsLoaded &&
@@ -80,6 +83,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
           bottomInset: widget.bottomInset,
         );
       }
+      final loaded = state is PostsLoaded ? state : null;
       return SliverPadding(
         padding: EdgeInsets.fromLTRB(
           AppSizes.pw20,
@@ -87,95 +91,118 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
           AppSizes.pw20,
           AppSizes.ph16 + widget.bottomInset,
         ),
-        sliver: SliverList(
-          delegate: SliverChildListDelegate([
+        sliver: LazyKeyedSliverList(
+          keyPrefix: 'profile-post-',
+          ids: [for (final post in loaded?.posts ?? const []) post.id],
+          itemBuilder: (context, id) => Padding(
+            padding: EdgeInsets.only(bottom: AppSizes.ph16),
+            child: _card(id),
+          ),
+          leading: [
             if (widget.showLoadingIndicators &&
                 (state is PostsInitial || state is PostsLoading))
               const ProfilePostSkeleton(),
             if (state is PostsFailure)
               _message(state.errorMessage, retry: posts.loadPosts),
-            if (state is PostsLoaded) ...[
-              if (state.refreshError != null)
-                _message(state.refreshError!.message, retry: posts.refresh),
-              for (final post in state.posts)
-                Padding(
-                  key: ValueKey('profile-post-${post.id}'),
-                  padding: EdgeInsets.only(bottom: AppSizes.ph16),
-                  child: _card(post),
-                ),
-              if (state.isLoadingMore && widget.showLoadingIndicators)
+            if (loaded?.refreshError case final error?)
+              _message(error.message, retry: posts.refresh),
+          ],
+          trailing: [
+            if (loaded != null) ...[
+              if (loaded.isLoadingMore && widget.showLoadingIndicators)
                 const Center(child: CircularProgressIndicator()),
-              if (state.paginationError != null)
+              if (loaded.paginationError != null)
                 _message(
-                  state.paginationError!.message,
+                  loaded.paginationError!.message,
                   retry: () => posts.loadMore(retry: true),
                 )
-              else if (state.hasMore &&
-                  !state.isRefreshing &&
-                  !state.isLoadingMore)
+              else if (loaded.hasMore &&
+                  !loaded.isRefreshing &&
+                  !loaded.isLoadingMore)
                 TextButton(
                   onPressed: posts.loadMore,
                   child: const Text('Load more'),
                 ),
             ],
-          ]),
+          ],
         ),
       );
     },
   );
-  Widget _card(PostModel post) {
+
+  /// One card. It rebuilds only when its own post, its save state or its
+  /// like-pending flag changes, not when another post is liked or saved.
+  Widget _card(String id) => BlocSelector<PostsCubit, PostsState, PostModel?>(
+    selector: (state) => state.postById(id),
+    builder: (context, post) {
+      if (post == null) return const SizedBox.shrink();
+      final target = int.tryParse(post.id) == null
+          ? null
+          : LikeTarget.post(int.parse(post.id));
+      return BlocSelector<SavesCubit, SavesState, (bool?, bool)>(
+        selector: (saves) =>
+            (saves.values[post.id], saves.pending.contains(post.id)),
+        builder: (context, save) => BlocSelector<LikesCubit, LikesState, bool>(
+          selector: (likes) =>
+              target != null && likes.values[target]?.pending == true,
+          builder: (context, likePending) =>
+              _postCard(context, post, save, likePending),
+        ),
+      );
+    },
+  );
+
+  Widget _postCard(
+    BuildContext context,
+    PostModel post,
+    (bool?, bool) save,
+    bool likePending,
+  ) {
     final posts = context.read<PostsCubit>();
     final media = post.media.map((m) => m.displayUrl).toList();
     // Every card here is by the profile's user; Follow lives in the header.
-    return BlocBuilder<SavesCubit, SavesState>(
-      builder: (context, saves) => PostCard(
-        postId: post.id,
-        authorId: post.user.id,
-        name: post.user.name,
-        avatar: post.user.avatarUrl,
-        avatarSize: AppSizes.w40,
-        time: timeAgo(post.createdAt),
-        text: post.content ?? '',
-        image: media.length == 1 ? media.first : null,
-        images: media.length > 1 ? media : null,
-        likes: formatCount(post.likesCount),
-        onOpen: () => PostScreen.open(context, post: post),
-        onLikesCountTap: () => LikedBySheet.show(
-          context,
-          postId: int.parse(post.id),
-          count: post.likesCount,
-        ),
-        isLiked: post.isLiked,
-        isLikePending:
-            context
-                .watch<LikesCubit>()
-                .value(LikeTarget.post(int.parse(post.id)))
-                ?.pending ==
-            true,
-        onLikeTap: () async {
-          final error = await context.read<PostsCubit>().toggleLike(post);
-          if (error != null && context.mounted) _error(context, error.message);
-        },
-        comments: formatCount(post.commentsCount),
-        onCommentsTap: () => CommentsScreen.open(
-          context,
-          postId: int.parse(post.id),
-          initialCount: post.commentsCount,
-          likes: context.read<LikesCubit>(),
-          commentsDisabled: post.commentsDisabled,
-          onCountChanged: (count) {
-            if (mounted) posts.setCommentsCount(post.id, count);
-          },
-        ),
-        onShareTap: () => _share(post),
-        isSaved: saves.values[post.id] ?? post.isSaved,
-        isSavePending: saves.pending.contains(post.id),
-        onSaveTap: () async {
-          final error = await context.read<SavesCubit>().toggle(post);
-          if (error != null && context.mounted) _error(context, error.message);
-        },
-        onMoreTap: !widget.owner ? () => _options(post) : null,
+    return PostCard(
+      postId: post.id,
+      authorId: post.user.id,
+      name: post.user.name,
+      avatar: post.user.avatarUrl,
+      avatarSize: AppSizes.w40,
+      time: timeAgo(post.createdAt),
+      text: post.content ?? '',
+      image: media.length == 1 ? media.first : null,
+      images: media.length > 1 ? media : null,
+      likes: formatCount(post.likesCount),
+      onOpen: () => PostScreen.open(context, post: post),
+      onLikesCountTap: () => LikedBySheet.show(
+        context,
+        postId: int.parse(post.id),
+        count: post.likesCount,
       ),
+      isLiked: post.isLiked,
+      isLikePending: likePending,
+      onLikeTap: () async {
+        final error = await posts.toggleLike(post);
+        if (error != null && context.mounted) _error(context, error.message);
+      },
+      comments: formatCount(post.commentsCount),
+      onCommentsTap: () => CommentsScreen.open(
+        context,
+        postId: int.parse(post.id),
+        initialCount: post.commentsCount,
+        likes: context.read<LikesCubit>(),
+        commentsDisabled: post.commentsDisabled,
+        onCountChanged: (count) {
+          if (mounted) posts.setCommentsCount(post.id, count);
+        },
+      ),
+      onShareTap: () => _share(post),
+      isSaved: save.$1 ?? post.isSaved,
+      isSavePending: save.$2,
+      onSaveTap: () async {
+        final error = await context.read<SavesCubit>().toggle(post);
+        if (error != null && context.mounted) _error(context, error.message);
+      },
+      onMoreTap: !widget.owner ? () => _options(post) : null,
     );
   }
 

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -82,7 +83,9 @@ void main() {
       ScreenUtilInit(
         designSize: const Size(390, 844),
         builder: (_, _) => MaterialApp(
-          theme: darkTheme,
+          // The shared darkTheme froze its platform when first built; use
+          // the test variant's platform so iOS runs get iOS behavior.
+          theme: darkTheme.copyWith(platform: defaultTargetPlatform),
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: TextScaler.linear(textScale),
@@ -242,21 +245,33 @@ void main() {
 
   for (final size in const [Size(390, 844), Size(430, 932)]) {
     testWidgets(
-      'no posts on $size: empty profile fits, never scrolls or bounces',
+      'no posts on $size: empty profile fits; bounces back on iOS only',
       (tester) async {
         posts.authors[7] = [];
         await show(tester, size: size);
         expect(find.text('No posts yet'), findsOneWidget);
         expect(find.text('Create Post'), findsNothing);
+        final ios = defaultTargetPlatform == TargetPlatform.iOS;
         final position = profileScroll(tester);
         expect(position.physics, isA<AlwaysScrollableScrollPhysics>());
-        expect(position.physics.parent, isA<ClampingScrollPhysics>());
+        expect(
+          position.physics.parent,
+          ios ? isA<BouncingScrollPhysics>() : isA<ClampingScrollPhysics>(),
+        );
         expect(position.maxScrollExtent, 0);
-        await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byType(CustomScrollView)),
+        );
+        // Past touch slop first, then drag beyond the end of the content.
+        await gesture.moveBy(const Offset(0, -30));
+        await tester.pump();
+        await gesture.moveBy(const Offset(0, -200));
         await tester.pump(const Duration(milliseconds: 16));
-        // Clamped: no rubber-band movement while dragging past the content.
-        expect(position.pixels, 0);
+        // iOS rubber-bands past the content; Android stays clamped.
+        expect(position.pixels, ios ? greaterThan(0) : 0);
+        await gesture.up();
         await tester.pumpAndSettle();
+        // Either way it rests at the top: there is nothing to scroll to.
         expect(position.pixels, 0);
         // Centered in the space left below the tabs.
         final top = tester.getBottomLeft(find.byType(ProfileTabs)).dy;
@@ -323,7 +338,7 @@ void main() {
   );
 
   testWidgets(
-    'iPhone SE: taller content scrolls as one page and clamps at the end',
+    'iPhone SE: taller content scrolls as one page and rests at the end',
     (tester) async {
       posts.authors[7] = [];
       await show(tester, size: const Size(320, 568));
@@ -331,7 +346,12 @@ void main() {
       expect(position.maxScrollExtent, greaterThan(0));
       await tester.drag(find.byType(CustomScrollView), const Offset(0, -2000));
       await tester.pump(const Duration(milliseconds: 16));
-      expect(position.pixels, position.maxScrollExtent);
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // Overscrolls past the end, then springs back.
+        expect(position.pixels, greaterThan(position.maxScrollExtent));
+      } else {
+        expect(position.pixels, position.maxScrollExtent);
+      }
       await tester.pumpAndSettle();
       expect(position.pixels, position.maxScrollExtent);
       expect(find.text('No posts yet'), findsOneWidget);
