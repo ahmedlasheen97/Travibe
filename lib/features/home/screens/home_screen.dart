@@ -740,19 +740,33 @@ class _HomeViewState extends State<_HomeView> {
                                           >(
                                             bloc: _stories,
                                             builder: (context, state) =>
-                                                HomeStories(
-                                                  stories: state.groups,
-                                                  currentUserId: int.tryParse(
-                                                    owner?.id ?? '',
-                                                  ),
-                                                  avatarUrl: avatarUrl,
-                                                  onAddStory: onAddStory,
-                                                  onViewStory: _openStoryViewer,
-                                                  loading: state.loading,
-                                                  loadingMore:
-                                                      state.loadingMore,
-                                                  hasMore: state.hasMore,
-                                                  onLoadMore: _stories.loadMore,
+                                                ValueListenableBuilder(
+                                                  valueListenable:
+                                                      PreferencesManager()
+                                                          .storyStyle,
+                                                  builder:
+                                                      (
+                                                        context,
+                                                        style,
+                                                        _,
+                                                      ) => HomeStories(
+                                                        style: style,
+                                                        stories: state.groups,
+                                                        currentUserId:
+                                                            int.tryParse(
+                                                              owner?.id ?? '',
+                                                            ),
+                                                        avatarUrl: avatarUrl,
+                                                        onAddStory: onAddStory,
+                                                        onViewStory:
+                                                            _openStoryViewer,
+                                                        loading: state.loading,
+                                                        loadingMore:
+                                                            state.loadingMore,
+                                                        hasMore: state.hasMore,
+                                                        onLoadMore:
+                                                            _stories.loadMore,
+                                                      ),
                                                 ),
                                           ),
                                     ),

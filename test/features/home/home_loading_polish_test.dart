@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:travibe/features/stories/data/story_style.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
@@ -934,13 +935,24 @@ void main() {
       await PreferencesManager().saveToken('skeleton-session');
       final stories = _PendingStories();
       await show(tester, stories: stories);
+      // Default Rectangle style: 64x80 card bones in a 72x88 frame.
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('story-skeleton-avatar')).first,
+        ),
+        const Size(64, 80),
+      );
+      final ring = find.byKey(const ValueKey('story-skeleton-ring')).first;
+      expect(tester.getSize(ring), const Size(72, 88));
+      // Circle style (switched live): 64px bones inside a 72px ring.
+      await PreferencesManager().saveStoryStyle(StoryStyle.circle);
+      await tester.pump();
       expect(
         tester.getSize(
           find.byKey(const ValueKey('story-skeleton-avatar')).first,
         ),
         const Size.square(64),
       );
-      final ring = find.byKey(const ValueKey('story-skeleton-ring')).first;
       expect(tester.getSize(ring), const Size.square(72));
       expect(
         (tester.widget<Container>(ring).decoration as BoxDecoration).shape,
@@ -1104,10 +1116,19 @@ void main() {
           searchTarget.right,
           closeTo(tabsRect.right - AppSizes.adaptiveWidth(20), .01),
         );
-        for (final name in ['story-skeleton-avatar', 'story-skeleton-ring']) {
-          final rect = tester.getSize(find.byKey(ValueKey(name)).first);
-          expect(rect.width, rect.height);
-        }
+        // Default Rectangle style: 4:5 card bones; the frame adds equal
+        // breathing room on every side.
+        final bone = tester.getSize(
+          find.byKey(const ValueKey('story-skeleton-avatar')).first,
+        );
+        final frame = tester.getSize(
+          find.byKey(const ValueKey('story-skeleton-ring')).first,
+        );
+        expect(bone.height, closeTo(bone.width * 1.25, .01));
+        expect(
+          frame.height - frame.width,
+          closeTo(bone.height - bone.width, .01),
+        );
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       });

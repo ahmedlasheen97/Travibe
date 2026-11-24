@@ -25,6 +25,7 @@ import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:travibe/features/profile/screens/report_problem_screen.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
 import 'package:travibe/features/profile/widgets/language_bottom_sheet.dart';
+import 'package:travibe/features/profile/widgets/story_style_bottom_sheet.dart';
 import 'package:travibe/core/constants/app_languages.dart';
 import 'package:travibe/features/profile/widgets/logout_dialog_widget.dart';
 import '../cubit/current_user_cubit.dart';
@@ -250,6 +251,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             }
                           },
                   ),
+                  _divider(),
+                  _storyStyleTile(),
                   if (kShowCurrencySetting) ...[
                     _divider(),
                     _settingsTile(
@@ -554,6 +557,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  /// Home stories row shape; a device preference, not a server setting.
+  Widget _storyStyleTile() => ValueListenableBuilder(
+    valueListenable: PreferencesManager().storyStyle,
+    builder: (context, style, _) => _settingsTile(
+      key: const ValueKey('settings-story-style'),
+      icon: SvgPicture.asset(
+        'assets/images/interactions/story.svg',
+        width: AppSizes.w20,
+        height: AppSizes.h20,
+        colorFilter: const ColorFilter.mode(_iconGrey, BlendMode.srcIn),
+      ),
+      title: 'Story Style',
+      detail: style.label,
+      onTap: () async {
+        final result = await StoryStyleBottomSheet.show(context, style);
+        if (result != null) await PreferencesManager().saveStoryStyle(result);
+      },
+    ),
+  );
 
   Widget _settingsToggleTile({
     required Widget icon,

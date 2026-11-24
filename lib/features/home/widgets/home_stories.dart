@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/features/home/widgets/home_user_avatar.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
+import 'package:travibe/features/stories/data/story_style.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 
 class HomeStories extends StatelessWidget {
@@ -21,6 +22,7 @@ class HomeStories extends StatelessWidget {
     this.loadingMore = false,
     this.hasMore = false,
     this.onLoadMore,
+    this.style = StoryStyle.circle,
   });
   final List<StoryGroup> stories;
   final void Function(List<StoryGroup> groups, int authorId)? onViewStory;
@@ -30,6 +32,9 @@ class HomeStories extends StatelessWidget {
   final String? avatarUrl;
   final bool loading, loadingMore, hasMore;
   final VoidCallback? onAddStory, onLoadMore;
+
+  /// Circle (default) or the experimental portrait rounded-rectangle cards.
+  final StoryStyle style;
 
   static const badgeDiameter = 20.0;
   // Badge center lies on the image circumference at the 45-degree diagonal.
@@ -41,12 +46,34 @@ class HomeStories extends StatelessWidget {
   // The visible 2px stroke now overlays the 64px image with zero padding.
   static double get ringDiameter =>
       avatarDiameter + 2 * AppSizes.adaptiveRadius(4);
+  // Rectangle style: a 64x80 (at the reference size) portrait card, radius 16.
+  static double get cardWidth => avatarDiameter;
+  static double get cardHeight => avatarDiameter * 1.25;
+  static double get cardRadius => avatarDiameter / 4;
+  // Badge center lies on the card's bottom-right corner arc at 45 degrees.
+  static double get cardBadgeInset =>
+      AppSizes.adaptiveRadius(4) +
+      cardRadius * (1 - 1 / math.sqrt2) -
+      badgeDiameter / 2;
+
+  /// Story frame (ring/card plus breathing room) for [style].
+  static Size frameSize(StoryStyle style) => switch (style) {
+    StoryStyle.circle => Size.square(ringDiameter),
+    StoryStyle.rectangle => Size(
+      cardWidth + 2 * AppSizes.adaptiveRadius(4),
+      cardHeight + 2 * AppSizes.adaptiveRadius(4),
+    ),
+  };
+
   static TextStyle get labelStyle => TextStyle(
     fontFamily: 'Plus Jakarta Sans',
     fontSize: AppSizes.adaptiveFont(12),
     color: Colors.white70,
   );
-  static double preferredHeight(BuildContext context) {
+  static double preferredHeight(
+    BuildContext context, [
+    StoryStyle style = StoryStyle.circle,
+  ]) {
     final painter = TextPainter(
       text: TextSpan(
         text: 'You',
@@ -56,7 +83,7 @@ class HomeStories extends StatelessWidget {
       textScaler: MediaQuery.textScalerOf(context),
     )..layout();
     final height =
-        ringDiameter +
+        frameSize(style).height +
         AppSizes.adaptiveHeight(6) +
         painter.height +
         AppSizes.adaptiveHeight(4);
@@ -73,8 +100,10 @@ class HomeStories extends StatelessWidget {
         : null;
     final others = own == null ? ordered : ordered.sublist(1);
     final initialLoading = loading && stories.isEmpty;
+    final rectangle = style == StoryStyle.rectangle;
+    final frame = frameSize(style);
     return SizedBox(
-      height: preferredHeight(context),
+      height: preferredHeight(context, style),
       child: NotificationListener<ScrollNotification>(
         onNotification: (notification) {
           if (notification.metrics.extentAfter < 120 &&
@@ -101,6 +130,9 @@ class HomeStories extends StatelessWidget {
                 avatarDiameter: avatarDiameter,
                 ringDiameter: ringDiameter,
                 labelStyle: labelStyle,
+                card: rectangle ? Size(cardWidth, cardHeight) : null,
+                cardRadius: cardRadius,
+                frame: frame,
               );
             }
             if (index > others.length) {
@@ -132,31 +164,34 @@ class HomeStories extends StatelessWidget {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        SizedBox.square(
+                        SizedBox.fromSize(
                           key: ValueKey(
                             'story-ring-${group?.user.id ?? 'you'}',
                           ),
-                          dimension: ringDiameter,
+                          size: frame,
                           child: Center(
                             child: StoryRing(
                               key: ValueKey(
                                 'story-segments-${group?.user.id ?? 'you'}',
                               ),
                               stories: group?.stories ?? const [],
+                              cornerRadius: rectangle ? cardRadius : null,
                               child: HomeUserAvatar(
                                 key: ValueKey(
                                   'story-avatar-${group?.user.id ?? 'you'}',
                                 ),
                                 url: url,
-                                size: avatarDiameter,
+                                size: rectangle ? cardWidth : avatarDiameter,
+                                height: rectangle ? cardHeight : null,
+                                borderRadius: rectangle ? cardRadius : null,
                               ),
                             ),
                           ),
                         ),
                         if (isYou)
                           Positioned(
-                            bottom: badgeInset,
-                            right: badgeInset,
+                            bottom: rectangle ? cardBadgeInset : badgeInset,
+                            right: rectangle ? cardBadgeInset : badgeInset,
                             // The whole own-story bubble owns one tap action.
                             // Badge taps must pass through the same menu gate.
                             child: ExcludeSemantics(
