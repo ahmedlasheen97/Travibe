@@ -68,7 +68,8 @@ class GlassConfirmDialog extends StatelessWidget {
   final Key? surfaceKey;
 
   /// Figma (Remove follower / Log Out): both actions 18; confirm is
-  /// [DarkColors.dangerColor] (#DD312A) when destructive, Cancel white.
+  /// [DarkColors.dangerColor] (#DD312A) when destructive, else the app
+  /// primary orange; Cancel white. Labels stay on one line.
   static const buttonFontSize = 18.0;
   static const _buttonText = TextStyle(
     fontSize: buttonFontSize,
@@ -152,15 +153,16 @@ class GlassConfirmDialog extends StatelessWidget {
                           style: TextButton.styleFrom(
                             foregroundColor: destructive
                                 ? DarkColors.dangerColor
-                                : DarkColors.whiteColor,
+                                : DarkColors.primaryColor,
                             textStyle: _buttonText,
+                            padding: _buttonPadding,
                           ),
                           child: loading
                               ? Semantics(
                                   label: loadingLabel ?? confirmLabel,
                                   child: const AppActivityIndicator(radius: 11),
                                 )
-                              : Text(confirmLabel),
+                              : _oneLine(confirmLabel),
                         ),
                       ),
                       Expanded(
@@ -169,8 +171,9 @@ class GlassConfirmDialog extends StatelessWidget {
                           style: TextButton.styleFrom(
                             foregroundColor: DarkColors.whiteColor,
                             textStyle: _buttonText,
+                            padding: _buttonPadding,
                           ),
-                          child: Text(cancelLabel),
+                          child: _oneLine(cancelLabel),
                         ),
                       ),
                     ],
@@ -183,4 +186,12 @@ class GlassConfirmDialog extends StatelessWidget {
       ),
     );
   }
+
+  static const _buttonPadding = EdgeInsets.symmetric(horizontal: 6);
+
+  /// Never wraps; a label wider than its half shrinks to fit instead.
+  static Widget _oneLine(String label) => FittedBox(
+    fit: BoxFit.scaleDown,
+    child: Text(label, maxLines: 1, softWrap: false),
+  );
 }

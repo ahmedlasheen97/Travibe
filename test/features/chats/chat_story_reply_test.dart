@@ -135,6 +135,57 @@ void main() {
       expect(find.byType(ChatHistoryImage), findsOneWidget);
     });
 
+    for (final outgoing in [false, true]) {
+      testWidgets(
+        'label, portrait thumbnail, then the message bubble; outgoing=$outgoing',
+        (tester) async {
+          await pump(
+            tester,
+            ChatMessage.fromJson(storyReply(story: storyCard())),
+            outgoing: outgoing,
+          );
+          final label = find.text(
+            outgoing ? 'You replied to their story' : 'Replied to your story',
+          );
+          final thumb = find.byType(ChatHistoryImage);
+          final body = find.text('Love this!');
+          expect(tester.getSize(thumb), const Size(110, 160));
+          expect(
+            tester.getBottomLeft(label).dy,
+            lessThanOrEqualTo(tester.getTopLeft(thumb).dy),
+          );
+          expect(
+            tester.getBottomLeft(thumb).dy,
+            lessThan(tester.getTopLeft(body).dy),
+          );
+          // Label sits outside the message bubble.
+          expect(
+            find.ancestor(of: label, matching: find.byType(GestureDetector)),
+            findsNothing,
+          );
+          final width = tester.getSize(find.byType(Scaffold)).width;
+          if (outgoing) {
+            expect(tester.getTopRight(thumb).dx, greaterThan(width / 2));
+            expect(tester.getTopLeft(thumb).dx, greaterThan(width / 2));
+          } else {
+            expect(tester.getTopRight(thumb).dx, lessThan(width / 2));
+          }
+        },
+      );
+    }
+
+    testWidgets('unavailable story: label above the bubble, no thumbnail', (
+      tester,
+    ) async {
+      await pump(tester, ChatMessage.fromJson(storyReply()));
+      expect(find.byType(ChatHistoryImage), findsNothing);
+      expect(
+        tester.getBottomLeft(find.text('Story unavailable')).dy,
+        lessThan(tester.getTopLeft(find.text('Love this!')).dy),
+      );
+      expect(find.byIcon(Icons.hide_image_outlined), findsNothing);
+    });
+
     testWidgets('replier sees "You replied to their story"', (tester) async {
       await pump(
         tester,

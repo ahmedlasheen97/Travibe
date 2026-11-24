@@ -228,6 +228,30 @@ void main() {
     expect(tester.widget<TextField>(field()).readOnly, isFalse);
     await tester.pumpAndSettle(const Duration(seconds: 5));
   });
+  testWidgets('Return sends the reply; empty or blank text does nothing', (
+    tester,
+  ) async {
+    final repo = OwnerRepo()..replyHandler = (_, _) async {};
+    await open(tester, repo: repo);
+    final input = tester.widget<TextField>(field());
+    expect(input.textInputAction, TextInputAction.send);
+    expect(input.keyboardType, TextInputType.text);
+    expect(input.maxLines, greaterThan(1));
+    await tester.tap(field());
+    await tester.enterText(field(), '   ');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(repo.replies, isEmpty);
+    await tester.enterText(field(), 'Nice');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    await tester.pump();
+    expect(repo.replies, [(1, 'Nice')]);
+    expect(tester.widget<TextField>(field()).controller!.text, isEmpty);
+    await tester.pumpAndSettle(const Duration(seconds: 5));
+  });
   testWidgets(
     'native keyboard dismissal resumes playback and preserves draft; story change clears it',
     (tester) async {

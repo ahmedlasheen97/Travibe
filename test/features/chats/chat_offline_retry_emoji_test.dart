@@ -653,6 +653,55 @@ void main() {
     },
   );
 
+  testWidgets('Return sends the draft; an empty draft does nothing', (
+    tester,
+  ) async {
+    final repo = RetryRepo();
+    final composer = ChatComposerCubit(
+      repository: repo,
+      conversation: conversation,
+      onSent: (_) {},
+    );
+    final audio = ChatAudioController(), text = TextEditingController();
+    await tester.pumpWidget(
+      harness(
+        Scaffold(
+          body: Align(
+            alignment: Alignment.bottomCenter,
+            child: ChatComposer(
+              composer: composer,
+              text: text,
+              audio: audio,
+              canSend: true,
+              uploading: false,
+              onAttachment: () {},
+              onTyped: () {},
+              onSendVoice: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.textInputAction, TextInputAction.send);
+    expect(field.maxLines, greaterThan(1));
+    await tester.tap(find.byType(TextField));
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pump();
+    expect(repo.sends, 0);
+    await tester.enterText(find.byType(TextField), 'Hi there');
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.send);
+    await tester.pumpAndSettle();
+    expect(repo.sends, 1);
+    expect(text.text, isNot(contains('\n')));
+    await tester.pumpWidget(const SizedBox());
+    await composer.close();
+    audio.dispose();
+    text.dispose();
+  });
+
   testWidgets(
     'emoji picker inserts at selection, toggles keyboard, survives draft and hides across navigation/session switch',
     (tester) async {
@@ -709,7 +758,7 @@ void main() {
       expect(find.byType(EmojiPicker), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField)).keyboardType,
-        TextInputType.multiline,
+        TextInputType.text,
       );
       await tester.tap(find.byTooltip('Show emoji picker'));
       await tester.pumpAndSettle();

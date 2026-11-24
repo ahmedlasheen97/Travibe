@@ -116,6 +116,10 @@ class _StoryReplyComposerState extends State<StoryReplyComposer>
             ),
             readOnly: _sending,
             maxLength: 5000,
+            // Return sends; long replies still wrap.
+            keyboardType: TextInputType.text,
+            minLines: 1,
+            maxLines: 4,
             textInputAction: widget.onSend == null
                 ? TextInputAction.done
                 : TextInputAction.send,
