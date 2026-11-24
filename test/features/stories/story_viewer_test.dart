@@ -24,8 +24,9 @@ import 'story_publishing_test.dart'
 
 StoryGroup viewerGroup(int author, List<int> ids, {DateTime? expiry}) {
   final json = groupJson(author);
+  // The API lists stories newest first; [ids] is the play order.
   json['stories'] = [
-    for (final id in ids)
+    for (final id in ids.reversed)
       {
         'id': id,
         'thumbnail_url': 'https://example.invalid/thumbnail-$id.png',

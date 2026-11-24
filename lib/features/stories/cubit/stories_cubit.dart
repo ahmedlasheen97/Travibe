@@ -61,6 +61,19 @@ class StoriesCubit extends Cubit<StoriesState> {
       ? null
       : state.groups.where((g) => g.user.id == userId).firstOrNull;
 
+  /// [group] (loaded outside the bar, e.g. a profile's
+  /// `GET /users/{user}/stories`) with this session's confirmed views and
+  /// deletions applied and expired Stories dropped; null when none remain.
+  StoryGroup? reconcileGroup(StoryGroup? group) {
+    if (group == null ||
+        !session.hasSession ||
+        _blocked.contains(group.user.id.toString())) {
+      return null;
+    }
+    final result = group.reconcile(_seen, _deleted).withoutExpired(_now());
+    return result.stories.isEmpty ? null : result;
+  }
+
   @override
   void onChange(Change<StoriesState> change) {
     super.onChange(change);

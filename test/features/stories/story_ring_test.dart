@@ -22,6 +22,7 @@ final _now = DateTime.utc(2026, 11, 4);
 
 Map<String, dynamic> _group(int count) {
   final value = groupJson(7);
+  // Rows in play order (oldest first); [_parse] sends them in API order.
   value['stories'] = List.generate(
     count,
     (index) => <String, dynamic>{
@@ -33,6 +34,12 @@ Map<String, dynamic> _group(int count) {
   );
   return value;
 }
+
+/// Parses [json] as the API sends it: stories newest first.
+StoryGroup _parse(Map<String, dynamic> json) => StoryGroup.fromJson({
+  ...json,
+  'stories': (json['stories'] as List).reversed.toList(),
+});
 
 Future<List<int>> _pixels(List<Color> colors, {bool image = false}) async {
   final recorder = ui.PictureRecorder();
@@ -105,7 +112,7 @@ void main() {
     testWidgets('$count active API stories produce $count ordered segments', (
       tester,
     ) async {
-      await show(tester, StoryGroup.fromJson(_group(count)));
+      await show(tester, _parse(_group(count)));
       expect(painter(tester).colors, [
         for (var i = 0; i < count; i++)
           i.isOdd ? Colors.white24 : DarkColors.primaryColor,
@@ -126,7 +133,7 @@ void main() {
           .toIso8601String();
       rows[2]['expires_at'] = null;
       rows[3]['id'] = 1;
-      final group = StoryGroup.fromJson(json).reconcile({}, {5});
+      final group = _parse(json).reconcile({}, {5});
       await show(tester, group);
       expect(painter(tester).colors, [DarkColors.primaryColor]);
       await tester.pumpWidget(const SizedBox());
@@ -136,9 +143,7 @@ void main() {
   testWidgets('all individually viewed stories have grey segments', (
     tester,
   ) async {
-    final group = StoryGroup.fromJson(
-      _group(4),
-    ).reconcile({1: 1, 2: 1, 3: 1, 4: 1}, {});
+    final group = _parse(_group(4)).reconcile({1: 1, 2: 1, 3: 1, 4: 1}, {});
     await show(tester, group);
     expect(painter(tester).colors, List.filled(4, Colors.white24));
     await tester.pumpWidget(const SizedBox());

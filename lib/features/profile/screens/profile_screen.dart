@@ -3,6 +3,7 @@ import 'package:travibe/core/constants/feature_flags.dart';
 import 'package:travibe/features/stories/widgets/open_story_viewer.dart';
 import 'package:travibe/features/stories/data/story_model.dart';
 import 'package:travibe/features/stories/cubit/stories_cubit.dart';
+import 'package:travibe/features/stories/cubit/user_stories_cubit.dart';
 import 'package:travibe/core/widgets/travibe_toast.dart';
 import 'package:travibe/core/widgets/profile_picture_viewer.dart';
 import 'package:travibe/features/stories/widgets/start_add_story.dart';
@@ -115,13 +116,27 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget profileFor(int? session) => BlocProvider<ProfileCubit>(
+    final sharedStories = context.read<StoriesCubit?>();
+    Widget profileFor(int? session) => MultiBlocProvider(
       key: ValueKey((userId, session)),
-      create: (context) => ProfileCubit(
-        profileRepo: profileRepo,
-        userId: userId,
-        currentUser: context.read<CurrentUserCubit?>(),
-      )..loadProfile(),
+      providers: [
+        BlocProvider<ProfileCubit>(
+          create: (context) => ProfileCubit(
+            profileRepo: profileRepo,
+            userId: userId,
+            currentUser: context.read<CurrentUserCubit?>(),
+          )..loadProfile(),
+        ),
+        // Another user's ring, even when they aren't in my Stories bar.
+        if (userId case final id? when sharedStories != null)
+          BlocProvider<UserStoriesCubit>(
+            create: (context) => UserStoriesCubit(
+              userId: id,
+              repo: storiesRepo ?? sharedStories.repo,
+              blocks: context.read<BlockCubit?>(),
+            ),
+          ),
+      ],
       child: _ProfileView(
         postsRepo: postsRepo,
         chatRepository: chatRepository,
@@ -199,6 +214,8 @@ class _ProfileViewState extends State<_ProfileView> {
   StreamSubscription<ProfileState>? _profileSubscription;
   StreamSubscription<BlockState>? _blockSubscription;
   StreamSubscription<StoryUploadState>? _storyUploadSubscription;
+  StreamSubscription<ProfileState>? _userStoriesSubscription;
+  Animation<double>? _coveredBy;
   BlockCubit? _block;
   BuildContext? _contentContext;
   Future<void>? _refreshRequest;
@@ -233,6 +250,7 @@ class _ProfileViewState extends State<_ProfileView> {
         content.read<SavedPostsCubit>().load(),
       // The shared Stories source: this profile's ring and Home's row.
       if (content.read<StoriesCubit?>() case final stories?) stories.refresh(),
+      _loadUserStories(),
     ];
     final request = Future.wait(requests).then<void>((_) {});
     _refreshRequest = request;
@@ -243,11 +261,65 @@ class _ProfileViewState extends State<_ProfileView> {
     });
   }
 
+  /// Another user's Stories (`GET /users/{user}/stories`) for the ring when
+  /// they aren't in my Stories bar. Locked private profiles show none.
+  Future<void> _loadUserStories() {
+    final userStories = context.read<UserStoriesCubit?>();
+    final state = context.read<ProfileCubit>().state;
+    if (userStories == null || state is! ProfileLoaded) return Future.value();
+    final profile = state.profile;
+    final id = int.tryParse(profile.id);
+    if (id != userStories.userId || profile.isLocked) {
+      userStories.clear();
+      return Future.value();
+    }
+    return userStories.load(
+      StoryAuthor(
+        id: id!,
+        name: profile.name ?? profile.username ?? '',
+        avatarUrl: profile.avatarUrl,
+        username: profile.username,
+      ),
+    );
+  }
+
+  /// A route pushed over this profile was popped: refresh the ring.
+  void _coverChanged(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed && mounted) {
+      unawaited(_loadUserStories());
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (context.read<UserStoriesCubit?>() == null) return;
+    final coveredBy = ModalRoute.of(context)?.secondaryAnimation;
+    if (identical(coveredBy, _coveredBy)) return;
+    _coveredBy?.removeStatusListener(_coverChanged);
+    _coveredBy = coveredBy?..addStatusListener(_coverChanged);
+  }
+
   @override
   void initState() {
     super.initState();
     widget.refreshSignal?.addListener(_retap);
     final cubit = context.read<ProfileCubit>();
+    if (context.read<UserStoriesCubit?>() != null) {
+      // First load, then again whenever what I may see can change.
+      Object? seenKey;
+      void storiesFor(ProfileState state) {
+        if (state is! ProfileLoaded) return;
+        final p = state.profile;
+        final key = (p.id, p.isLocked, p.isFollowing, p.isBlocked);
+        if (key == seenKey) return;
+        seenKey = key;
+        unawaited(_loadUserStories());
+      }
+
+      storiesFor(cubit.state);
+      _userStoriesSubscription = cubit.stream.listen(storiesFor);
+    }
     final follow = context.read<FollowCubit?>();
     _block = context.read<BlockCubit?>();
     if (cubit.userId == null) {
@@ -306,6 +378,8 @@ class _ProfileViewState extends State<_ProfileView> {
     _profileSubscription?.cancel();
     _blockSubscription?.cancel();
     _storyUploadSubscription?.cancel();
+    _userStoriesSubscription?.cancel();
+    _coveredBy?.removeStatusListener(_coverChanged);
     super.dispose();
   }
 
@@ -350,22 +424,36 @@ class _ProfileViewState extends State<_ProfileView> {
     final stories = context.read<StoriesCubit?>();
     if (stories == null) return avatar(null);
     final id = int.tryParse(profile.id);
+    final userStories = context.read<UserStoriesCubit?>();
     return BlocBuilder<StoriesCubit, StoriesState>(
       bloc: stories,
-      builder: (_, _) => avatar(stories.groupOf(id)),
+      builder: (_, _) {
+        final shared = stories.groupOf(id);
+        if (shared != null || userStories == null) return avatar(shared);
+        // Not in my bar (e.g. not followed): their own list, with the
+        // shared source's confirmed views so the ring greys after viewing.
+        return BlocBuilder<UserStoriesCubit, StoryGroup?>(
+          bloc: userStories,
+          builder: (_, group) => avatar(stories.reconcileGroup(group)),
+        );
+      },
     );
   }
 
-  /// Same opener and order as Home's Stories row.
-  Future<void> _openStories(ProfileModel profile, StoryGroup group) =>
-      openStoriesOf(
-        context,
-        authorId: group.user.id,
-        fallbackOwnerId: context.read<ProfileCubit>().userId == null
-            ? profile.id
-            : null,
-        fallbackSession: PreferencesManager().sessionRevision,
-      );
+  /// Same opener and order as Home's Stories row; someone outside my bar
+  /// plays alone from [group].
+  Future<void> _openStories(ProfileModel profile, StoryGroup group) {
+    final mine = context.read<ProfileCubit>().userId == null;
+    return openStoriesOf(
+      context,
+      authorId: group.user.id,
+      fallbackOwnerId: mine ? profile.id : null,
+      fallbackSession: PreferencesManager().sessionRevision,
+      fallback: mine ? null : group,
+    ).whenComplete(() {
+      if (mounted) unawaited(_loadUserStories());
+    });
+  }
 
   /// The same picker → editor → upload flow as Home, opened over Profile.
   /// With the app's upload queue, Root shows the toast and the listener in
