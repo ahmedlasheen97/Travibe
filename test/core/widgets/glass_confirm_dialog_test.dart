@@ -70,6 +70,43 @@ void main() {
     },
   );
 
+  testWidgets('non-destructive confirm is orange and stays on one line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showGlassConfirmDialog(
+              context,
+              title: 'Switch to public?',
+              message: 'All pending follow requests will be accepted.',
+              confirmLabel: 'Switch to public',
+              destructive: false,
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(colorOf(tester, 'Switch to public'), DarkColors.primaryColor);
+    expect(colorOf(tester, 'Cancel'), DarkColors.whiteColor);
+    final label = find.text('Switch to public');
+    expect(tester.widget<Text>(label).maxLines, 1);
+    // One line: no taller than the single-line Cancel label.
+    expect(
+      tester.getSize(label).height,
+      lessThanOrEqualTo(tester.getSize(find.text('Cancel')).height),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('resolves true on confirm and false on cancel', (tester) async {
     var result = await open(tester);
     await tester.tap(find.text('Delete'));

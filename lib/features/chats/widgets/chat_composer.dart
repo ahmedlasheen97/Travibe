@@ -83,6 +83,16 @@ class _ChatComposerState extends State<ChatComposer>
     TravibeToast.show(context, TravibeToastData.info(message));
   }
 
+  /// Return key: same action as the send button; empty drafts do nothing.
+  void _submit() {
+    if (!widget.canSend || widget.audio.recording) return;
+    if (widget.selectedMediaTray != null && !widget.uploading) {
+      widget.onSendAttachments?.call();
+    } else if (widget.composer.state.draft.trim().isNotEmpty) {
+      widget.composer.send();
+    }
+  }
+
   bool get _voiceMode => widget.audio.recording || widget.audio.draft != null;
 
   @override
@@ -283,9 +293,14 @@ class _ChatComposerState extends State<ChatComposer>
                                 controller: widget.text,
                                 cursorColor: Colors.white,
                                 focusNode: _focus,
+                                // Return sends; long drafts still wrap.
                                 keyboardType: _emojiVisible
                                     ? TextInputType.none
-                                    : TextInputType.multiline,
+                                    : TextInputType.text,
+                                textInputAction: TextInputAction.send,
+                                // Overrides the default unfocus so the
+                                // keyboard stays up for the next message.
+                                onEditingComplete: _submit,
                                 onTap: () {
                                   if (_emojiVisible) _keyboard();
                                 },

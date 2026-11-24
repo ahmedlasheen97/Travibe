@@ -340,6 +340,8 @@ class ChatMessageBubble extends StatelessWidget {
               ? CrossAxisAlignment.end
               : CrossAxisAlignment.start,
           children: [
+            if (message.isStoryReply && !message.isDeleted)
+              _storyReplyHeader(context),
             GestureDetector(
               onTap: message.delivery == ChatDelivery.failed
                   ? onRetry
@@ -389,8 +391,6 @@ class ChatMessageBubble extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (message.isStoryReply && !message.isDeleted)
-                        _storyReplyHeader(context),
                       if (message.replyTo != null && !message.isDeleted)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
@@ -541,8 +541,8 @@ class ChatMessageBubble extends StatelessWidget {
       ? Radius.circular(AppSizes.adaptiveRadius(24))
       : const Radius.circular(16);
 
-  /// Label (and thumbnail while the story is viewable) above a story reply.
-  /// Not Figma-verified: reuses the reply-quote styling.
+  /// Story-reply header outside the bubble (Figma `chat/story_reply`): a grey
+  /// label, then a portrait thumbnail while the story is viewable.
   Widget _storyReplyHeader(BuildContext context) {
     final available =
         message.storyAvailable(now ?? DateTime.now()) &&
@@ -557,10 +557,20 @@ class ChatMessageBubble extends StatelessWidget {
     return Padding(
       key: ValueKey('chat-story-reply-${message.id}'),
       padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: outgoing
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
+          Text(
+            storyReplyLabel(incoming: !outgoing, available: available),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
           if (thumbnail != null) ...[
+            const SizedBox(height: 8),
             Semantics(
               button: open != null,
               label: 'Open story',
@@ -573,39 +583,32 @@ class ChatMessageBubble extends StatelessWidget {
                 // A failed image's own retry tap must not swallow the open;
                 // it still retries by itself when back online.
                 child: IgnorePointer(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: ChatHistoryImage(
-                      key: ValueKey(thumbnail),
-                      url: thumbnail,
-                      width: 40,
-                      maxHeight: 64,
+                  child: Container(
+                    foregroundDecoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF3A3A3A)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: ChatHistoryImage(
+                        key: ValueKey(thumbnail),
+                        url: thumbnail,
+                        aspectRatio: _storyThumbSize.aspectRatio,
+                        width: _storyThumbSize.width,
+                        maxHeight: _storyThumbSize.height,
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-          ] else if (!available) ...[
-            const Icon(
-              Icons.hide_image_outlined,
-              color: Colors.white60,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
           ],
-          Flexible(
-            child: Text(
-              storyReplyLabel(incoming: !outgoing, available: available),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white60, fontSize: 12),
-            ),
-          ),
         ],
       ),
     );
   }
+
+  static const _storyThumbSize = Size(110, 160);
 
   VoidCallback? _postOpener(BuildContext context) {
     final id = int.tryParse(message.sharedPost?.id ?? message.postId ?? '');
