@@ -34,9 +34,17 @@ class HomeStorySkeleton extends StatelessWidget {
     required this.avatarDiameter,
     required this.ringDiameter,
     required this.labelStyle,
+    this.card,
+    this.cardRadius = 0,
+    this.frame,
   });
   final double avatarDiameter, ringDiameter;
   final TextStyle labelStyle;
+
+  /// Rectangle story style: card size/radius and the frame around it.
+  final Size? card;
+  final double cardRadius;
+  final Size? frame;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -44,23 +52,37 @@ class HomeStorySkeleton extends StatelessWidget {
     child: _SkeletonAnimation(
       child: Column(
         children: [
-          Container(
-            key: const ValueKey('story-skeleton-ring'),
-            width: ringDiameter,
-            height: ringDiameter,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0xFF292929), width: 2),
-            ),
-            child: Center(
-              child: _Bone(
-                key: const ValueKey('story-skeleton-avatar'),
-                width: avatarDiameter,
-                height: avatarDiameter,
-                radius: avatarDiameter / 2,
+          if (card case final card?)
+            SizedBox.fromSize(
+              key: const ValueKey('story-skeleton-ring'),
+              size: frame ?? card,
+              child: Center(
+                child: _Bone(
+                  key: const ValueKey('story-skeleton-avatar'),
+                  width: card.width,
+                  height: card.height,
+                  radius: cardRadius,
+                ),
+              ),
+            )
+          else
+            Container(
+              key: const ValueKey('story-skeleton-ring'),
+              width: ringDiameter,
+              height: ringDiameter,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF292929), width: 2),
+              ),
+              child: Center(
+                child: _Bone(
+                  key: const ValueKey('story-skeleton-avatar'),
+                  width: avatarDiameter,
+                  height: avatarDiameter,
+                  radius: avatarDiameter / 2,
+                ),
               ),
             ),
-          ),
           SizedBox(height: AppSizes.adaptiveHeight(6)),
           // Measure the same line box as the real story name, including scaling.
           SizedBox(

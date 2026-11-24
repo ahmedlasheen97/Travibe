@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:travibe/core/constants/app_languages.dart';
+import 'package:travibe/features/stories/data/story_style.dart';
 
 class PreferencesManager extends ChangeNotifier {
   static final PreferencesManager _instance = PreferencesManager._internal();
@@ -20,6 +21,9 @@ class PreferencesManager extends ChangeNotifier {
   final ValueNotifier<String> language = ValueNotifier('en');
   final ValueNotifier<String?> currency = ValueNotifier(null);
 
+  /// Debug-only Home stories shape experiment; release builds stay circle.
+  final ValueNotifier<StoryStyle> storyStyle = ValueNotifier(StoryStyle.circle);
+
   void _setSession(String? token) {
     if (_sessionToken == token) return;
     _sessionToken = token;
@@ -34,6 +38,9 @@ class PreferencesManager extends ChangeNotifier {
   static const onboardingCompletedKey = 'onboarding_completed';
   static const pushDeviceRecordsKey = 'push_device_records_v1';
   static const notificationSoftAskPrefix = 'notification_soft_ask_';
+
+  /// Device-wide debug preference; kept across logout.
+  static const storyStyleKey = 'debug_story_style';
 
   /// Per-account "Delete for me" message IDs (`ChatHiddenMessages`); kept on
   /// logout so they stay hidden when the same account signs back in.
@@ -54,6 +61,15 @@ class PreferencesManager extends ChangeNotifier {
     // A saved language the app can't run in (Arabic during the MVP) is English.
     language.value = effectiveAppLanguage(_preferences.getString(_languageKey));
     currency.value = _preferences.getString(_currencyKey);
+    storyStyle.value = kDebugMode
+        ? StoryStyle.parse(_preferences.getString(storyStyleKey))
+        : StoryStyle.circle;
+  }
+
+  Future<void> saveStoryStyle(StoryStyle style) async {
+    if (!kDebugMode) return;
+    storyStyle.value = style;
+    await _preferences.setString(storyStyleKey, style.name);
   }
 
   Future<void> saveToken(String token) async {
@@ -168,6 +184,7 @@ class PreferencesManager extends ChangeNotifier {
         if (key != _languageKey &&
             key != onboardingCompletedKey &&
             key != pushDeviceRecordsKey &&
+            key != storyStyleKey &&
             !key.startsWith(_setupSkippedPrefix) &&
             !key.startsWith(notificationSoftAskPrefix) &&
             !key.startsWith(chatHiddenMessagesPrefix))
@@ -183,6 +200,7 @@ class PreferencesManager extends ChangeNotifier {
     final clearing = _preferences.clear();
     language.value = 'en';
     currency.value = null;
+    storyStyle.value = StoryStyle.circle;
     _setSession(null);
     await clearing;
   }

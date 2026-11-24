@@ -1,5 +1,7 @@
 import 'package:travibe/features/profile/screens/email_address_screen.dart';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:travibe/features/stories/data/story_style.dart';
 import 'package:travibe/core/widgets/app_loaders.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:travibe/core/constants/feature_flags.dart';
@@ -40,8 +42,12 @@ class SettingsScreen extends StatefulWidget {
     this.accountRepo,
     this.authRepo,
     this.push,
+    this.showStoryStyle = kDebugMode,
   });
   final CurrentUserCubit? currentUser;
+
+  /// Debug-only "Story style" experiment row; never shown in release builds.
+  final bool showStoryStyle;
 
   /// Device push transport for the permission hint; defaults to the app's.
   final PushNotificationService? push;
@@ -287,6 +293,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             },
                     ),
                   ],
+                  if (widget.showStoryStyle) ...[_divider(), _storyStyleTile()],
                 ]),
                 SizedBox(height: AppSizes.h24),
                 _sectionTitle('Notifications'),
@@ -554,6 +561,59 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
+  /// Debug-only: Home stories row shape, saved on this device.
+  Widget _storyStyleTile() => ValueListenableBuilder(
+    valueListenable: PreferencesManager().storyStyle,
+    builder: (context, style, _) => Padding(
+      key: const ValueKey('settings-story-style'),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSizes.pw16,
+        vertical: AppSizes.ph10,
+      ),
+      child: Row(
+        children: [
+          _materialIcon(Icons.crop_portrait_rounded),
+          SizedBox(width: AppSizes.w14),
+          Expanded(
+            // Wraps the chips under the title on narrow / large-text screens.
+            child: Wrap(
+              spacing: AppSizes.w8,
+              runSpacing: AppSizes.h4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  'Story style',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: AppSizes.sp16,
+                  ),
+                ),
+                for (final option in StoryStyle.values)
+                  ChoiceChip(
+                    key: ValueKey('story-style-${option.name}'),
+                    label: Text(
+                      option == StoryStyle.circle ? 'Circle' : 'Rectangle',
+                    ),
+                    selected: style == option,
+                    showCheckmark: false,
+                    selectedColor: DarkColors.primaryColor,
+                    backgroundColor: const Color(0xFF232323),
+                    labelStyle: TextStyle(
+                      color: Colors.white,
+                      fontSize: AppSizes.sp12,
+                    ),
+                    side: BorderSide.none,
+                    onSelected: (_) =>
+                        PreferencesManager().saveStoryStyle(option),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _settingsToggleTile({
     required Widget icon,
