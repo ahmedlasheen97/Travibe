@@ -423,7 +423,8 @@ void main() {
   );
 
   testWidgets(
-    'default PostCard keeps its existing caption and spacing outside Home',
+    'outside Home, PostCard uses the same caption collapsed to three lines '
+    'and keeps its spacing',
     (tester) async {
       await show(
         tester,
@@ -436,7 +437,10 @@ void main() {
           comments: '0',
         ),
       );
-      expect(find.byType(HomePostCaption), findsNothing);
+      final caption = tester.widget<HomePostCaption>(
+        find.byType(HomePostCaption),
+      );
+      expect(caption.collapsedLines, 3);
       expect(
         tester
             .getSize(find.byKey(const ValueKey('post-content-actions-gap')))

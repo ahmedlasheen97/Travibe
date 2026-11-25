@@ -2,18 +2,23 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 
-/// Home-only caption presentation. No feed or transport dependencies.
+/// Post card caption that collapses with a visible "read more..." link and
+/// expands in place (Home, Profile, Saved). No feed or transport dependencies.
 class HomePostCaption extends StatefulWidget {
   const HomePostCaption({
     super.key,
     required this.text,
     required this.style,
     this.postId,
+    this.collapsedLines = homeCollapsedLines,
   });
   final String text;
   final String? postId;
   final TextStyle style;
-  static const collapsedLines = 4;
+
+  /// Lines shown while collapsed, including the "read more..." link.
+  final int collapsedLines;
+  static const homeCollapsedLines = 4;
 
   @override
   State<HomePostCaption> createState() => _HomePostCaptionState();
@@ -105,12 +110,20 @@ class _HomePostCaptionState extends State<HomePostCaption> {
     TextDirection direction,
     Locale? locale,
   ) {
-    final key = (widget.text, width, style, scaler, direction, locale);
+    final key = (
+      widget.text,
+      widget.collapsedLines,
+      width,
+      style,
+      scaler,
+      direction,
+      locale,
+    );
     if (key == _measurementKey) return;
     _measurementKey = key;
     final painter = TextPainter(
       text: TextSpan(text: widget.text, style: style),
-      maxLines: HomePostCaption.collapsedLines,
+      maxLines: widget.collapsedLines,
       textDirection: direction,
       textScaler: scaler,
       locale: locale,
@@ -170,7 +183,7 @@ class _HomePostCaptionState extends State<HomePostCaption> {
         textDirection: direction,
         textScaler: scaler,
         locale: locale,
-        maxLines: _expanded ? null : HomePostCaption.collapsedLines,
+        maxLines: _expanded ? null : widget.collapsedLines,
         overflow: TextOverflow.clip,
       );
     },
