@@ -57,11 +57,16 @@ class OptionsSheetBody extends StatelessWidget {
 }
 
 /// 24px SVG icon from `assets/images/...`, optionally tinted.
-Widget optionSvg(String path, {Color? tint}) => SvgPicture.asset(
-  path,
-  width: AppSizes.adaptiveRadius(24),
-  height: AppSizes.adaptiveRadius(24),
-  colorFilter: tint == null ? null : ColorFilter.mode(tint, BlendMode.srcIn),
+/// A fixed square slot, so non-square exports (e.g. 24×25) line up with the
+/// other rows' icons.
+Widget optionSvg(String path, {Color? tint}) => SizedBox.square(
+  dimension: AppSizes.adaptiveRadius(24),
+  child: SvgPicture.asset(
+    path,
+    width: AppSizes.adaptiveRadius(24),
+    height: AppSizes.adaptiveRadius(24),
+    colorFilter: tint == null ? null : ColorFilter.mode(tint, BlendMode.srcIn),
+  ),
 );
 
 /// One icon + label row. [color] tints the label (e.g. danger red).

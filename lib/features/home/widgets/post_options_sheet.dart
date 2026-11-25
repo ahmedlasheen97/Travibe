@@ -72,13 +72,11 @@ class PostOptionsSheet extends StatelessWidget {
         if (actions.contains(PostOptionAction.toggleComments))
           OptionSheetTile(
             key: const ValueKey('post-option-toggle-comments'),
-            // No "comment off" icon in assets/images/icons/ yet.
-            icon: Icon(
+            icon: optionSvg(
               commentsDisabled
-                  ? Icons.comment_outlined
-                  : Icons.comments_disabled_outlined,
-              color: DarkColors.greyColor,
-              size: 24,
+                  ? 'assets/images/icons/message.svg'
+                  : 'assets/images/icons/comments_off.svg',
+              tint: DarkColors.greyColor,
             ),
             label: commentsDisabled
                 ? 'Turn on commenting'
