@@ -6,7 +6,6 @@ import 'package:travibe/core/widgets/home_post_caption.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/widgets/more_options_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -113,18 +112,6 @@ class PostCard extends StatefulWidget {
 
 class _PostCardState extends State<PostCard> {
   int _imageIndex = 0;
-  bool _isExpanded = false;
-
-  static const int _collapsedMaxLines = 3;
-
-  late final _readMore = TapGestureRecognizer()
-    ..onTap = () => setState(() => _isExpanded = true);
-
-  @override
-  void dispose() {
-    _readMore.dispose();
-    super.dispose();
-  }
 
   /// Keeps a tap on [control] inside it, even while it is disabled (null
   /// handler, pending), so it never falls through to [PostCard.onOpen].
@@ -442,63 +429,13 @@ class _PostCardState extends State<PostCard> {
         ),
       );
     }
-    final needsTruncation = widget.text.length > 90; // rough 3-line heuristic
-
-    if (!needsTruncation) {
-      return Text(
-        widget.text,
-        style: TextStyle(color: Colors.white, fontSize: _font(14), height: 1.4),
-      );
-    }
-
-    // "read more" expands in place; on an openable card the rest of the
-    // caption still opens the post.
-    if (_isExpanded && widget.onOpen != null) {
-      return Text(
-        widget.text,
-        style: TextStyle(color: Colors.white, fontSize: _font(14), height: 1.4),
-      );
-    }
-    if (_isExpanded) {
-      return GestureDetector(
-        onTap: () => setState(() => _isExpanded = false),
-        child: Text(
-          widget.text,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: _font(14),
-            height: 1.4,
-          ),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: widget.onOpen != null
-          ? null
-          : () => setState(() => _isExpanded = true),
-      child: Text.rich(
-        TextSpan(
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: _font(14),
-            height: 1.4,
-          ),
-          children: [
-            TextSpan(text: widget.text),
-            TextSpan(
-              text: '  read more...',
-              recognizer: widget.onOpen != null ? _readMore : null,
-              style: TextStyle(
-                color: DarkColors.primaryColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        maxLines: _collapsedMaxLines,
-        overflow: TextOverflow.ellipsis,
-      ),
+    // Same caption as Home, collapsed to three lines.
+    return HomePostCaption(
+      key: ValueKey(widget.postId),
+      postId: widget.postId,
+      collapsedLines: 3,
+      text: widget.text,
+      style: TextStyle(color: Colors.white, fontSize: _font(14), height: 1.4),
     );
   }
 

@@ -21,9 +21,8 @@ void main() {
     List<String>? images,
     String text = 'Bali was everything I needed.',
     bool disabled = false,
-    double width = 390,
   }) async {
-    tester.view.physicalSize = Size(width, 844);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -208,31 +207,55 @@ void main() {
     expect(taps, isEmpty);
   });
 
-  testWidgets('"read more" expands the caption in place, not the post', (
-    tester,
-  ) async {
-    // Over the 90-character cut-off but within three lines, so the link shows.
-    const long =
-        'Bali was everything I needed: rice terraces, temples, '
-        'waterfalls and the warmest people. Ten days well spent.';
-    // Test glyphs are 14px squares: widen the view so it fits three lines.
-    await show(tester, text: long, width: 1000);
-    final caption = find.byWidgetPredicate(
-      (w) => w is RichText && w.text.toPlainText().endsWith('read more...'),
-    );
+  for (final responsive in [false, true]) {
+    testWidgets('a long caption collapses to three lines with a visible '
+        '"read more..." that expands in place (responsive: $responsive)', (
+      tester,
+    ) async {
+      final long = List.filled(12, 'Bali was everything I needed.').join(' ');
+      await show(tester, responsive: responsive, text: long);
+      final caption = find.byKey(const ValueKey('home-caption-text'));
+      RenderParagraph paragraph() =>
+          tester.renderObject<RenderParagraph>(caption);
+      String plain() =>
+          paragraph().text.toPlainText(includeSemanticsLabels: false);
+      Future<void> tapLink(String link) async {
+        final start = plain().lastIndexOf(link);
+        expect(start, greaterThanOrEqualTo(0), reason: link);
+        final box = paragraph().getBoxesForSelection(
+          TextSelection(baseOffset: start, extentOffset: start + link.length),
+        );
+        await tester.tapAt(paragraph().localToGlobal(box.last.toRect().center));
+        await tester.pump();
+      }
+
+      // Collapsed: three lines, link visible (not cut off by an ellipsis).
+      expect(tester.widget<Text>(caption).maxLines, 3);
+      expect(plain(), endsWith('read more...'));
+      expect(paragraph().didExceedMaxLines, isFalse);
+
+      await tapLink('read more...');
+      expect(taps, isEmpty);
+      expect(plain(), '$long show less');
+
+      await tapLink('show less');
+      expect(taps, isEmpty);
+      expect(plain(), endsWith('read more...'));
+
+      // The rest of the caption still opens the post.
+      await tester.tapAt(tester.getTopLeft(caption) + const Offset(4, 4));
+      await tester.pump();
+      expect(taps, {'open': 1});
+    });
+  }
+
+  testWidgets('a short caption has no "read more..."', (tester) async {
+    await show(tester);
+    final caption = find.byKey(const ValueKey('home-caption-text'));
     final paragraph = tester.renderObject<RenderParagraph>(caption);
-    final start = paragraph.text.toPlainText().lastIndexOf('read more...');
-    final box = paragraph.getBoxesForSelection(
-      TextSelection(baseOffset: start, extentOffset: start + 12),
+    expect(
+      paragraph.text.toPlainText(includeSemanticsLabels: false),
+      'Bali was everything I needed.',
     );
-    await tester.tapAt(paragraph.localToGlobal(box.first.toRect().center));
-    await tester.pump();
-    expect(taps, isEmpty);
-    expect(caption, findsNothing);
-    expect(find.text(long), findsOneWidget);
-    // The expanded caption is plain text again: tapping it opens the post.
-    await tester.tap(find.text(long));
-    await tester.pump();
-    expect(taps, {'open': 1});
   });
 }
