@@ -1,6 +1,7 @@
 part of 'search_cubit.dart';
 
-enum SearchTab { top, recent, people }
+/// Posts first: the default for plain queries; "@..." switches to People.
+enum SearchTab { posts, people }
 
 enum SearchStatus { idle, loading, loaded, failure }
 
@@ -16,9 +17,17 @@ class SearchState {
   final bool isLoadingMore;
   final String paginationError;
 
+  // Posts tab (GET /search/posts); loaded lazily when the tab is shown.
+  final SearchStatus postsStatus;
+  final String postsError;
+  final List<PostModel> posts;
+  final bool hasMorePosts;
+  final bool isLoadingMorePosts;
+  final String postsPaginationError;
+
   const SearchState({
     this.query = '',
-    this.tab = SearchTab.people,
+    this.tab = SearchTab.posts,
     this.status = SearchStatus.idle,
     this.errorMessage = '',
     this.recentSearches = const [],
@@ -26,6 +35,12 @@ class SearchState {
     this.hasMorePeople = false,
     this.isLoadingMore = false,
     this.paginationError = '',
+    this.postsStatus = SearchStatus.idle,
+    this.postsError = '',
+    this.posts = const [],
+    this.hasMorePosts = false,
+    this.isLoadingMorePosts = false,
+    this.postsPaginationError = '',
   });
 
   /// What we actually send to the API: the query without a leading "@".
@@ -49,6 +64,12 @@ class SearchState {
     bool? hasMorePeople,
     bool? isLoadingMore,
     String? paginationError,
+    SearchStatus? postsStatus,
+    String? postsError,
+    List<PostModel>? posts,
+    bool? hasMorePosts,
+    bool? isLoadingMorePosts,
+    String? postsPaginationError,
   }) {
     return SearchState(
       query: query ?? this.query,
@@ -60,6 +81,12 @@ class SearchState {
       hasMorePeople: hasMorePeople ?? this.hasMorePeople,
       isLoadingMore: isLoadingMore ?? this.isLoadingMore,
       paginationError: paginationError ?? this.paginationError,
+      postsStatus: postsStatus ?? this.postsStatus,
+      postsError: postsError ?? this.postsError,
+      posts: posts ?? this.posts,
+      hasMorePosts: hasMorePosts ?? this.hasMorePosts,
+      isLoadingMorePosts: isLoadingMorePosts ?? this.isLoadingMorePosts,
+      postsPaginationError: postsPaginationError ?? this.postsPaginationError,
     );
   }
 }

@@ -60,6 +60,7 @@ import 'package:travibe/features/home/widgets/home_top_bar.dart';
 import 'package:travibe/features/home/widgets/pinned_tabs_delegate.dart';
 import 'package:travibe/features/home/widgets/suggested_users_section.dart';
 import 'package:travibe/features/search/screens/search_screen.dart';
+import 'package:travibe/features/notifications/screens/notification_navigation.dart';
 import 'package:travibe/features/stories/cubit/story_upload_cubit.dart';
 
 /// Home's single shared error toast (sticky key and copy).
@@ -787,18 +788,12 @@ class _HomeViewState extends State<_HomeView> {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (_) => MultiBlocProvider(
-                                      providers: [
-                                        BlocProvider.value(
-                                          value: context.read<FollowCubit>(),
-                                        ),
-                                        BlocProvider.value(
-                                          value: context.read<BlockCubit>(),
-                                        ),
-                                      ],
-                                      child: SearchScreen(
-                                        repo: widget.searchRepo,
-                                      ),
+                                    // Root's shared cubits (follow, block,
+                                    // likes, saves, hidden, activity) so
+                                    // post results stay in sync with feeds.
+                                    builder: (_) => notificationRouteScope(
+                                      context,
+                                      SearchScreen(repo: widget.searchRepo),
                                     ),
                                   ),
                                 );

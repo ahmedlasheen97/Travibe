@@ -11,11 +11,7 @@ class SearchTabs extends StatelessWidget {
     required this.onSelected,
   });
 
-  static const _labels = {
-    SearchTab.top: 'Top',
-    SearchTab.recent: 'Recent',
-    SearchTab.people: 'People',
-  };
+  static const _labels = {SearchTab.posts: 'Posts', SearchTab.people: 'People'};
 
   @override
   Widget build(BuildContext context) {

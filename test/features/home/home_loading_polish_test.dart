@@ -935,29 +935,29 @@ void main() {
       await PreferencesManager().saveToken('skeleton-session');
       final stories = _PendingStories();
       await show(tester, stories: stories);
-      // Default Rectangle style: 64x80 card bones in a 72x88 frame.
-      expect(
-        tester.getSize(
-          find.byKey(const ValueKey('story-skeleton-avatar')).first,
-        ),
-        const Size(64, 80),
-      );
-      final ring = find.byKey(const ValueKey('story-skeleton-ring')).first;
-      expect(tester.getSize(ring), const Size(72, 88));
-      // Circle style (switched live): 64px bones inside a 72px ring.
-      await PreferencesManager().saveStoryStyle(StoryStyle.circle);
-      await tester.pump();
+      // Default Circle style: 64px bones inside a 72px ring.
       expect(
         tester.getSize(
           find.byKey(const ValueKey('story-skeleton-avatar')).first,
         ),
         const Size.square(64),
       );
+      final ring = find.byKey(const ValueKey('story-skeleton-ring')).first;
       expect(tester.getSize(ring), const Size.square(72));
       expect(
         (tester.widget<Container>(ring).decoration as BoxDecoration).shape,
         BoxShape.circle,
       );
+      // Rectangle style (switched live): 64x80 card bones in a 72x88 frame.
+      await PreferencesManager().saveStoryStyle(StoryStyle.rectangle);
+      await tester.pump();
+      expect(
+        tester.getSize(
+          find.byKey(const ValueKey('story-skeleton-avatar')).first,
+        ),
+        const Size(64, 80),
+      );
+      expect(tester.getSize(ring), const Size(72, 88));
       expect(
         tester.getSize(
           find.byKey(const ValueKey('post-skeleton-avatar')).first,
@@ -1116,7 +1116,7 @@ void main() {
           searchTarget.right,
           closeTo(tabsRect.right - AppSizes.adaptiveWidth(20), .01),
         );
-        // Default Rectangle style: 4:5 card bones; the frame adds equal
+        // Default Circle style: square bones; the frame adds equal
         // breathing room on every side.
         final bone = tester.getSize(
           find.byKey(const ValueKey('story-skeleton-avatar')).first,
@@ -1124,11 +1124,8 @@ void main() {
         final frame = tester.getSize(
           find.byKey(const ValueKey('story-skeleton-ring')).first,
         );
-        expect(bone.height, closeTo(bone.width * 1.25, .01));
-        expect(
-          frame.height - frame.width,
-          closeTo(bone.height - bone.width, .01),
-        );
+        expect(bone.height, closeTo(bone.width, .01));
+        expect(frame.height, closeTo(frame.width, .01));
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       });

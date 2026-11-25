@@ -55,6 +55,7 @@ class ApiService {
           Uri.parse(endpoint).path.startsWith('profile') ||
           endpoint == 'settings' ||
           endpoint == 'search/users' ||
+          endpoint == 'search/posts' ||
           endpoint.startsWith('users/') ||
           endpoint == 'reports' ||
           endpoint == 'notifications' ||
