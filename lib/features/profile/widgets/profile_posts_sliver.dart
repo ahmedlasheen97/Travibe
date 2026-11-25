@@ -202,7 +202,7 @@ class _ProfilePostsSliverState extends State<ProfilePostsSliver> {
         final error = await context.read<SavesCubit>().toggle(post);
         if (error != null && context.mounted) _error(context, error.message);
       },
-      onMoreTap: !widget.owner ? () => _options(post) : null,
+      onMoreTap: () => _options(post),
     );
   }
 

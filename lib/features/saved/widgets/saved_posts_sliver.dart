@@ -17,6 +17,14 @@ import 'package:travibe/features/saved/cubit/saved_posts_cubit.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/shares/widgets/send_post_sheet.dart';
+import 'package:travibe/core/utils/viewer_identity.dart';
+import 'package:travibe/features/block/cubit/block_cubit.dart';
+import 'package:travibe/features/block/widgets/block_user_button.dart';
+import 'package:travibe/features/home/cubit/hidden_posts_cubit.dart';
+import 'package:travibe/features/home/cubit/posts_cubit.dart';
+import 'package:travibe/features/home/widgets/own_post_actions.dart';
+import 'package:travibe/features/home/widgets/post_options_sheet.dart';
+import 'package:travibe/features/home/widgets/post_report_flow.dart';
 
 /// Lives inside Profile's existing CustomScrollView, including its refresh gesture.
 class SavedPostsSliver extends StatefulWidget {
@@ -37,7 +45,11 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
   late final LikesCubit _likes;
   late final bool _ownsLikes;
   final _comments = <String, int>{};
-  bool _openingShare = false;
+  bool _openingShare = false, _openingOptions = false;
+
+  /// Own-post mutations (delete, commenting); other lists learn about them
+  /// through the shared PostActivityCubit.
+  PostsCubit? _mutations;
   @override
   void initState() {
     super.initState();
@@ -50,6 +62,7 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
   @override
   void dispose() {
     if (_ownsLikes) _likes.close();
+    _mutations?.close();
     super.dispose();
   }
 
@@ -246,6 +259,7 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
                     if (mounted) setState(() => _comments[post.id] = count);
                   },
                 ),
+                onMoreTap: () => _options(post),
                 onShareTap: () async {
                   if (_openingShare) return;
                   _openingShare = true;
@@ -269,5 +283,72 @@ class _SavedPostsSliverState extends State<SavedPostsSliver> {
             },
           ),
     );
+  }
+
+  void _snack(String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  Future<void> _options(PostModel saved) async {
+    if (_openingOptions) return;
+    final disabled = context
+        .read<PostActivityCubit?>()
+        ?.state
+        .commentsDisabled[saved.id];
+    final post = disabled == null
+        ? saved
+        : saved.copyWith(commentsDisabled: disabled);
+    final hidden = context.read<HiddenPostsCubit?>();
+    final block = context.read<BlockCubit?>();
+    if (hidden?.state.pending.contains(post.id) == true ||
+        block?.state.pending.contains(post.user.id) == true) {
+      return;
+    }
+    final own = isViewer(
+      context,
+      post.userId.isNotEmpty ? post.userId : post.user.id,
+    );
+    _openingOptions = true;
+    final PostOptionAction? action;
+    try {
+      action = await PostOptionsSheet.show(
+        context,
+        actions: own
+            ? ownPostActions
+            : {
+                if (hidden != null) ...[
+                  PostOptionAction.notInterested,
+                  PostOptionAction.hidePost,
+                  PostOptionAction.report,
+                ],
+                if (block != null) PostOptionAction.blockUser,
+              },
+        commentsDisabled: post.commentsDisabled,
+      );
+    } finally {
+      _openingOptions = false;
+    }
+    if (!mounted || action == null) return;
+    if (own) {
+      final feed = _mutations ??= PostsCubit(
+        likes: _likes,
+        saves: context.read<SavesCubit?>(),
+        activity: context.read<PostActivityCubit?>(),
+      );
+      await runOwnPostAction(context, action: action, post: post, feed: feed);
+    } else if (action == PostOptionAction.notInterested && hidden != null) {
+      await notInterestedFlow(context, postId: post.id, hidden: hidden);
+    } else if (action == PostOptionAction.report && hidden != null) {
+      await reportPostFlow(context, postId: post.id, repo: hidden.repo);
+    } else if (action == PostOptionAction.blockUser && block != null) {
+      await confirmBlockChange(
+        context,
+        post.user.id,
+        blocked: true,
+        name: post.user.name,
+      );
+    } else if (action == PostOptionAction.hidePost && hidden != null) {
+      final error = await hidden.setHidden(post.id, true);
+      if (mounted) _snack(error?.message ?? 'Post hidden');
+    }
   }
 }

@@ -13,6 +13,8 @@ import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/home/data/posts_repo.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 import 'package:travibe/root.dart';
 import '../../helpers/cursor_fixtures.dart';
 import 'home_experience_fixtures.dart' as home;
@@ -152,6 +154,19 @@ void main() {
     expect(find.text('Delete post'), findsNothing);
     expect(find.text('Copy link'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home ⋮ opens the options sheet and never the Post screen', (
+    tester,
+  ) async {
+    await pumpHome(tester);
+    for (final content in ['Post 10', 'Post 20']) {
+      await openMenu(tester, content);
+      expect(find.byType(PostOptionsSheet), findsOneWidget, reason: content);
+      expect(find.byType(PostScreen), findsNothing, reason: content);
+      await tester.tapAt(const Offset(195, 100));
+      await tester.pumpAndSettle();
+    }
   });
 
   testWidgets('Delete asks in the glass dialog, then removes the post', (

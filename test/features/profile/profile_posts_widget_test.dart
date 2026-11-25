@@ -17,6 +17,8 @@ import 'package:travibe/features/likes/cubit/likes_cubit.dart';
 import 'package:travibe/features/likes/data/like_model.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 import 'profile_posts_fixtures.dart';
 
 class ProfileBlocks extends BlockCubit {
@@ -126,6 +128,45 @@ void main() {
       expect(repo.authorReads.length, before);
     },
   );
+  Future<void> tapMore(WidgetTester tester) async {
+    final more = find.byKey(const ValueKey('post-more')).first;
+    await tester.ensureVisible(more);
+    await tester.pumpAndSettle();
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('own Profile → Posts ⋮ opens the own-post sheet, not the post', (
+    tester,
+  ) async {
+    await show(tester);
+    await tapMore(tester);
+    expect(find.byType(PostOptionsSheet), findsOneWidget);
+    expect(find.byType(PostScreen), findsNothing);
+    expect(find.text('Turn off commenting'), findsOneWidget);
+    expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('Delete post'), findsOneWidget);
+    expect(find.text('Hide post'), findsNothing);
+  });
+
+  testWidgets('other user profile ⋮ opens the other-post sheet, not the post', (
+    tester,
+  ) async {
+    await show(tester, userId: 23);
+    await tapMore(tester);
+    expect(find.byType(PostOptionsSheet), findsOneWidget);
+    expect(find.byType(PostScreen), findsNothing);
+    for (final label in [
+      'Not interested',
+      'Hide post',
+      'Report',
+      'Block user',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Delete post'), findsNothing);
+  });
+
   testWidgets(
     'public profile uses selected author ID and never exposes Saved or Edit',
     (tester) async {
