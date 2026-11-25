@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/features/search/cubit/search_cubit.dart';
 import 'package:travibe/features/search/data/recent_search.dart';
+import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import '../home/home_experience_fixtures.dart';
 import 'search_fixtures.dart';
@@ -23,6 +24,7 @@ void main() {
       await cubit.retry();
     }
     expect(repo.queries, isEmpty);
+    expect(repo.postQueries, isEmpty);
   });
   test(
     'submission strips @, loads people and stores recent searches',
@@ -52,6 +54,7 @@ void main() {
     final first = Completer<UsersPageModel>();
     final second = Completer<UsersPageModel>();
     repo.handler = (term, _) => term == 'first' ? first.future : second.future;
+    cubit.setTab(SearchTab.people);
     cubit.onQueryChanged('first');
     cubit.submit();
     cubit.onQueryChanged('second');
@@ -68,6 +71,7 @@ void main() {
   test('clean API error is retryable', () async {
     repo.handler = (_, _) async =>
         throw ApiError(message: 'Search unavailable');
+    cubit.setTab(SearchTab.people);
     cubit.onQueryChanged('sarah');
     await cubit.retry();
     expect(cubit.state.status, SearchStatus.failure);
@@ -82,6 +86,7 @@ void main() {
       repo.handler = (_, page) async => page == 1
           ? usersPage(last: 2)
           : throw ApiError(message: 'Page failed');
+      cubit.setTab(SearchTab.people);
       cubit.onQueryChanged('sarah');
       await cubit.retry();
       await cubit.loadMorePeople();
@@ -96,6 +101,123 @@ void main() {
       expect(cubit.state.hasMorePeople, isFalse);
     },
   );
+  group('posts', () {
+    test('Posts is the default tab; a query searches posts only', () async {
+      repo.postsHandler = (_, page) async => postsPage([1, 2]);
+      expect(cubit.state.tab, SearchTab.posts);
+      cubit.onQueryChanged('bali');
+      expect(cubit.state.postsStatus, SearchStatus.loading);
+      cubit.submit();
+      await settleRequests();
+      expect(repo.postQueries, ['posts:bali:1']);
+      expect(repo.queries, isEmpty);
+      expect(cubit.state.postsStatus, SearchStatus.loaded);
+      expect([for (final p in cubit.state.posts) p.id], ['1', '2']);
+    });
+
+    test('debounced typing searches the visible tab once', () async {
+      cubit.onQueryChanged('bal');
+      cubit.onQueryChanged('bali');
+      expect(repo.postQueries, isEmpty);
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      expect(repo.postQueries, ['posts:bali:1']);
+    });
+
+    test('switching tabs loads each tab once per term', () async {
+      cubit.onQueryChanged('bali');
+      cubit.submit();
+      await settleRequests();
+      cubit.setTab(SearchTab.people);
+      await settleRequests();
+      cubit.setTab(SearchTab.posts);
+      cubit.setTab(SearchTab.people);
+      await settleRequests();
+      expect(repo.postQueries, ['posts:bali:1']);
+      expect(repo.queries, ['bali:1']);
+      // A new term invalidates both; only the visible tab reloads.
+      cubit.onQueryChanged('cairo');
+      cubit.submit();
+      await settleRequests();
+      expect(repo.queries, ['bali:1', 'cairo:1']);
+      expect(repo.postQueries, ['posts:bali:1']);
+    });
+
+    test('"@" queries switch to People', () async {
+      cubit.onQueryChanged('@sarah');
+      cubit.submit();
+      await settleRequests();
+      expect(cubit.state.tab, SearchTab.people);
+      expect(repo.postQueries, isEmpty);
+    });
+
+    test('empty results load as empty, not as an error', () async {
+      cubit.onQueryChanged('nothing here');
+      cubit.submit();
+      await settleRequests();
+      expect(cubit.state.postsStatus, SearchStatus.loaded);
+      expect(cubit.state.posts, isEmpty);
+      expect(cubit.state.hasMorePosts, isFalse);
+    });
+
+    test('failure is retryable', () async {
+      repo.postsHandler = (_, _) async => throw ApiError(message: 'Down');
+      cubit.onQueryChanged('bali');
+      await cubit.retry();
+      expect(cubit.state.postsStatus, SearchStatus.failure);
+      expect(cubit.state.postsError, 'Down');
+      repo.postsHandler = (_, _) async => postsPage([1]);
+      await cubit.retry();
+      expect(cubit.state.postsStatus, SearchStatus.loaded);
+      expect(cubit.state.posts, hasLength(1));
+    });
+
+    test('paging appends, deduplicates, retries and stops', () async {
+      repo.postsHandler = (_, page) async => page == 1
+          ? postsPage([1, 2], last: 2)
+          : throw ApiError(message: 'Page failed');
+      cubit.onQueryChanged('bali');
+      await cubit.retry();
+      expect(cubit.state.hasMorePosts, isTrue);
+      await cubit.loadMorePosts();
+      expect(cubit.state.postsPaginationError, 'Page failed');
+      await cubit.loadMorePosts(); // no automatic retry after a failure
+      expect(repo.postQueries, ['posts:bali:1', 'posts:bali:2']);
+      repo.postsHandler = (_, page) async =>
+          postsPage([2, 3], page: page, last: 2);
+      await cubit.loadMorePosts(retry: true);
+      expect([for (final p in cubit.state.posts) p.id], ['1', '2', '3']);
+      expect(cubit.state.hasMorePosts, isFalse);
+      expect(cubit.state.postsPaginationError, isEmpty);
+      await cubit.loadMorePosts();
+      expect(repo.postQueries, hasLength(3));
+    });
+
+    test('a stale page is dropped after the query changes', () async {
+      final page = Completer<PostsPageModel>();
+      repo.postsHandler = (term, _) async =>
+          term == 'bali' ? page.future : postsPage(const []);
+      cubit.onQueryChanged('bali');
+      cubit.submit();
+      cubit.onQueryChanged('cairo');
+      cubit.submit();
+      await settleRequests();
+      page.complete(postsPage([1]));
+      await settleRequests();
+      expect(cubit.state.query, 'cairo');
+      expect(cubit.state.posts, isEmpty);
+    });
+
+    test('clearing the query drops results without a request', () async {
+      repo.postsHandler = (_, _) async => postsPage([1]);
+      cubit.onQueryChanged('bali');
+      cubit.submit();
+      await settleRequests();
+      cubit.clearQuery();
+      expect(cubit.state.posts, isEmpty);
+      expect(cubit.state.postsStatus, SearchStatus.idle);
+      expect(repo.postQueries, ['posts:bali:1']);
+    });
+  });
   group('recent searches', () {
     List<String> texts() => [
       for (final r in cubit.state.recentSearches) r.text,
@@ -148,7 +270,8 @@ void main() {
       cubit.selectRecent(const RecentSearch('bali'));
       await settleRequests();
       expect(cubit.searchController.text, 'bali');
-      expect(repo.queries, ['bali:1']);
+      expect(repo.postQueries, ['posts:bali:1']);
+      expect(repo.queries, isEmpty);
       expect(texts(), ['bali', 'sarah']);
     });
 

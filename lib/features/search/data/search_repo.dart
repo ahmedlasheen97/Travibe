@@ -5,6 +5,7 @@ import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/datasource/remotedata/api_exceptions.dart';
 import 'package:travibe/core/datasource/remotedata/api_service.dart';
+import 'package:travibe/features/home/data/posts_page_model.dart';
 import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/users_page_model.dart';
 import 'package:travibe/features/home/data/home_account_repo.dart';
@@ -52,6 +53,46 @@ class SearchRepo {
       throw ApiExceptions.handleError(e);
     } catch (_) {
       throw ApiError(message: 'Unable to search people. Please try again.');
+    }
+  }
+
+  /// GET /search/posts: public posts whose content matches [query]. Offset
+  /// paginated; the backend's `links.next` drops `q`, so pages are built here.
+  Future<PostsPageModel> searchPosts(
+    String query, {
+    int page = 1,
+    int perPage = 15,
+  }) async {
+    final term = query.trim();
+    if (term.runes.length < 3 || term.runes.length > 100 || page < 1) {
+      throw ApiError(message: 'Search must contain 3–100 characters.');
+    }
+    try {
+      final response = await _apiService.get(
+        'search/posts',
+        queryParameters: {'q': term, 'page': page, 'per_page': perPage},
+      );
+      if (response is! Map<String, dynamic> ||
+          response['data'] is! List ||
+          response['meta'] is! Map ||
+          (response['data'] as List).any(
+            (item) =>
+                item is! Map ||
+                item['id'] is! int ||
+                (item['id'] as int) < 1 ||
+                item['user'] is! Map,
+          )) {
+        throw ApiError(
+          message: 'Unable to read the post search response. Please retry.',
+        );
+      }
+      return PostsPageModel.fromJson(response);
+    } on ApiError {
+      rethrow;
+    } on DioException catch (e) {
+      throw ApiExceptions.handleError(e);
+    } catch (_) {
+      throw ApiError(message: 'Unable to search posts. Please try again.');
     }
   }
 

@@ -188,9 +188,8 @@ void main() {
       .controller!;
 
   testWidgets(
-    'circle style: reference avatar is 64px inside a circular 72px viewed/unviewed ring with safe names',
+    'default circle style: reference avatar is 64px inside a circular 72px viewed/unviewed ring with safe names',
     (tester) async {
-      await PreferencesManager().saveStoryStyle(StoryStyle.circle);
       await show(tester);
       expect(AppSizes.w64, 64);
       expect(AppSizes.h64, 64);
@@ -227,31 +226,31 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
-  testWidgets(
-    'default rectangle style: 64x80 radius-16 cards in a 72x88 frame',
-    (tester) async {
-      await show(tester);
-      for (final id in [2, 3, 'you']) {
-        expect(
-          tester.getSize(find.byKey(ValueKey('story-avatar-$id'))),
-          const Size(64, 80),
-        );
-        expect(
-          tester.getSize(find.byKey(ValueKey('story-ring-$id'))),
-          const Size(72, 88),
-        );
-        expect(
-          tester
-              .widget<StoryRing>(find.byKey(ValueKey('story-segments-$id')))
-              .cornerRadius,
-          16,
-        );
-      }
-      expect(find.byKey(const ValueKey('add-story-photo')), findsOneWidget);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox());
-    },
-  );
+  testWidgets('rectangle style: 64x80 radius-16 cards in a 72x88 frame', (
+    tester,
+  ) async {
+    await PreferencesManager().saveStoryStyle(StoryStyle.rectangle);
+    await show(tester);
+    for (final id in [2, 3, 'you']) {
+      expect(
+        tester.getSize(find.byKey(ValueKey('story-avatar-$id'))),
+        const Size(64, 80),
+      );
+      expect(
+        tester.getSize(find.byKey(ValueKey('story-ring-$id'))),
+        const Size(72, 88),
+      );
+      expect(
+        tester
+            .widget<StoryRing>(find.byKey(ValueKey('story-segments-$id')))
+            .cornerRadius,
+        16,
+      );
+    }
+    expect(find.byKey(const ValueKey('add-story-photo')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'tab switches preserve the story element, horizontal offset, states, and both feed caches',
     (tester) async {
@@ -393,19 +392,16 @@ void main() {
           tester.getRect(icon).left,
           greaterThan(tester.getRect(second).right),
         );
-        // Default Rectangle style: a 4:5 card, 56–72px wide.
+        // Default Circle style: a square avatar, 56–72px wide.
         final avatar = tester.getSize(
           find.byKey(const ValueKey('story-avatar-you')),
         );
-        expect(avatar.height, closeTo(avatar.width * 1.25, .01));
+        expect(avatar.height, closeTo(avatar.width, .01));
         expect(avatar.width, inInclusiveRange(56, 72));
         final ring = tester.getSize(
           find.byKey(const ValueKey('story-ring-you')),
         );
-        expect(
-          ring.height - ring.width,
-          closeTo(avatar.height - avatar.width, .01),
-        );
+        expect(ring.height, closeTo(ring.width, .01));
         expect(tester.takeException(), isNull);
         // Exercise post typography/actions after scrolling the dynamic header away.
         await tester.ensureVisible(find.byType(PostCard).first);

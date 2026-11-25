@@ -223,28 +223,29 @@ void main() {
 
   group('story style preference', () {
     test(
-      'defaults to rectangle, persists, survives logout, resets on clear',
+      'defaults to circle, persists, survives logout, resets on clear',
       () async {
-        expect(preferences.storyStyle.value, StoryStyle.rectangle);
-        await preferences.saveStoryStyle(StoryStyle.circle);
+        expect(preferences.storyStyle.value, StoryStyle.circle);
+        await preferences.saveStoryStyle(StoryStyle.rectangle);
         expect(
           preferences.getString(PreferencesManager.storyStyleKey),
-          'circle',
+          'rectangle',
         );
         await preferences.init();
-        expect(preferences.storyStyle.value, StoryStyle.circle);
+        expect(preferences.storyStyle.value, StoryStyle.rectangle);
         await preferences.clearSession();
         await preferences.init();
-        expect(preferences.storyStyle.value, StoryStyle.circle);
-        await preferences.clear();
         expect(preferences.storyStyle.value, StoryStyle.rectangle);
+        await preferences.clear();
+        expect(preferences.storyStyle.value, StoryStyle.circle);
       },
     );
 
-    test('unchosen or unknown stored values fall back to rectangle', () {
-      expect(StoryStyle.parse('hexagon'), StoryStyle.rectangle);
-      expect(StoryStyle.parse(null), StoryStyle.rectangle);
-      expect(StoryStyle.parse('circle'), StoryStyle.circle);
+    test('unchosen or unknown stored values fall back to circle', () {
+      expect(StoryStyle.fallback, StoryStyle.circle);
+      expect(StoryStyle.parse('hexagon'), StoryStyle.circle);
+      expect(StoryStyle.parse(null), StoryStyle.circle);
+      expect(StoryStyle.parse('rectangle'), StoryStyle.rectangle);
     });
   });
 
@@ -272,14 +273,14 @@ void main() {
     Finder rowValue(String value) =>
         find.descendant(of: row, matching: find.text(value));
 
-    testWidgets('shows the current value (Rectangle by default) beside a '
+    testWidgets('shows the current value (Circle by default) beside a '
         'chevron, and no debug chips remain', (tester) async {
       await show(tester);
       expect(
         find.descendant(of: row, matching: find.text('Story Style')),
         findsOneWidget,
       );
-      expect(rowValue('Rectangle'), findsOneWidget);
+      expect(rowValue('Circle'), findsOneWidget);
       expect(
         find.descendant(
           of: row,
@@ -325,28 +326,11 @@ void main() {
         ),
         const Size(24, 24),
       );
-      // Rectangle is listed first and checked.
+      // Rectangle is listed first; Circle (the default) is checked.
       expect(
-        tester.getTopLeft(find.text('Rectangle').last).dy,
-        lessThan(tester.getTopLeft(find.text('Circle')).dy),
+        tester.getTopLeft(find.text('Rectangle')).dy,
+        lessThan(tester.getTopLeft(find.text('Circle').last).dy),
       );
-      expect(
-        find.descendant(
-          of: find.byKey(const ValueKey('story-style-option-rectangle')),
-          matching: find.byIcon(Icons.check_rounded),
-        ),
-        findsOneWidget,
-      );
-
-      await tester.tap(find.byKey(const ValueKey('story-style-option-circle')));
-      await tester.pumpAndSettle();
-      expect(find.byType(StoryStyleBottomSheet), findsNothing);
-      expect(preferences.storyStyle.value, StoryStyle.circle);
-      expect(preferences.getString(PreferencesManager.storyStyleKey), 'circle');
-      expect(rowValue('Circle'), findsOneWidget);
-
-      await tester.tap(row);
-      await tester.pumpAndSettle();
       expect(
         find.descendant(
           of: find.byKey(const ValueKey('story-style-option-circle')),
@@ -354,11 +338,31 @@ void main() {
         ),
         findsOneWidget,
       );
+
       await tester.tap(
         find.byKey(const ValueKey('story-style-option-rectangle')),
       );
       await tester.pumpAndSettle();
+      expect(find.byType(StoryStyleBottomSheet), findsNothing);
+      expect(preferences.storyStyle.value, StoryStyle.rectangle);
+      expect(
+        preferences.getString(PreferencesManager.storyStyleKey),
+        'rectangle',
+      );
       expect(rowValue('Rectangle'), findsOneWidget);
+
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('story-style-option-rectangle')),
+          matching: find.byIcon(Icons.check_rounded),
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('story-style-option-circle')));
+      await tester.pumpAndSettle();
+      expect(rowValue('Circle'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
     });
 
@@ -369,7 +373,7 @@ void main() {
       await tester.tapAt(const Offset(195, 20));
       await tester.pumpAndSettle();
       expect(find.byType(StoryStyleBottomSheet), findsNothing);
-      expect(preferences.storyStyle.value, StoryStyle.rectangle);
+      expect(preferences.storyStyle.value, StoryStyle.circle);
       expect(preferences.getString(PreferencesManager.storyStyleKey), isNull);
       await tester.pumpWidget(const SizedBox());
     });
@@ -394,9 +398,9 @@ void main() {
     StoryRing ring() => tester.widget<StoryRing>(
       find.byKey(const ValueKey('story-segments-8')),
     );
-    expect(ring().cornerRadius, 16);
-    await preferences.saveStoryStyle(StoryStyle.circle);
-    await tester.pump();
     expect(ring().cornerRadius, isNull);
+    await preferences.saveStoryStyle(StoryStyle.rectangle);
+    await tester.pump();
+    expect(ring().cornerRadius, 16);
   });
 }

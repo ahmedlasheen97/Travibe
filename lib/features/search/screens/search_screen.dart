@@ -1,4 +1,5 @@
 import 'package:travibe/features/block/cubit/block_cubit.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/constants/app_sizes.dart';
@@ -16,11 +17,20 @@ import 'package:travibe/features/follow/widgets/follow_action_builder.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 import 'package:travibe/features/search/widgets/person_result_tile.dart';
 import 'package:travibe/features/search/widgets/search_field.dart';
+import 'package:travibe/features/search/widgets/search_post_results.dart';
 import 'package:travibe/features/search/widgets/search_tabs.dart';
 
 class SearchScreen extends StatelessWidget {
-  const SearchScreen({super.key, this.repo, this.onOpenProfile});
+  const SearchScreen({
+    super.key,
+    this.repo,
+    this.onOpenProfile,
+    this.onOpenPost,
+  });
   final SearchRepo? repo;
+
+  /// Opens a post result; defaults to the Post screen.
+  final ValueChanged<PostModel>? onOpenPost;
 
   /// Opens a person's profile by id; defaults to the profile screen.
   final ValueChanged<String>? onOpenProfile;
@@ -30,15 +40,20 @@ class SearchScreen extends StatelessWidget {
     final source = repo ?? SearchRepo();
     return BlocProvider<SearchCubit>(
       create: (context) => SearchCubit(repo: source)..loadRecents(),
-      child: _SearchView(repo: source, onOpenProfile: onOpenProfile),
+      child: _SearchView(
+        repo: source,
+        onOpenProfile: onOpenProfile,
+        onOpenPost: onOpenPost,
+      ),
     );
   }
 }
 
 class _SearchView extends StatefulWidget {
-  const _SearchView({required this.repo, this.onOpenProfile});
+  const _SearchView({required this.repo, this.onOpenProfile, this.onOpenPost});
   final SearchRepo repo;
   final ValueChanged<String>? onOpenProfile;
+  final ValueChanged<PostModel>? onOpenPost;
 
   @override
   State<_SearchView> createState() => _SearchViewState();
@@ -188,20 +203,19 @@ class _SearchViewState extends State<_SearchView> {
         SearchTabs(selected: state.tab, onSelected: cubit.setTab),
         const SizedBox(height: 8),
         Expanded(
-          child: state.tab == SearchTab.people
+          child: state.isTooShort
+              ? _message('Type at least 3 characters to search')
+              : state.isTooLong
+              ? _message('Use no more than 100 characters')
+              : state.tab == SearchTab.people
               ? _buildPeople(state, cubit)
-              : _message('Post search is coming soon.\nTry the People tab.'),
+              : SearchPostResults(state: state, onOpen: widget.onOpenPost),
         ),
       ],
     );
   }
 
   Widget _buildPeople(SearchState state, SearchCubit cubit) {
-    if (state.isTooShort) {
-      return _message('Type at least 3 characters to search');
-    }
-    if (state.isTooLong) return _message('Use no more than 100 characters');
-
     switch (state.status) {
       case SearchStatus.failure:
         return ErrorRetryView(

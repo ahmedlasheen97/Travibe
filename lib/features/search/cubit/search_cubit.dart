@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:travibe/core/datasource/localdata/preferences_manager.dart';
 import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/models/public_user_model.dart';
+import 'package:travibe/features/home/data/post_model.dart';
 import 'package:travibe/features/search/data/recent_search.dart';
 import 'package:travibe/features/search/data/search_repo.dart';
 
@@ -22,9 +23,12 @@ class SearchCubit extends Cubit<SearchState> {
   final searchController = TextEditingController();
 
   Timer? _debounce;
-  int _requestId = 0;
-  int _currentPage = 0;
-  int? _paginationRequestId;
+  int _peopleRequest = 0, _postsRequest = 0;
+  int _peoplePage = 0, _postsPage = 0;
+  int? _peoplePaginationRequest, _postsPaginationRequest;
+
+  /// The term each tab's results belong to; null when stale or failed.
+  String? _peopleTerm, _postsTerm;
 
   /// Owner of the loaded recents; null until resolved for this session.
   String? _recentsOwner;
@@ -60,60 +64,52 @@ class SearchCubit extends Cubit<SearchState> {
 
   // ---------------- typing / searching ----------------
 
+  /// Drops both tabs' results (and makes anything in flight stale).
+  SearchState _withoutResults(SearchState from) {
+    _peopleRequest++;
+    _postsRequest++;
+    _peoplePaginationRequest = _postsPaginationRequest = null;
+    _peopleTerm = _postsTerm = null;
+    return from.copyWith(
+      status: SearchStatus.idle,
+      people: const [],
+      hasMorePeople: false,
+      isLoadingMore: false,
+      errorMessage: '',
+      paginationError: '',
+      postsStatus: SearchStatus.idle,
+      posts: const [],
+      hasMorePosts: false,
+      isLoadingMorePosts: false,
+      postsError: '',
+      postsPaginationError: '',
+    );
+  }
+
   void onQueryChanged(String value) {
     _debounce?.cancel();
-    _requestId++; // anything still in flight is now stale
-    _paginationRequestId = null;
-
     final query = value.trim();
 
     if (query.isEmpty) {
-      emit(
-        state.copyWith(
-          query: '',
-          status: SearchStatus.idle,
-          people: const [],
-          hasMorePeople: false,
-          isLoadingMore: false,
-          errorMessage: '',
-          paginationError: '',
-        ),
-      );
+      emit(_withoutResults(state).copyWith(query: ''));
       return;
     }
 
     // Typing "@..." means looking for a person.
     final tab = query.startsWith('@') ? SearchTab.people : state.tab;
-    final next = state.copyWith(query: query, tab: tab);
-
+    final next = _withoutResults(state.copyWith(query: query, tab: tab));
     if (!next.canSearch) {
-      emit(
-        next.copyWith(
-          status: SearchStatus.idle,
-          people: const [],
-          hasMorePeople: false,
-          isLoadingMore: false,
-          errorMessage: '',
-          paginationError: '',
-        ),
-      );
+      emit(next);
       return;
     }
 
+    // Show the active tab's loading state while the debounce runs.
     emit(
-      next.copyWith(
-        status: SearchStatus.loading,
-        people: const [],
-        hasMorePeople: false,
-        isLoadingMore: false,
-        errorMessage: '',
-        paginationError: '',
-      ),
+      next.tab == SearchTab.posts
+          ? next.copyWith(postsStatus: SearchStatus.loading)
+          : next.copyWith(status: SearchStatus.loading),
     );
-    _debounce = Timer(
-      const Duration(milliseconds: 400),
-      () => _search(next.searchTerm),
-    );
+    _debounce = Timer(const Duration(milliseconds: 400), () => _searchActive());
   }
 
   /// Keyboard "search" button: search immediately and remember the query.
@@ -122,18 +118,36 @@ class SearchCubit extends Cubit<SearchState> {
     if (!state.canSearch) return;
 
     _addRecent(RecentSearch(state.query));
-    _search(state.searchTerm);
+    _searchActive();
   }
 
+  /// Re-runs the visible tab's search.
   Future<void> retry() {
     _debounce?.cancel();
-    return _search(state.searchTerm);
+    return _searchActive();
   }
 
-  Future<void> _search(String term) async {
+  Future<void> _searchActive() => state.tab == SearchTab.posts
+      ? _searchPosts(state.searchTerm)
+      : _searchPeople(state.searchTerm);
+
+  void setTab(SearchTab tab) {
+    if (tab == state.tab) return;
+    emit(state.copyWith(tab: tab));
+    // A pending debounce will search the new tab when it fires.
+    if (_debounce?.isActive == true || !state.canSearch) return;
+    final term = state.searchTerm;
+    if (tab == SearchTab.posts && _postsTerm != term) _searchPosts(term);
+    if (tab == SearchTab.people && _peopleTerm != term) _searchPeople(term);
+  }
+
+  // ---------------- people ----------------
+
+  Future<void> _searchPeople(String term) async {
     if (isClosed || !state.canSearch) return;
-    final requestId = ++_requestId;
-    _paginationRequestId = null;
+    final requestId = ++_peopleRequest;
+    _peoplePaginationRequest = null;
+    _peopleTerm = term;
     emit(
       state.copyWith(
         status: SearchStatus.loading,
@@ -145,9 +159,9 @@ class SearchCubit extends Cubit<SearchState> {
 
     try {
       final page = await _repo.searchUsers(term, page: 1);
-      if (requestId != _requestId || isClosed) return;
+      if (requestId != _peopleRequest || isClosed) return;
 
-      _currentPage = page.currentPage;
+      _peoplePage = page.currentPage;
       emit(
         state.copyWith(
           status: SearchStatus.loaded,
@@ -159,7 +173,8 @@ class SearchCubit extends Cubit<SearchState> {
         ),
       );
     } catch (e) {
-      if (requestId != _requestId || isClosed) return;
+      if (requestId != _peopleRequest || isClosed) return;
+      _peopleTerm = null;
       emit(
         state.copyWith(
           status: SearchStatus.failure,
@@ -171,25 +186,25 @@ class SearchCubit extends Cubit<SearchState> {
 
   Future<void> loadMorePeople({bool retry = false}) async {
     if (isClosed ||
-        _paginationRequestId == _requestId ||
+        _peoplePaginationRequest == _peopleRequest ||
         (!retry && state.paginationError.isNotEmpty) ||
         !state.hasMorePeople ||
         state.status != SearchStatus.loaded) {
       return;
     }
 
-    final requestId = _requestId;
-    _paginationRequestId = requestId;
+    final requestId = _peopleRequest;
+    _peoplePaginationRequest = requestId;
     emit(state.copyWith(isLoadingMore: true, paginationError: ''));
 
     try {
       final page = await _repo.searchUsers(
         state.searchTerm,
-        page: _currentPage + 1,
+        page: _peoplePage + 1,
       );
-      if (requestId != _requestId || isClosed) return;
+      if (requestId != _peopleRequest || isClosed) return;
 
-      _currentPage = page.currentPage;
+      _peoplePage = page.currentPage;
       final people = {for (final user in state.people) user.id: user};
       for (final user in page.users) {
         people[user.id] = user;
@@ -202,7 +217,7 @@ class SearchCubit extends Cubit<SearchState> {
         ),
       );
     } catch (error) {
-      if (requestId == _requestId && !isClosed) {
+      if (requestId == _peopleRequest && !isClosed) {
         emit(
           state.copyWith(
             isLoadingMore: false,
@@ -211,7 +226,97 @@ class SearchCubit extends Cubit<SearchState> {
         );
       }
     } finally {
-      if (_paginationRequestId == requestId) _paginationRequestId = null;
+      if (_peoplePaginationRequest == requestId) {
+        _peoplePaginationRequest = null;
+      }
+    }
+  }
+
+  // ---------------- posts ----------------
+
+  Future<void> _searchPosts(String term) async {
+    if (isClosed || !state.canSearch) return;
+    final requestId = ++_postsRequest;
+    _postsPaginationRequest = null;
+    _postsTerm = term;
+    emit(
+      state.copyWith(
+        postsStatus: SearchStatus.loading,
+        posts: const [],
+        hasMorePosts: false,
+        postsError: '',
+        postsPaginationError: '',
+        isLoadingMorePosts: false,
+      ),
+    );
+
+    try {
+      final page = await _repo.searchPosts(term);
+      if (requestId != _postsRequest || isClosed) return;
+
+      _postsPage = page.currentPage;
+      emit(
+        state.copyWith(
+          postsStatus: SearchStatus.loaded,
+          posts: {for (final post in page.posts) post.id: post}.values.toList(),
+          hasMorePosts: page.hasMore,
+        ),
+      );
+    } catch (e) {
+      if (requestId != _postsRequest || isClosed) return;
+      _postsTerm = null;
+      emit(
+        state.copyWith(
+          postsStatus: SearchStatus.failure,
+          postsError: _messageFrom(e, posts: true),
+        ),
+      );
+    }
+  }
+
+  Future<void> loadMorePosts({bool retry = false}) async {
+    if (isClosed ||
+        _postsPaginationRequest == _postsRequest ||
+        (!retry && state.postsPaginationError.isNotEmpty) ||
+        !state.hasMorePosts ||
+        state.postsStatus != SearchStatus.loaded) {
+      return;
+    }
+
+    final requestId = _postsRequest;
+    _postsPaginationRequest = requestId;
+    emit(state.copyWith(isLoadingMorePosts: true, postsPaginationError: ''));
+
+    try {
+      final page = await _repo.searchPosts(
+        state.searchTerm,
+        page: _postsPage + 1,
+      );
+      if (requestId != _postsRequest || isClosed) return;
+
+      _postsPage = page.currentPage;
+      final posts = {for (final post in state.posts) post.id: post};
+      for (final post in page.posts) {
+        posts.putIfAbsent(post.id, () => post);
+      }
+      emit(
+        state.copyWith(
+          posts: posts.values.toList(),
+          hasMorePosts: page.hasMore,
+          isLoadingMorePosts: false,
+        ),
+      );
+    } catch (error) {
+      if (requestId == _postsRequest && !isClosed) {
+        emit(
+          state.copyWith(
+            isLoadingMorePosts: false,
+            postsPaginationError: _messageFrom(error, posts: true),
+          ),
+        );
+      }
+    } finally {
+      if (_postsPaginationRequest == requestId) _postsPaginationRequest = null;
     }
   }
 
@@ -219,8 +324,6 @@ class SearchCubit extends Cubit<SearchState> {
     searchController.clear();
     onQueryChanged('');
   }
-
-  void setTab(SearchTab tab) => emit(state.copyWith(tab: tab));
 
   // ---------------- recent searches ----------------
 
@@ -277,8 +380,9 @@ class SearchCubit extends Cubit<SearchState> {
     }
   }
 
-  String _messageFrom(Object e) =>
-      e is ApiError ? e.message : 'Unable to search people. Please try again.';
+  String _messageFrom(Object e, {bool posts = false}) => e is ApiError
+      ? e.message
+      : 'Unable to search ${posts ? 'posts' : 'people'}. Please try again.';
 
   @override
   Future<void> close() {

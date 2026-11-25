@@ -5,7 +5,7 @@ enum StoryStyle {
   rectangle;
 
   /// App default for new installs and anyone who hasn't chosen.
-  static const fallback = StoryStyle.rectangle;
+  static const fallback = StoryStyle.circle;
 
   String get label => switch (this) {
     StoryStyle.circle => 'Circle',

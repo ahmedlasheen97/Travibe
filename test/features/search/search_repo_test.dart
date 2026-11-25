@@ -38,6 +38,90 @@ void main() {
     expect(page.currentPage, 2);
     expect(page.hasMore, isTrue);
   });
+  group('searchPosts', () {
+    // Trimmed copy of a real GET /search/posts?q=second response.
+    Map<String, dynamic> realResponse() => {
+      'data': [
+        {
+          'id': 2,
+          'url': 'https://travibeapp.com/posts/2',
+          'user_id': 4,
+          'user': {
+            'id': 4,
+            'name': 'Traveler',
+            'username': 'traveler',
+            'country_code': 'EG',
+            'avatar_url': null,
+            'is_private': false,
+          },
+          'content': 'This is my second post',
+          'media': [],
+          'mentions': [],
+          'visibility': 'public',
+          'likes_count': 3,
+          'comments_count': 1,
+          'is_pinned': false,
+          'comments_disabled': false,
+          'is_liked': true,
+          'is_saved': false,
+          'created_at': '2026-11-20T10:00:00.000000Z',
+          'updated_at': '2026-11-20T10:00:00.000000Z',
+        },
+      ],
+      'links': {
+        'first': 'https://travibeapp.com/api/v1/search/posts?page=1',
+        'last': 'https://travibeapp.com/api/v1/search/posts?page=2',
+        'prev': null,
+        'next': 'https://travibeapp.com/api/v1/search/posts?page=2',
+      },
+      'meta': {'current_page': 1, 'last_page': 2, 'per_page': 15, 'total': 16},
+    };
+
+    test('sends q/page/per_page and parses PostResource', () async {
+      final api = SearchApi()..response = realResponse();
+      final page = await SearchRepo(
+        apiService: api,
+      ).searchPosts(' second ', page: 1);
+      expect(api.paths, ['search/posts']);
+      expect(api.query, {'q': 'second', 'page': 1, 'per_page': 15});
+      expect(page.hasMore, isTrue);
+      final post = page.posts.single;
+      expect(post.id, '2');
+      expect(post.content, 'This is my second post');
+      expect(post.user.id, '4');
+      expect(post.user.name, 'Traveler');
+      expect(post.isLiked, isTrue);
+      expect(post.likesCount, 3);
+      expect(post.media, isEmpty);
+    });
+
+    test('invalid queries never reach the API', () async {
+      final api = SearchApi();
+      final repo = SearchRepo(apiService: api);
+      for (final value in ['', '  ', 'ab', 'x' * 101]) {
+        await expectLater(repo.searchPosts(value), throwsA(isA<ApiError>()));
+      }
+      expect(api.paths, isEmpty);
+    });
+
+    test('malformed responses fail instead of showing no results', () async {
+      for (final body in [
+        {'message': 'Invalid body'},
+        {
+          'data': [
+            {'id': 'x'},
+          ],
+          'meta': {},
+        },
+      ]) {
+        final api = SearchApi()..response = body;
+        await expectLater(
+          SearchRepo(apiService: api).searchPosts('bali'),
+          throwsA(isA<ApiError>()),
+        );
+      }
+    });
+  });
   test('invalid queries never reach the API', () async {
     final api = SearchApi();
     final repo = SearchRepo(apiService: api);
