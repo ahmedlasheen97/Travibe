@@ -11,6 +11,8 @@ import 'package:travibe/core/datasource/remotedata/api_error.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/core/widgets/post_card.dart';
 import 'package:travibe/features/profile/screens/profile_screen.dart';
+import 'package:travibe/features/home/screens/post_screen.dart';
+import 'package:travibe/features/home/widgets/post_options_sheet.dart';
 import 'package:travibe/features/saved/cubit/saves_cubit.dart';
 import 'package:travibe/features/saved/cubit/saved_posts_cubit.dart';
 import '../profile/fixtures.dart';
@@ -113,6 +115,28 @@ void main() {
       expect(find.text('No saved items yet'), findsOneWidget);
     },
   );
+  testWidgets('Saved ⋮ opens the options sheet and never the Post screen', (
+    tester,
+  ) async {
+    await show(tester);
+    await saved(tester);
+    final more = find.byKey(const ValueKey('post-more'));
+    await tester.scrollUntilVisible(
+      more,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(more);
+    await tester.pumpAndSettle();
+    expect(find.byType(PostOptionsSheet), findsOneWidget);
+    expect(find.byType(PostScreen), findsNothing);
+    // Saved post 1 is by user 9; the viewer is 7.
+    for (final label in ['Not interested', 'Hide post', 'Report']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Delete post'), findsNothing);
+  });
+
   testWidgets('save errors preserve bookmark and show backend feedback', (
     tester,
   ) async {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
@@ -18,8 +19,11 @@ void main() {
     String comments = '1.2K',
     Object? authorId,
     List<String>? images,
+    String text = 'Bali was everything I needed.',
+    bool disabled = false,
+    double width = 390,
   }) async {
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = Size(width, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -37,20 +41,24 @@ void main() {
                 name: 'Ahmed Adel',
                 avatar: null,
                 time: '20min',
-                text: 'Bali was everything I needed.',
+                text: text,
                 image: images == null ? 'assets/missing.png' : null,
                 images: images,
                 likes: '123',
                 comments: comments,
                 authorId: authorId,
                 showFollowButton: true,
-                onFollowTap: count('follow'),
-                onLikeTap: count('like'),
-                onLikesCountTap: count('likers'),
-                onCommentsTap: count('comments'),
-                onShareTap: count('share'),
+                // Disabled: every handler null or pending.
+                isFollowPending: disabled,
+                isLikePending: disabled,
+                isSavePending: disabled,
+                onFollowTap: disabled ? null : count('follow'),
+                onLikeTap: disabled ? null : count('like'),
+                onLikesCountTap: disabled ? null : count('likers'),
+                onCommentsTap: disabled ? null : count('comments'),
+                onShareTap: disabled ? null : count('share'),
                 onSaveTap: count('save'),
-                onMoreTap: count('more'),
+                onMoreTap: disabled ? null : count('more'),
                 onOpen: count('open'),
               ),
             ),
@@ -172,5 +180,59 @@ void main() {
   testWidgets('detail presentation reads "N Likes"', (tester) async {
     await show(tester, responsive: true, detail: true);
     expect(find.text('123 Likes'), findsOneWidget);
+  });
+
+  for (final responsive in [false, true]) {
+    testWidgets('disabled or pending buttons never open the post '
+        '(responsive: $responsive)', (tester) async {
+      await show(tester, responsive: responsive, disabled: true);
+      await tester.tap(find.byKey(const ValueKey('post-more')));
+      await tester.tap(find.byKey(const ValueKey('post-like')));
+      await tester.tap(find.text('123'));
+      await tester.tap(find.byKey(const ValueKey('post-comments')));
+      await tester.tap(find.byKey(const ValueKey('post-share')));
+      await tester.tap(find.byKey(const ValueKey('post-save')));
+      await tester.tap(find.text('Updating…'));
+      await tester.pump();
+      expect(taps, isEmpty);
+    });
+  }
+
+  testWidgets('avatar and name without a valid author never open the post', (
+    tester,
+  ) async {
+    await show(tester, authorId: 'not-a-user');
+    await tester.tap(find.byKey(const ValueKey('post-author-avatar')));
+    await tester.tap(find.text('Ahmed Adel'));
+    await tester.pump();
+    expect(taps, isEmpty);
+  });
+
+  testWidgets('"read more" expands the caption in place, not the post', (
+    tester,
+  ) async {
+    // Over the 90-character cut-off but within three lines, so the link shows.
+    const long =
+        'Bali was everything I needed: rice terraces, temples, '
+        'waterfalls and the warmest people. Ten days well spent.';
+    // Test glyphs are 14px squares: widen the view so it fits three lines.
+    await show(tester, text: long, width: 1000);
+    final caption = find.byWidgetPredicate(
+      (w) => w is RichText && w.text.toPlainText().endsWith('read more...'),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(caption);
+    final start = paragraph.text.toPlainText().lastIndexOf('read more...');
+    final box = paragraph.getBoxesForSelection(
+      TextSelection(baseOffset: start, extentOffset: start + 12),
+    );
+    await tester.tapAt(paragraph.localToGlobal(box.first.toRect().center));
+    await tester.pump();
+    expect(taps, isEmpty);
+    expect(caption, findsNothing);
+    expect(find.text(long), findsOneWidget);
+    // The expanded caption is plain text again: tapping it opens the post.
+    await tester.tap(find.text(long));
+    await tester.pump();
+    expect(taps, {'open': 1});
   });
 }

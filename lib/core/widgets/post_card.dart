@@ -6,6 +6,7 @@ import 'package:travibe/core/widgets/home_post_caption.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:travibe/core/utils/formatters.dart';
 import 'package:travibe/features/home/cubit/post_activity_cubit.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:travibe/core/widgets/more_options_button.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -116,6 +117,27 @@ class _PostCardState extends State<PostCard> {
 
   static const int _collapsedMaxLines = 3;
 
+  late final _readMore = TapGestureRecognizer()
+    ..onTap = () => setState(() => _isExpanded = true);
+
+  @override
+  void dispose() {
+    _readMore.dispose();
+    super.dispose();
+  }
+
+  /// Keeps a tap on [control] inside it, even while it is disabled (null
+  /// handler, pending), so it never falls through to [PostCard.onOpen].
+  /// An enabled control is deeper in the hit test, so it still wins.
+  Widget _ownTap(Widget control) => widget.onOpen == null
+      ? control
+      : GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          excludeFromSemantics: true,
+          onTap: () {},
+          child: control,
+        );
+
   double _w(double value) =>
       widget.responsive ? AppSizes.adaptiveWidth(value) : value;
   double _h(double value) =>
@@ -189,48 +211,57 @@ class _PostCardState extends State<PostCard> {
   Widget _buildHeader() {
     return Row(
       children: [
-        UserProfileLink(userId: widget.authorId, child: _buildAvatar()),
+        _ownTap(
+          UserProfileLink(userId: widget.authorId, child: _buildAvatar()),
+        ),
         SizedBox(width: _w(10)),
         // Only the text is a profile link; the rest of the row opens the post.
         Expanded(
           child: Align(
             alignment: AlignmentDirectional.centerStart,
-            child: UserProfileLink(
-              userId: widget.authorId,
-              child: Column(
-                key: const ValueKey('post-author-text'),
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.name,
-                    maxLines: widget.responsive ? 2 : null,
-                    overflow: widget.responsive ? TextOverflow.ellipsis : null,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: _font(14),
+            child: _ownTap(
+              UserProfileLink(
+                userId: widget.authorId,
+                child: Column(
+                  key: const ValueKey('post-author-text'),
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.name,
+                      maxLines: widget.responsive ? 2 : null,
+                      overflow: widget.responsive
+                          ? TextOverflow.ellipsis
+                          : null,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: _font(14),
+                      ),
                     ),
-                  ),
-                  Text(
-                    widget.time,
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: _font(12),
+                    Text(
+                      widget.time,
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: _font(12),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ),
         if (widget.showFollowButton) _authorFollowAction(),
         if (widget.showMoreButton)
-          MoreOptionsButton(
-            onTap: widget.onMoreTap,
-            size: widget.responsive ? _r(38) : AppSizes.w38,
-            height: widget.responsive ? _r(38) : AppSizes.h38,
-            radius: _r(20),
+          _ownTap(
+            MoreOptionsButton(
+              key: const ValueKey('post-more'),
+              onTap: widget.onMoreTap,
+              size: widget.responsive ? _r(38) : AppSizes.w38,
+              height: widget.responsive ? _r(38) : AppSizes.h38,
+              radius: _r(20),
+            ),
           ),
       ],
     );
@@ -307,7 +338,7 @@ class _PostCardState extends State<PostCard> {
         ? Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildFollowButton(),
+              _ownTap(_buildFollowButton()),
               SizedBox(width: _w(8)),
             ],
           )
@@ -420,8 +451,15 @@ class _PostCardState extends State<PostCard> {
       );
     }
 
-    // An openable card shows the full caption on the Post screen instead.
-    if (_isExpanded && widget.onOpen == null) {
+    // "read more" expands in place; on an openable card the rest of the
+    // caption still opens the post.
+    if (_isExpanded && widget.onOpen != null) {
+      return Text(
+        widget.text,
+        style: TextStyle(color: Colors.white, fontSize: _font(14), height: 1.4),
+      );
+    }
+    if (_isExpanded) {
       return GestureDetector(
         onTap: () => setState(() => _isExpanded = false),
         child: Text(
@@ -450,6 +488,7 @@ class _PostCardState extends State<PostCard> {
             TextSpan(text: widget.text),
             TextSpan(
               text: '  read more...',
+              recognizer: widget.onOpen != null ? _readMore : null,
               style: TextStyle(
                 color: DarkColors.primaryColor,
                 fontWeight: FontWeight.w600,
@@ -593,42 +632,49 @@ class _PostCardState extends State<PostCard> {
     );
     final bordered = !widget.detailPresentation;
     final actions = <Widget>[
-      _buildLikeAction(),
-      ActionIconButton(
-        responsive: widget.responsive,
-        bordered: bordered,
-        iconPath: 'assets/images/interactions/message.svg',
-        count: count == null ? widget.comments : formatCount(count),
-        onTap: widget.onCommentsTap,
-      ),
-      Semantics(
-        button: true,
-        label: 'Share post',
-        enabled: widget.onShareTap != null,
-        child: ActionIconButton(
-          key: const ValueKey('post-share'),
+      _ownTap(_buildLikeAction()),
+      _ownTap(
+        ActionIconButton(
+          key: const ValueKey('post-comments'),
           responsive: widget.responsive,
           bordered: bordered,
-          iconPath: 'assets/images/icons/send.svg',
-          onTap: widget.onShareTap,
+          iconPath: 'assets/images/interactions/message.svg',
+          count: count == null ? widget.comments : formatCount(count),
+          onTap: widget.onCommentsTap,
+        ),
+      ),
+      _ownTap(
+        Semantics(
+          button: true,
+          label: 'Share post',
+          enabled: widget.onShareTap != null,
+          child: ActionIconButton(
+            key: const ValueKey('post-share'),
+            responsive: widget.responsive,
+            bordered: bordered,
+            iconPath: 'assets/images/icons/send.svg',
+            onTap: widget.onShareTap,
+          ),
         ),
       ),
     ];
-    final save = Semantics(
-      button: true,
-      toggled: widget.isSaved,
-      label: widget.isSaved ? 'Unsave post' : 'Save post',
-      enabled: !widget.isSavePending && widget.onSaveTap != null,
-      child: Tooltip(
-        message: widget.isSaved ? 'Unsave post' : 'Save post',
-        child: ActionIconButton(
-          key: const ValueKey('post-save'),
-          responsive: widget.responsive,
-          bordered: false,
-          iconPath: widget.isSaved
-              ? 'assets/images/interactions/archive 2.svg'
-              : 'assets/images/interactions/archive.svg',
-          onTap: widget.isSavePending ? null : widget.onSaveTap,
+    final save = _ownTap(
+      Semantics(
+        button: true,
+        toggled: widget.isSaved,
+        label: widget.isSaved ? 'Unsave post' : 'Save post',
+        enabled: !widget.isSavePending && widget.onSaveTap != null,
+        child: Tooltip(
+          message: widget.isSaved ? 'Unsave post' : 'Save post',
+          child: ActionIconButton(
+            key: const ValueKey('post-save'),
+            responsive: widget.responsive,
+            bordered: false,
+            iconPath: widget.isSaved
+                ? 'assets/images/interactions/archive 2.svg'
+                : 'assets/images/interactions/archive.svg',
+            onTap: widget.isSavePending ? null : widget.onSaveTap,
+          ),
         ),
       ),
     );

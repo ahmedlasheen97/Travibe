@@ -193,6 +193,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('post-screen-more')));
     await tester.pumpAndSettle();
     expect(find.byType(PostOptionsSheet), findsOneWidget);
+    // Opens the sheet only: no second Post screen is pushed.
+    expect(find.byType(PostScreen), findsOneWidget);
     expect(find.text('Not interested'), findsOneWidget);
     expect(find.text('Hide post'), findsOneWidget);
     expect(find.text('Report'), findsOneWidget);
