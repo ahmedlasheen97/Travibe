@@ -38,6 +38,9 @@ import 'package:travibe/main.dart' as app;
 import '../buddies/buddies_home_test.dart' as buddies;
 import 'package:travibe/core/notifications/push_notification_service.dart';
 import '../../core/notifications/push_fakes.dart';
+import '../legal/legal_fakes.dart';
+import 'package:travibe/features/legal/data/legal_page.dart';
+import 'package:travibe/features/legal/screens/legal_page_screen.dart';
 
 Map<String, dynamic> settingsUser({int id = 7, bool visible = false}) => {
   'id': id,
@@ -566,6 +569,38 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  testWidgets('Help & Legal opens the website-backed Terms and Privacy', (
+    tester,
+  ) async {
+    final api = SettingsApi();
+    final user = settingsCubit(api);
+    addTearDown(user.close);
+    final legal = FakeLegalPagesRepo();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: darkTheme,
+        home: SettingsScreen(currentUser: user, legalPagesRepo: legal),
+      ),
+    );
+    await tester.pumpAndSettle();
+    for (final (label, slug) in [
+      ('Terms of Service', LegalPageSlug.terms),
+      ('Privacy Policy', LegalPageSlug.privacy),
+    ]) {
+      await tapVisible(tester, find.text(label));
+      expect(
+        tester.widget<LegalPageScreen>(find.byType(LegalPageScreen)).slug,
+        slug,
+      );
+      expect(find.text('1. Who can use Travibe'), findsOneWidget);
+      await tester.tap(find.byType(BackButtonWidget).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(LegalPageScreen), findsNothing);
+    }
+    expect(legal.fetches, [LegalPageSlug.terms, LegalPageSlug.privacy]);
+    await tester.pumpWidget(const SizedBox());
+  });
 
   testWidgets(
     'language applies server-backed preferences; Currency row is hidden by flag',

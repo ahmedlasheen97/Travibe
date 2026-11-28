@@ -270,3 +270,53 @@ chat list preview can still show a hidden last message.
 **Client after:** "Delete for me" calls the endpoint, then removes the
 message from the list. Existing local IDs are sent once in the background
 and then the local store is cleared.
+
+## Legal: API for the Terms and Privacy pages
+
+The in-app Terms of Service and Privacy Policy must show the same text as
+`https://travibeapp.com/terms` and `/privacy`, which are edited in the admin
+panel (`/admin/legal-pages`). `docs/openapi.json` has no endpoint for them
+(`GET /api/v1/legal-pages/terms` → `404`), so the app reads the website's
+HTML today.
+
+**Ask:**
+
+- `GET /api/v1/legal-pages/{slug}` (`terms`, `privacy`), public (no token),
+  from the same admin source as the website:
+
+  ```json
+  {
+    "data": {
+      "slug": "terms",
+      "title": "Terms of Service",
+      "updated_at": "2026-11-25",
+      "locale": "en",
+      "content_html": "<p><strong>1. Who can use Travibe</strong></p><p>…</p>"
+    }
+  }
+  ```
+
+  `content_html` should use only simple prose tags (`p`, `strong`, `em`, `a`,
+  `br`, `h2`–`h3`, `ul`/`ol`/`li`) and real `mailto:` links. Markdown is fine
+  instead, as `content_markdown`. Add `ETag`/`Last-Modified` if possible.
+- Arabic: honour `Accept-Language: ar` (or `?locale=ar`) and return the
+  Arabic text with `"locale": "ar"`. Today `/terms?lang=ar` serves English.
+- Document it in `docs/openapi.json`.
+- Until then, please keep the website markup stable: `<html lang>`, one `<h1>`,
+  `<time datetime="YYYY-MM-DD">` for Last updated, and the body inside
+  `<div class="legal-prose">`. Cloudflare's email obfuscation
+  (`/cdn-cgi/l/email-protection#…`) is decoded by the client, but plain
+  `mailto:` links would be more robust.
+- Unrelated doc fix carried over from the old legal request: in
+  `docs/openapi.json`, `PUT /profile/location` says "the client resolves the
+  device location". That's outdated. The client never uses device location;
+  the user picks a city from search. Please update the description.
+
+**Client today:** `LegalPagesRepo` (`lib/features/legal/data/`) fetches the
+public page, `LegalHtmlParser` reads the `legal-prose` block, and the result
+is cached on the device (`legal_page_v1_<slug>`) for offline use. The
+English page is shown for every app language.
+
+**Client after:** `LegalPagesRepo.fetch` calls the endpoint with the app
+language. The parser stays for `content_html`; the screens, cache and
+fallback don't change.

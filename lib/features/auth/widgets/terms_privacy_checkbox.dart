@@ -1,13 +1,24 @@
 import 'package:travibe/core/constants/app_sizes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
+import 'package:travibe/core/links/link_opener.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
+import 'package:travibe/features/legal/data/legal_pages_repo.dart';
 import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
 
 class TermsAndPrivacyCheckbox extends StatefulWidget {
-  const TermsAndPrivacyCheckbox({super.key, this.onChanged});
+  const TermsAndPrivacyCheckbox({
+    super.key,
+    this.onChanged,
+    this.legalPagesRepo,
+    this.linkOpener,
+  });
   final ValueChanged<bool>? onChanged;
+
+  /// Test seams for the legal screens the links open.
+  final LegalPagesRepo? legalPagesRepo;
+  final LinkOpener? linkOpener;
   @override
   State<TermsAndPrivacyCheckbox> createState() =>
       _TermsAndPrivacyCheckboxState();
@@ -23,9 +34,19 @@ class _TermsAndPrivacyCheckboxState extends State<TermsAndPrivacyCheckbox> {
   void initState() {
     super.initState();
     _termsTap = TapGestureRecognizer()
-      ..onTap = () => _open(const TermsOfServiceScreen());
+      ..onTap = () => _open(
+        TermsOfServiceScreen(
+          repo: widget.legalPagesRepo,
+          linkOpener: widget.linkOpener,
+        ),
+      );
     _privacyTap = TapGestureRecognizer()
-      ..onTap = () => _open(const PrivacyPolicyScreen());
+      ..onTap = () => _open(
+        PrivacyPolicyScreen(
+          repo: widget.legalPagesRepo,
+          linkOpener: widget.linkOpener,
+        ),
+      );
   }
 
   @override

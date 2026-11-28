@@ -8,9 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:travibe/core/theme/dark_colors.dart';
 import 'package:travibe/core/theme/dark_theme.dart';
 import 'package:travibe/features/auth/widgets/terms_privacy_checkbox.dart';
-import 'package:travibe/features/profile/widgets/legal_text_screen.dart';
+import 'package:travibe/features/legal/screens/legal_page_screen.dart';
 import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
+
+import '../legal/legal_fakes.dart';
 
 void main() {
   setUpAll(() async {
@@ -46,7 +48,11 @@ void main() {
           home: Scaffold(
             body: Padding(
               padding: const EdgeInsets.all(8),
-              child: TermsAndPrivacyCheckbox(onChanged: changed),
+              child: TermsAndPrivacyCheckbox(
+                onChanged: changed,
+                legalPagesRepo: FakeLegalPagesRepo(),
+                linkOpener: FakeLinkOpener(),
+              ),
             ),
           ),
         ),
@@ -173,12 +179,12 @@ void main() {
             find.byType(terms ? TermsOfServiceScreen : PrivacyPolicyScreen),
             findsOneWidget,
           );
-          expect(find.byType(LegalTextScreen), findsOneWidget);
+          expect(find.byType(LegalPageScreen), findsOneWidget);
           expect(changes, isEmpty);
           await tester.tap(
             find.byTooltip(
               MaterialLocalizations.of(
-                tester.element(find.byType(LegalTextScreen)),
+                tester.element(find.byType(LegalPageScreen)),
               ).backButtonTooltip,
             ),
           );
