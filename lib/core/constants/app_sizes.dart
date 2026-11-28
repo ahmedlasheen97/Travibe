@@ -148,6 +148,29 @@ class AppSizes {
   );
 
   // ---------------------------------------------------------------------------
+  // Legal pages (Terms of Service, Privacy Policy).
+  // ---------------------------------------------------------------------------
+  static double get legalHorizontalPadding => adaptiveWidth(20);
+  static double get legalHeaderVerticalPadding => adaptiveHeight(8);
+  static EdgeInsets get legalContentPadding => EdgeInsets.fromLTRB(
+    legalHorizontalPadding,
+    adaptiveHeight(16),
+    legalHorizontalPadding,
+    adaptiveHeight(32),
+  );
+  static const double legalMaxContentWidth = 720;
+  static double get legalTitleFont => adaptiveFont(18);
+  static double get legalHeadingFont => adaptiveFont(17);
+  static double get legalBodyFont => adaptiveFont(15);
+  static double get legalMetaFont => adaptiveFont(13);
+  static double get legalHeadingTopGap => adaptiveHeight(16);
+  static double get legalHeadingGap => adaptiveHeight(8);
+  static double get legalParagraphGap => adaptiveHeight(14);
+  static double get legalListIndent => adaptiveWidth(12);
+  static double get legalMetaGap => adaptiveHeight(20);
+  static double get legalFallbackGap => adaptiveHeight(16);
+
+  // ---------------------------------------------------------------------------
   // Chat voice notes (docs/figma/chat/voice_*.png): recording/preview pill,
   // trash + send row, and voice message bubbles.
   // ---------------------------------------------------------------------------

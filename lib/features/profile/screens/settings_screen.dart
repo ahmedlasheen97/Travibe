@@ -21,6 +21,7 @@ import 'package:travibe/features/profile/screens/blocked_account_screen.dart';
 import 'package:travibe/features/profile/screens/change_password_screen.dart';
 import 'package:travibe/features/profile/screens/currency_screen.dart';
 import 'package:travibe/features/profile/screens/delete_account_screen.dart';
+import 'package:travibe/features/legal/data/legal_pages_repo.dart';
 import 'package:travibe/features/profile/screens/privacy_policy_screen.dart';
 import 'package:travibe/features/profile/screens/report_problem_screen.dart';
 import 'package:travibe/features/profile/screens/terms_of_service_screen.dart';
@@ -41,8 +42,12 @@ class SettingsScreen extends StatefulWidget {
     this.accountRepo,
     this.authRepo,
     this.push,
+    this.legalPagesRepo,
   });
   final CurrentUserCubit? currentUser;
+
+  /// Terms/Privacy content source; defaults to [LegalPagesRepo.shared].
+  final LegalPagesRepo? legalPagesRepo;
 
   /// Device push transport for the permission hint; defaults to the app's.
   final PushNotificationService? push;
@@ -337,7 +342,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const TermsOfServiceScreen(),
+                          builder: (context) =>
+                              TermsOfServiceScreen(repo: widget.legalPagesRepo),
                         ),
                       );
                     },
@@ -350,7 +356,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const PrivacyPolicyScreen(),
+                          builder: (context) =>
+                              PrivacyPolicyScreen(repo: widget.legalPagesRepo),
                         ),
                       );
                     },
